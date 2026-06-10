@@ -3,6 +3,7 @@ from secret_tyrant.game import Board, PolicyTile, Party
 
 class TestBoard(unittest.TestCase):
     def test_blue_win(self):
+        """Tests that the blue party wins when five blue tiles are played."""
         board = Board(player_count=5)
 
         for _ in range(5):
@@ -12,6 +13,7 @@ class TestBoard(unittest.TestCase):
         self.assertEqual(board.check_win(), Party.BLUE)
 
     def test_red_win(self):
+        """Tests that the red party wins when six red tiles are played."""
         board = Board(player_count=5)
 
         for _ in range(6):
@@ -21,6 +23,7 @@ class TestBoard(unittest.TestCase):
         self.assertEqual(board.check_win(), Party.RED)
 
     def test_tyrant_zone_entered(self):
+        """Tests that the board correctly identifies when the tyrant zone is entered."""
         board = Board(player_count=5)
 
         for _ in range(3):
