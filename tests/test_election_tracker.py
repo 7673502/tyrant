@@ -1,5 +1,5 @@
 import unittest
-from tyrant.models import ElectionTracker
+from tyrant.models.election_tracker import ElectionTracker
 
 class TestElectionTracker(unittest.TestCase):
     def setUp(self):

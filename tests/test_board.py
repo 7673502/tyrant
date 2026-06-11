@@ -1,5 +1,6 @@
 import unittest
-from tyrant.models import Board, PolicyTile, Party
+from tyrant.models.board import Board
+from tyrant.models.enums import PolicyTile, Party
 
 class TestBoard(unittest.TestCase):
     def test_blue_win(self):

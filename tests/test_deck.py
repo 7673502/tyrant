@@ -1,5 +1,6 @@
 import unittest
-from tyrant.models import Deck, PolicyTile
+from tyrant.models.deck import Deck 
+from tyrant.models.enums import PolicyTile
 
 class TestDeck(unittest.TestCase):
     def setUp(self):

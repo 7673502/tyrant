@@ -1,5 +1,6 @@
 import unittest
-from tyrant.models import BallotBox, Vote
+from tyrant.models.ballot_box import BallotBox
+from tyrant.models.enums import Vote
 
 class TestBallotBox(unittest.TestCase):
     def setUp(self):
