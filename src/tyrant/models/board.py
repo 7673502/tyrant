@@ -1,5 +1,5 @@
 from typing import Final, Optional
-from secret_tyrant.models.enums import Party, PolicyTile, PresidentialPower
+from tyrant.models.enums import Party, PolicyTile, PresidentialPower
 
 TYRANT_ZONE_COUNT: Final = 3
 BLUE_TILES_TO_WIN: Final = 5

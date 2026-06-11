@@ -1,10 +1,10 @@
 [project]
-name = "secret-tyrant"
+name = "tyrant"
 version = "0.1.0"
 description = "Secret Hitler board game implementation"
 readme = "README.md"
 authors = [
-    { name = "Pramod Anandarao", email = "panandarao@wisc.edu" }
+    { name = "Pramod Anandarao" }
 ]
 requires-python = ">=3.13"
 dependencies = []

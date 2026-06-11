@@ -1,4 +1,4 @@
-from secret_tyrant.models.enums import Vote
+from tyrant.models.enums import Vote
 
 class BallotBox:
     def __init__(self):

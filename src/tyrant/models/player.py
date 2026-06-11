@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from secret_tyrant.models.enums import Party, Role
+from tyrant.models.enums import Party, Role
 
 @dataclass
 class Player:

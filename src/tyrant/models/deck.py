@@ -1,6 +1,6 @@
 from random import shuffle
 from typing import Final
-from secret_tyrant.models.enums import PolicyTile
+from tyrant.models.enums import PolicyTile
 
 NUM_BLUE_POLICIES: Final = 6
 NUM_RED_POLICIES: Final = 11
