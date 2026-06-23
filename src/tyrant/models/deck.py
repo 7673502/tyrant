@@ -1,4 +1,5 @@
-from random import shuffle
+from random import Random
+from dataclasses import dataclass
 from typing import Final
 from tyrant.models.enums import PolicyTile
 
@@ -7,24 +8,10 @@ NUM_RED_POLICIES: Final = 11
 POLICY_DRAW_COUNT: Final = 3
 
 
+@dataclass(frozen=True)
 class Deck:
-    def __init__(self):
-        self.draw_pile = []
-        self.discard_pile = NUM_BLUE_POLICIES * [PolicyTile.BLUE] + NUM_RED_POLICIES * [
-            PolicyTile.RED
-        ]
-        self.shuffle()
-
-    def shuffle(self) -> bool:
-        """shuffles only if less than 3 tiles in draw pile and returns whether shuffle occurred"""
-        if len(self.draw_pile) < POLICY_DRAW_COUNT:
-            self.draw_pile.extend(self.discard_pile)
-            shuffle(self.draw_pile)
-            self.discard_pile = []
-
-            return True
-
-        return False
+    draw_pile: tuple[PolicyTile, ...]
+    discard_pile: tuple[PolicyTile, ...] = ()
 
     def _check_draw_size(self):
         if len(self.draw_pile) < POLICY_DRAW_COUNT:
@@ -32,19 +19,45 @@ class Deck:
                 f"Draw pile should always contain at least 3 tiles but contains {len(self.draw_pile)}."
             )
 
-    def draw(self):
-        self._check_draw_size()
-        top_three = (self.draw_pile.pop(), self.draw_pile.pop(), self.draw_pile.pop())
-        return top_three
-
-    def top_deck(self):
-        self._check_draw_size()
-        tile = self.draw_pile.pop()
-        return tile
-
-    def peek(self):
+    @property
+    def peek(self) -> tuple[PolicyTile, ...]:
         self._check_draw_size()
         return self.draw_pile[-3:]
 
-    def discard(self, tile1: PolicyTile, tile2: PolicyTile):
-        self.discard_pile.extend([tile1, tile2])
+
+def create_deck(rng: Random) -> Deck:
+    """Creates and returns a new initialized, shuffled deck."""
+    initial_pile = [PolicyTile.BLUE] * NUM_BLUE_POLICIES + [PolicyTile.RED] * NUM_RED_POLICIES
+    rng.shuffle(initial_pile)
+    return Deck(draw_pile=tuple(initial_pile), discard_pile=())
+
+
+def shuffle_deck(deck: Deck, rng: Random) -> tuple[Deck, bool]:
+    """Shuffles only if less than 3 tiles in draw pile and returns whether shuffle occurred."""
+    if len(deck.draw_pile) < POLICY_DRAW_COUNT:
+        new_draw = list(deck.draw_pile) + list(deck.discard_pile)
+        rng.shuffle(new_draw)
+        return Deck(draw_pile=tuple(new_draw), discard_pile=()), True
+    return deck, False
+
+
+def draw_policies(deck: Deck) -> tuple[Deck, tuple[PolicyTile, PolicyTile, PolicyTile]]:
+    """Draws 3 policies from the deck."""
+    deck._check_draw_size()
+    top_three = (deck.draw_pile[-1], deck.draw_pile[-2], deck.draw_pile[-3])
+    new_draw_pile = deck.draw_pile[:-3]
+    return Deck(draw_pile=new_draw_pile, discard_pile=deck.discard_pile), top_three
+
+
+def top_deck(deck: Deck) -> tuple[Deck, PolicyTile]:
+    """Draws 1 policy from the top of the deck."""
+    deck._check_draw_size()
+    tile = deck.draw_pile[-1]
+    new_draw_pile = deck.draw_pile[:-1]
+    return Deck(draw_pile=new_draw_pile, discard_pile=deck.discard_pile), tile
+
+
+def discard_policies(deck: Deck, tile1: PolicyTile, tile2: PolicyTile) -> Deck:
+    """Discards two policies into the discard pile."""
+    new_discard = deck.discard_pile + (tile1, tile2)
+    return Deck(draw_pile=deck.draw_pile, discard_pile=new_discard)
