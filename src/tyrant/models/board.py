@@ -1,5 +1,5 @@
 from dataclasses import dataclass, replace
-from typing import Final, Optional
+from typing import Final
 from tyrant.models.enums import Party, PolicyTile, PresidentialPower
 
 HITLER_ZONE_COUNT: Final = 3
@@ -50,7 +50,7 @@ class Board:
     fascist_played: int = 0
 
     @property
-    def winner(self) -> Optional[Party]:
+    def winner(self) -> Party | None:
         if self.liberal_played >= LIBERAL_TILES_TO_WIN:
             return Party.LIBERAL
         elif self.fascist_played >= FASCIST_TILES_TO_WIN:
