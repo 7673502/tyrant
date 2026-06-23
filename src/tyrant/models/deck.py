@@ -13,21 +13,25 @@ class Deck:
     draw_pile: tuple[PolicyTile, ...]
     discard_pile: tuple[PolicyTile, ...] = ()
 
-    def _check_draw_size(self):
-        if len(self.draw_pile) < POLICY_DRAW_COUNT:
-            raise RuntimeError(
-                f"Draw pile should always contain at least 3 tiles but contains {len(self.draw_pile)}."
-            )
-
     @property
     def peek(self) -> tuple[PolicyTile, ...]:
-        self._check_draw_size()
+        check_draw_size(self)
         return self.draw_pile[-3:]
+
+
+def check_draw_size(deck: Deck):
+    """Raises RuntimeError if the deck has fewer than 3 tiles in the draw pile."""
+    if len(deck.draw_pile) < POLICY_DRAW_COUNT:
+        raise RuntimeError(
+            f"Draw pile should always contain at least 3 tiles but contains {len(deck.draw_pile)}."
+        )
 
 
 def create_deck(rng: Random) -> Deck:
     """Creates and returns a new initialized, shuffled deck."""
-    initial_pile = [PolicyTile.BLUE] * NUM_BLUE_POLICIES + [PolicyTile.RED] * NUM_RED_POLICIES
+    initial_pile = [PolicyTile.BLUE] * NUM_BLUE_POLICIES + [
+        PolicyTile.RED
+    ] * NUM_RED_POLICIES
     rng.shuffle(initial_pile)
     return Deck(draw_pile=tuple(initial_pile), discard_pile=())
 
@@ -43,7 +47,7 @@ def shuffle_deck(deck: Deck, rng: Random) -> tuple[Deck, bool]:
 
 def draw_policies(deck: Deck) -> tuple[Deck, tuple[PolicyTile, PolicyTile, PolicyTile]]:
     """Draws 3 policies from the deck."""
-    deck._check_draw_size()
+    check_draw_size(deck)
     top_three = (deck.draw_pile[-1], deck.draw_pile[-2], deck.draw_pile[-3])
     new_draw_pile = deck.draw_pile[:-3]
     return Deck(draw_pile=new_draw_pile, discard_pile=deck.discard_pile), top_three
@@ -51,7 +55,7 @@ def draw_policies(deck: Deck) -> tuple[Deck, tuple[PolicyTile, PolicyTile, Polic
 
 def top_deck(deck: Deck) -> tuple[Deck, PolicyTile]:
     """Draws 1 policy from the top of the deck."""
-    deck._check_draw_size()
+    check_draw_size(deck)
     tile = deck.draw_pile[-1]
     new_draw_pile = deck.draw_pile[:-1]
     return Deck(draw_pile=new_draw_pile, discard_pile=deck.discard_pile), tile
