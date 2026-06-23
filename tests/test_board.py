@@ -10,11 +10,11 @@ class TestBoard(unittest.TestCase):
         for count in range(5, 11):
             with self.subTest(player_count=count):
                 board = Board(player_count=count)
-        
+
                 for _ in range(5):
                     self.assertIsNone(board.winner)
                     board, _ = play_tile(board, PolicyTile.BLUE)
-        
+
                 self.assertEqual(board.winner, Party.BLUE)
 
     def test_red_win(self):
@@ -22,11 +22,11 @@ class TestBoard(unittest.TestCase):
         for count in range(5, 11):
             with self.subTest(player_count=count):
                 board = Board(player_count=count)
-        
+
                 for _ in range(6):
                     self.assertIsNone(board.winner)
                     board, _ = play_tile(board, PolicyTile.RED)
-        
+
                 self.assertEqual(board.winner, Party.RED)
 
     def test_tyrant_zone_entered(self):
@@ -34,11 +34,11 @@ class TestBoard(unittest.TestCase):
         for count in range(5, 11):
             with self.subTest(player_count=count):
                 board = Board(player_count=count)
-        
+
                 for _ in range(3):
                     self.assertFalse(board.tyrant_zone)
                     board, _ = play_tile(board, PolicyTile.RED)
-        
+
                 self.assertTrue(board.tyrant_zone)
 
     def test_immutability(self):
@@ -59,6 +59,6 @@ class TestBoard(unittest.TestCase):
             with self.subTest(player_count=count):
                 board = Board(player_count=count)
                 new_board, _ = play_tile(board, PolicyTile.BLUE)
-        
+
                 self.assertEqual(0, board.blue_played)
                 self.assertEqual(1, new_board.blue_played)
