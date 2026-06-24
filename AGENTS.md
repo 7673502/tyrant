@@ -8,7 +8,17 @@
 - The design is a functional, stateful approach.
 - There is an optional dependency for an MCP server.
 - Keep the core game logic completely decoupled from the MCP server routing.
-- Tests use unittest and are run from the project root using `uv run python -m unittest`.
+
+## Testing & Code Standards Rules
+
+- **Strict Immutability:** Every single model must have explicit tests verifying immutability. 
+   - A test that the dataclass is `@dataclass(frozen=True)` and that every field is immutable.
+   - A test for each free function ensuring it returns a *new* instance and does not mutate the input state.
+- **Strict Typing:** Never use mutable collections in the models. Use `tuple` instead of `list`. Use `frozendict` instead of `dict`.
+- **Execution:** Tests run via `uv run python -m unittest`.
+- **Docstrings:** Every test must have a one-line, one-sentence docstring starting with a capital letter and ending with a period.
+- **Zero Inline Comments:** Do not write any of your own inline comments explaining what code does.
+- **Formatting Enforcement:** Use `uv run ruff format .` and `uv run ruff check .` at the project root to ensure that code quality meets standards.
 
 ## Guidelines
 
