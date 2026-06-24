@@ -28,10 +28,18 @@ class TestDeck(unittest.TestCase):
         self.assertEqual(len(tiles), 3)
         self.assertEqual(len(new_deck.draw_pile), 14)
 
-    def test_discard_two(self):
-        """Tests discarding two tiles moves them to the discard pile."""
-        new_deck = discard_policies(self.deck, PolicyTile.FASCIST, PolicyTile.FASCIST)
-        self.assertEqual(len(new_deck.discard_pile), 2)
+    def test_discard_policies(self):
+        """Tests discarding policies moves them to the discard pile."""
+        deck1 = discard_policies(self.deck, PolicyTile.FASCIST)
+        self.assertEqual(len(deck1.discard_pile), 1)
+
+        deck2 = discard_policies(self.deck, PolicyTile.FASCIST, PolicyTile.LIBERAL)
+        self.assertEqual(len(deck2.discard_pile), 2)
+
+        deck3 = discard_policies(
+            self.deck, PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST
+        )
+        self.assertEqual(len(deck3.discard_pile), 3)
 
     def test_draw_pile_empty_exception(self):
         """Tests that a runtime error is raised when drawing from a pile with fewer than three tiles."""

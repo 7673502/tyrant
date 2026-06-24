@@ -61,7 +61,7 @@ def top_deck(deck: Deck) -> tuple[Deck, PolicyTile]:
     return Deck(draw_pile=new_draw_pile, discard_pile=deck.discard_pile), tile
 
 
-def discard_policies(deck: Deck, tile1: PolicyTile, tile2: PolicyTile) -> Deck:
-    """Discards two policies into the discard pile."""
-    new_discard = deck.discard_pile + (tile1, tile2)
+def discard_policies(deck: Deck, *tiles: PolicyTile) -> Deck:
+    """Discards policies into the discard pile."""
+    new_discard = deck.discard_pile + tiles
     return Deck(draw_pile=deck.draw_pile, discard_pile=new_discard)
