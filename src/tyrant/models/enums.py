@@ -37,4 +37,5 @@ class GamePhase(StrEnum):
     PRESIDENT_DISCARD = auto()
     CHANCELLOR_DISCARD = auto()
     PRESIDENTIAL_POWER = auto()
+    PRESIDENT_VETO_RESPONSE = auto()
     GAME_OVER = auto()

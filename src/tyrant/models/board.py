@@ -62,6 +62,10 @@ class Board:
     def hitler_zone(self) -> bool:
         return self.fascist_played >= HITLER_ZONE_COUNT
 
+    @property
+    def veto_power_unlocked(self) -> bool:
+        return self.fascist_played >= 5
+
 
 def play_tile(board: Board, tile: PolicyTile) -> tuple[Board, PresidentialPower]:
     match tile:

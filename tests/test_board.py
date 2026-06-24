@@ -41,6 +41,18 @@ class TestBoard(unittest.TestCase):
 
                 self.assertTrue(board.hitler_zone)
 
+    def test_veto_power_unlocked(self):
+        """Tests that the board correctly identifies when veto power is unlocked."""
+        for count in range(5, 11):
+            with self.subTest(player_count=count):
+                board = Board(player_count=count)
+
+                for _ in range(5):
+                    self.assertFalse(board.veto_power_unlocked)
+                    board, _ = play_tile(board, PolicyTile.FASCIST)
+
+                self.assertTrue(board.veto_power_unlocked)
+
     def test_immutability(self):
         """Tests that the Board dataclass is frozen and cannot be mutated."""
         for count in range(5, 11):
