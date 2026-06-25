@@ -35,7 +35,7 @@ class GamePhase(StrEnum):
     NOMINATION = auto()
     VOTING = auto()
     PRESIDENT_DISCARD = auto()
-    CHANCELLOR_DISCARD = auto()
+    CHANCELLOR_ENACT = auto()
     PRESIDENTIAL_POWER = auto()
     PRESIDENT_VETO_RESPONSE = auto()
     GAME_OVER = auto()
