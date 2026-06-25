@@ -26,7 +26,7 @@ Design conventions observed:
 
 GameState is the top-level container that composes all sub-models into a single immutable snapshot of a Secret Hitler game. It must track:
 
-1. **Players** — ordered list, identities, alive/dead status
+1. **Players** — ordered list, identities, alive/dead status (serves as rotation order)
 2. **Board** — liberal/fascist tiles played (already exists)
 3. **Deck** — draw/discard piles (already exists)
 4. **Election Tracker** — failed election count (already exists)
@@ -50,8 +50,7 @@ class GameState:
     deck: Deck
     election_tracker: ElectionTracker
     phase: GamePhase
-    presidential_order: tuple[int, ...]     # uid rotation order
-    president_index: int                     # index into presidential_order
+    president_index: int                    # index into players tuple
     nominated_chancellor: int | None        # uid or None
     ballot_box: BallotBox
     drawn_policies: tuple[PolicyTile, ...]  # 3 tiles (president), 2 tiles (chancellor), or ()
@@ -74,9 +73,9 @@ class GameState:
 
 Initializes a new game:
 - Create `len(uids)` `Player` instances with assigned `Party`/`Role` per Secret Hitler rules.
+- Shuffle the created `Player` instances (based on `rng`) to randomize the rotation order.
 - Create the `Board`, `Deck`, `ElectionTracker`, empty `BallotBox`.
 - Set `phase = GamePhase.NOMINATION`.
-- Randomize `presidential_order` (based on `rng`, using the provided `uids`).
 - Set `president_index = 0`.
 
 **Verify:** Correct role distribution (1 Hitler + F fascists + L liberals), shuffled deck, phase is `NOMINATION`.
@@ -84,7 +83,7 @@ Initializes a new game:
 ### Step 1.5: `_advance_to_nomination(state: GameState) -> GameState` (Internal Helper)
 
 Centralized helper for transitioning to a new nomination phase.
-- Advances `president_index` (handling special elections properly).
+- Advances `president_index` (handling special elections properly and ensuring that the president in rotation is alive).
 - Resets `ballot_box` to empty.
 - Resets `veto_denied_this_term = False`.
 - Clears `nominated_chancellor`.
@@ -133,14 +132,14 @@ When all votes are in:
 President discards one of three drawn policies:
 - Validate: phase is `PRESIDENT_DISCARD`, index is valid.
 - Move discarded tile to discard pile, keep remaining 2 as `drawn_policies`.
-- Set `phase = GamePhase.CHANCELLOR_DISCARD`.
+- Set `phase = GamePhase.CHANCELLOR_ENACT`.
 
 **Verify:** Exactly 2 policies remain, discard pile grows by 1.
 
 ### Step 6: `chancellor_discard(state: GameState, discard_index: int) -> GameState`
 
 Chancellor discards one of two remaining policies (or initiates veto):
-- Validate: phase is `CHANCELLOR_DISCARD`, index is valid.
+- Validate: phase is `CHANCELLOR_ENACT`, index is valid.
 - Play the remaining tile on the board via `play_tile`.
 - Discard the other tile.
 - Check board win conditions.
@@ -153,7 +152,7 @@ Chancellor discards one of two remaining policies (or initiates veto):
 ### Step 7: `chancellor_veto(state: GameState) -> GameState`
 
 Chancellor proposes a veto (only when veto power unlocked):
-- Validate: phase is `CHANCELLOR_DISCARD`, veto power is unlocked, `veto_denied_this_term` is `False`.
+- Validate: phase is `CHANCELLOR_ENACT`, veto power is unlocked, `veto_denied_this_term` is `False`.
 - Set `phase = GamePhase.PRESIDENT_VETO_RESPONSE`.
 
 **Verify:** Only available when 5+ fascist tiles played and veto hasn't been denied this term.
@@ -162,7 +161,7 @@ Chancellor proposes a veto (only when veto power unlocked):
 
 President approves or denies the veto:
 - **Approve:** Discard both remaining policies, increment election tracker (check top-deck logic). Call `_advance_to_nomination(state)`.
-- **Deny:** Set `veto_denied_this_term = True`, `phase = GamePhase.CHANCELLOR_DISCARD` (chancellor must now choose).
+- **Deny:** Set `veto_denied_this_term = True`, `phase = GamePhase.CHANCELLOR_ENACT` (chancellor must now choose).
 
 **Verify:** Approved veto increments tracker, denied veto locks out further vetoes and returns to chancellor.
 
@@ -186,7 +185,7 @@ Produces a localized view of the GameState with hidden information removed based
   - If viewer is Fascist (or Hitler in 5-6 player games): Fascists see each other and Hitler. Non-fascists are hidden (`None`).
   - **Investigations:** If the viewer has investigated a player (i.e. `state.investigations.get(player_uid) == viewer_uid`), that player's party is visible to the viewer (role remains hidden).
 - **Deck:** The order of `draw_pile` and `discard_pile` is hidden (perhaps replaced with empty tuples or masked values so length is known but contents are not, pending exact implementation).
-- **Drawn Policies:** Hidden (`()`) unless the viewer is the active President during `PRESIDENT_DISCARD` or the active Chancellor during `CHANCELLOR_DISCARD`.
+- **Drawn Policies:** Hidden (`()`) unless the viewer is the active President during `PRESIDENT_DISCARD` or the active Chancellor during `CHANCELLOR_ENACT`.
 - **Policy Peek:** If the viewer just used Policy Peek, the top 3 cards can be temporarily revealed in a side channel, or `drawn_policies` is used to expose them.
 
 **Verify:** Scrubbing correctly respects team-knowledge rules, investigations, player counts, and current active phases.
