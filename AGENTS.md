@@ -8,6 +8,7 @@
 - The design is a functional, stateful approach.
 - There is an optional dependency for an MCP server.
 - Keep the core game logic completely decoupled from the MCP server routing.
+- This project uses Python 3.15 which adds `frozendict` as a new built-in type.
 
 ## Testing & Code Standards Rules
 
