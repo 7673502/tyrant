@@ -19,6 +19,7 @@
 - **Execution:** Tests run via `uv run python -m unittest`.
 - **Docstrings:** Every test must have a one-line, one-sentence docstring starting with a capital letter and ending with a period.
 - **Zero Inline Comments:** Do not write any of your own inline comments explaining what code does.
+- **Imports At Top of File:** Imports should only be performed once per file at the top of the file. Imports should never be placed in function bodies.
 - **Formatting Enforcement:** Use `uv run ruff format .` and `uv run ruff check .` at the project root to ensure that code quality meets standards.
 
 ## Guidelines
