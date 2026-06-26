@@ -205,5 +205,14 @@ Produces a localized view of the GameState with hidden information removed based
 8. scrub_state                                 → verify: information hiding based on rules
 ```
 
-Each step gets its own test class. Tests follow the existing patterns: immutability checks, correctness, edge cases.
+Each class and free function (including helpers) gets its own test class. Tests follow the existing patterns: immutability checks, correctness, edge cases.
+
+### Immutability Testing
+
+All tests for `GameState` and its free functions must inherit from `BaseGameStateTest` (located in `tests/test_game_state.py`). This base class provides helpers to strictly enforce immutability:
+- For a free function that transitions from one `GameState` to another (e.g., `_advance_to_nomination(state)`), you must use `self.assert_pure_transition(original_state, new_state)`. This verifies that the old state was not mutated in place and that the new state is completely frozen.
+- For a function that generates a `GameState` from scratch without a previous state (e.g., `create_game(...)`), you must use `self.assert_state_immutable(state)` on the generated state.
+- The immutability test for each function should be explicitly named `test_[FUNCTION_NAME]_immutability`.
+
+**NOTE:** Exception to "zero comments rule"; if a function is incomplete because a component of it is dependent on a later step add a #TODO comment briefly describing what necessary functionality is still missing. These comments should be cleaned at the end of step 10.
 
