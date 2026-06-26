@@ -8,7 +8,12 @@ from tyrant.models.board import Board
 from tyrant.models.deck import create_deck
 from tyrant.models.election_tracker import ElectionTracker
 from tyrant.models.ballot_box import BallotBox
-from tyrant.models.game_state import GameState, create_game, _advance_to_nomination
+from tyrant.models.game_state import (
+    GameState,
+    create_game,
+    _advance_to_nomination,
+    nominate_chancellor,
+)
 
 
 class BaseGameStateTest(unittest.TestCase):
@@ -161,7 +166,6 @@ class TestAdvanceToNomination(BaseGameStateTest):
         self.assertEqual(new_state.president_index, 2)
         new_state = _advance_to_nomination(new_state)
         self.assertEqual(new_state.president_index, 0)
-        
 
     def test_advance_skips_dead_players(self):
         """Verifies that _advance_to_nomination skips dead players when finding the next president."""
@@ -248,6 +252,150 @@ class TestAdvanceToNomination(BaseGameStateTest):
         new_state = _advance_to_nomination(state)
         self.assertEqual(new_state.president_index, 1)
         self.assertIsNone(new_state.special_election_president)
+
+
+class TestNominateChancellor(BaseGameStateTest):
+    def setUp(self):
+        self.rng = Random(42)
+
+    def test_nominate_chancellor_immutability(self):
+        """Verifies that nominate_chancellor returns a new instance without mutating the input state."""
+        state = create_game((1, 2, 3, 4, 5), self.rng)
+        # president_index is 0, so uid is state.players[0].uid
+        target_uid = state.players[1].uid
+        new_state = nominate_chancellor(state, target_uid)
+        self.assert_pure_transition(state, new_state)
+
+    def test_nominate_chancellor(self):
+        """Verifies that GameState gets updated correctly with the new chancellor and GamePhase."""
+        state = create_game((1, 2, 3, 4, 5), self.rng)
+        target_uid = state.players[1].uid
+        new_state = nominate_chancellor(state, target_uid)
+
+        self.assertEqual(new_state.nominated_chancellor, target_uid)
+        self.assertEqual(new_state.phase, GamePhase.VOTING)
+
+    def test_nominate_chancellor_wrong_game_phase(self):
+        """Verifies that error is raised if the passed GameState has a phase other than NOMINATION."""
+        from dataclasses import replace
+
+        state = create_game((1, 2, 3, 4, 5), self.rng)
+        state = replace(state, phase=GamePhase.VOTING)
+
+        target_uid = state.players[1].uid
+        with self.assertRaises(ValueError):
+            nominate_chancellor(state, target_uid)
+
+    def test_nominate_chancellor_leq_6(self):
+        """Verifies that the target chancellor cannot be the previous chancellor but can be the previous president."""
+        from dataclasses import replace
+
+        for count in (5, 6):
+            with self.subTest(player_count=count):
+                uids = tuple(range(1, count + 1))
+                state = create_game(uids, self.rng)
+
+                prev_chanc = state.players[1].uid
+                prev_pres = state.players[2].uid
+
+                state = replace(
+                    state,
+                    president_index=0,
+                    previous_chancellor=prev_chanc,
+                    previous_president=prev_pres,
+                )
+
+                with self.assertRaises(ValueError):
+                    nominate_chancellor(state, prev_chanc)
+
+                new_state = nominate_chancellor(state, prev_pres)
+                self.assertEqual(new_state.nominated_chancellor, prev_pres)
+
+    def test_nominate_chancellor_geq_7(self):
+        """Verifies that the target chancellor cannot be the previous chancellor or president."""
+        from dataclasses import replace
+
+        for count in range(7, 11):
+            with self.subTest(player_count=count):
+                uids = tuple(range(1, count + 1))
+                state = create_game(uids, self.rng)
+
+                prev_chanc = state.players[1].uid
+                prev_pres = state.players[2].uid
+
+                state = replace(
+                    state,
+                    president_index=0,
+                    previous_chancellor=prev_chanc,
+                    previous_president=prev_pres,
+                )
+
+                with self.assertRaises(ValueError):
+                    nominate_chancellor(state, prev_chanc)
+
+                with self.assertRaises(ValueError):
+                    nominate_chancellor(state, prev_pres)
+
+    def test_nominate_chancellor_leq_6_alive(self):
+        """Verifies that when <= 6 players are alive, previous chancellor cannot be elected but previous president can."""
+        from dataclasses import replace
+
+        for count in range(7, 11):
+            with self.subTest(player_count=count):
+                uids = tuple(range(1, count + 1))
+                state = create_game(uids, self.rng)
+
+                dead_players = state.players[6:]
+
+                new_players = []
+                for p in state.players:
+                    if p in dead_players:
+                        new_players.append(replace(p, is_alive=False))
+                    else:
+                        new_players.append(p)
+
+                prev_chanc = new_players[1].uid
+                prev_pres = new_players[2].uid
+
+                state = replace(
+                    state,
+                    players=tuple(new_players),
+                    president_index=0,
+                    previous_chancellor=prev_chanc,
+                    previous_president=prev_pres,
+                )
+
+                with self.assertRaises(ValueError):
+                    nominate_chancellor(state, prev_chanc)
+
+                new_state = nominate_chancellor(state, prev_pres)
+                self.assertEqual(new_state.nominated_chancellor, prev_pres)
+
+    def test_nominate_chancellor_dead(self):
+        """Verifies that the passed chancellor is alive."""
+        from dataclasses import replace
+
+        state = create_game((1, 2, 3, 4, 5), self.rng)
+        new_players = list(state.players)
+        new_players[1] = replace(new_players[1], is_alive=False)
+        state = replace(state, players=tuple(new_players))
+
+        dead_uid = state.players[1].uid
+        with self.assertRaises(ValueError):
+            nominate_chancellor(state, dead_uid)
+
+    def test_nominate_self(self):
+        """Verifies that the current president cannot nominate themselves."""
+        state = create_game((1, 2, 3, 4, 5), self.rng)
+        pres_uid = state.players[state.president_index].uid
+        with self.assertRaises(ValueError):
+            nominate_chancellor(state, pres_uid)
+
+    def test_nominate_invalid_uid(self):
+        """Verifies that the chancellor UID is valid."""
+        state = create_game((1, 2, 3, 4, 5), self.rng)
+        with self.assertRaises(ValueError):
+            nominate_chancellor(state, 6)
 
 
 if __name__ == "__main__":
