@@ -1,8 +1,8 @@
 import unittest
 from random import Random
-from dataclasses import is_dataclass, fields
+from dataclasses import is_dataclass, fields, replace
 
-from tyrant.models.enums import GamePhase, Party, Role
+from tyrant.models.enums import GamePhase, Party, Role, Vote
 from tyrant.models.player import Player
 from tyrant.models.board import Board
 from tyrant.models.deck import create_deck
@@ -13,6 +13,7 @@ from tyrant.models.game_state import (
     create_game,
     _advance_to_nomination,
     nominate_chancellor,
+    cast_vote,
 )
 
 
@@ -277,7 +278,6 @@ class TestNominateChancellor(BaseGameStateTest):
 
     def test_nominate_chancellor_wrong_game_phase(self):
         """Verifies that error is raised if the passed GameState has a phase other than NOMINATION."""
-        from dataclasses import replace
 
         state = create_game((1, 2, 3, 4, 5), self.rng)
         state = replace(state, phase=GamePhase.VOTING)
@@ -288,7 +288,6 @@ class TestNominateChancellor(BaseGameStateTest):
 
     def test_nominate_chancellor_leq_6(self):
         """Verifies that the target chancellor cannot be the previous chancellor but can be the previous president."""
-        from dataclasses import replace
 
         for count in (5, 6):
             with self.subTest(player_count=count):
@@ -313,7 +312,6 @@ class TestNominateChancellor(BaseGameStateTest):
 
     def test_nominate_chancellor_geq_7(self):
         """Verifies that the target chancellor cannot be the previous chancellor or president."""
-        from dataclasses import replace
 
         for count in range(7, 11):
             with self.subTest(player_count=count):
@@ -338,7 +336,6 @@ class TestNominateChancellor(BaseGameStateTest):
 
     def test_nominate_chancellor_leq_6_alive(self):
         """Verifies that when <= 6 players are alive, previous chancellor cannot be elected but previous president can."""
-        from dataclasses import replace
 
         for count in range(7, 11):
             with self.subTest(player_count=count):
@@ -373,7 +370,6 @@ class TestNominateChancellor(BaseGameStateTest):
 
     def test_nominate_chancellor_dead(self):
         """Verifies that the passed chancellor is alive."""
-        from dataclasses import replace
 
         state = create_game((1, 2, 3, 4, 5), self.rng)
         new_players = list(state.players)
@@ -396,6 +392,81 @@ class TestNominateChancellor(BaseGameStateTest):
         state = create_game((1, 2, 3, 4, 5), self.rng)
         with self.assertRaises(ValueError):
             nominate_chancellor(state, 6)
+
+
+class TestCastVote(BaseGameStateTest):
+    def setUp(self):
+        self.rng = Random(42)
+
+    def test_cast_vote_immutability(self):
+        """Verifies that cast_vote returns a new instance without mutating the input state."""
+        state = create_game((1, 2, 3, 4, 5), self.rng)
+        state = replace(state, phase=GamePhase.VOTING)
+
+        uid = state.players[0].uid
+        new_state = cast_vote(state, uid, Vote.JA)
+
+        self.assert_pure_transition(state, new_state)
+
+    def test_cast_vote(self):
+        """Verifies that the ballot box is updated correctly for each vote."""
+        state = create_game((1, 2, 3, 4, 5), self.rng)
+        state = replace(state, phase=GamePhase.VOTING)
+
+        uid1 = state.players[0].uid
+        uid2 = state.players[1].uid
+
+        state = cast_vote(state, uid1, Vote.JA)
+        self.assertEqual(state.ballot_box.votes[uid1], Vote.JA)
+        self.assertEqual(state.ballot_box.vote_count, 1)
+
+        state = cast_vote(state, uid2, Vote.NEIN)
+        self.assertEqual(state.ballot_box.votes[uid1], Vote.JA)
+        self.assertEqual(state.ballot_box.votes[uid2], Vote.NEIN)
+        self.assertEqual(state.ballot_box.vote_count, 2)
+
+    def test_cast_vote_change(self):
+        """Verifies that a player can vote one way and then change their vote."""
+        state = create_game((1, 2, 3, 4, 5), self.rng)
+        state = replace(state, phase=GamePhase.VOTING)
+
+        uid = state.players[0].uid
+
+        state = cast_vote(state, uid, Vote.JA)
+        self.assertEqual(state.ballot_box.votes[uid], Vote.JA)
+        self.assertEqual(state.ballot_box.vote_count, 1)
+
+        state = cast_vote(state, uid, Vote.NEIN)
+        self.assertEqual(state.ballot_box.votes[uid], Vote.NEIN)
+        self.assertEqual(state.ballot_box.vote_count, 1)
+
+    def test_cast_vote_invalid_uid(self):
+        """Verifies that an invalid player uid cannot contribute a vote."""
+        state = create_game((1, 2, 3, 4, 5), self.rng)
+        state = replace(state, phase=GamePhase.VOTING)
+
+        with self.assertRaises(ValueError):
+            cast_vote(state, 999, Vote.JA)
+
+    def test_cast_vote_dead(self):
+        """Verifies that a dead player cannot vote."""
+        state = create_game((1, 2, 3, 4, 5), self.rng)
+
+        new_players = list(state.players)
+        new_players[0] = replace(new_players[0], is_alive=False)
+        state = replace(state, players=tuple(new_players), phase=GamePhase.VOTING)
+
+        dead_uid = state.players[0].uid
+        with self.assertRaises(ValueError):
+            cast_vote(state, dead_uid, Vote.JA)
+
+    def test_cast_vote_wrong_game_phase(self):
+        """Verifies that error is raised if the passed GameState has a phase other than VOTING."""
+        state = create_game((1, 2, 3, 4, 5), self.rng)
+        state = replace(state, phase=GamePhase.NOMINATION)
+
+        with self.assertRaises(ValueError):
+            cast_vote(state, 1, Vote.JA)
 
 
 if __name__ == "__main__":

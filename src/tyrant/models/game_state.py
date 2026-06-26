@@ -2,12 +2,12 @@ from dataclasses import dataclass, replace
 from random import Random
 from typing import Final
 
-from tyrant.models.enums import GamePhase, Party, Role, PolicyTile
+from tyrant.models.enums import GamePhase, Party, Role, PolicyTile, Vote
 from tyrant.models.player import Player
 from tyrant.models.board import Board
 from tyrant.models.deck import Deck, create_deck
 from tyrant.models.election_tracker import ElectionTracker
-from tyrant.models.ballot_box import BallotBox
+from tyrant.models.ballot_box import BallotBox, submit_vote
 
 ROLE_DISTRIBUTION: Final[frozendict[int, tuple[int, int]]] = frozendict(
     {5: (3, 2), 6: (4, 2), 7: (4, 3), 8: (5, 3), 9: (5, 4), 10: (6, 4)}
@@ -132,3 +132,29 @@ def nominate_chancellor(state: GameState, chancellor_uid: int) -> GameState:
             )
 
     return replace(state, nominated_chancellor=chancellor_uid, phase=GamePhase.VOTING)
+
+
+def _resolve_election(state: GameState) -> GameState:
+    # TODO: Implement step 4 (election resolution)
+    return state
+
+
+def cast_vote(state: GameState, uid: int, vote: Vote) -> GameState:
+    if state.phase != GamePhase.VOTING:
+        raise ValueError(f"Cannot cast vote in phase {state.phase}")
+
+    player = next((p for p in state.players if p.uid == uid), None)
+    if player is None:
+        raise ValueError(f"Player with UID {uid} not found")
+
+    if not player.is_alive:
+        raise ValueError("Cannot vote when dead")
+
+    new_ballot_box = submit_vote(state.ballot_box, uid, vote)
+    new_state = replace(state, ballot_box=new_ballot_box)
+
+    alive_count = sum(1 for p in state.players if p.is_alive)
+    if new_ballot_box.vote_count == alive_count:
+        return _resolve_election(new_state)
+
+    return new_state
