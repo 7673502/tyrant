@@ -102,3 +102,33 @@ def _advance_to_nomination(state: GameState) -> GameState:
         veto_denied_this_term=False,
         nominated_chancellor=None,
     )
+
+
+def nominate_chancellor(state: GameState, chancellor_uid: int) -> GameState:
+    if state.phase != GamePhase.NOMINATION:
+        raise ValueError(f"Cannot nominate chancellor in phase {state.phase}")
+
+    president = state.players[state.president_index]
+    if chancellor_uid == president.uid:
+        raise ValueError("President cannot nominate themselves")
+
+    chancellor = next((p for p in state.players if p.uid == chancellor_uid), None)
+    if chancellor is None:
+        raise ValueError(f"Player with UID {chancellor_uid} not found")
+
+    if not chancellor.is_alive:
+        raise ValueError("Cannot nominate a dead player")
+
+    alive_count = sum(1 for p in state.players if p.is_alive)
+    if alive_count > 6:
+        if chancellor_uid in (state.previous_president, state.previous_chancellor):
+            raise ValueError(
+                "Target cannot be previous president or chancellor when > 6 players are alive"
+            )
+    else:
+        if chancellor_uid == state.previous_chancellor:
+            raise ValueError(
+                "Target cannot be previous chancellor when <= 6 players are alive"
+            )
+
+    return replace(state, nominated_chancellor=chancellor_uid, phase=GamePhase.VOTING)
