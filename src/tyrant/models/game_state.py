@@ -177,7 +177,9 @@ def _resolve_election(state: GameState, rng: Random) -> GameState:
             )
 
             if new_board.winner is not None:
-                return replace(new_state, winner=new_board.winner, phase=GamePhase.GAME_OVER)
+                return replace(
+                    new_state, winner=new_board.winner, phase=GamePhase.GAME_OVER
+                )
 
             return _advance_to_nomination(new_state)
         else:
