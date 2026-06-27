@@ -58,6 +58,7 @@ class GameState:
     previous_chancellor: int | None         # uid, for term limits
     winner: Party | None
     special_election_president: int | None  # uid, if special election is active
+    rng_state: tuple                        # state of the random number generator
     veto_denied_this_term: bool = False
     investigations: frozendict[int, int] = frozendict()  # investigated_uid -> investigator_uid
 ```
@@ -69,7 +70,7 @@ class GameState:
 
 ## Proposed Free Functions (Step-by-Step Plan)
 
-### Step 1: `create_game(uids: tuple[int, ...], rng: Random) -> GameState`
+### Step 1: `create_game(uids: tuple[int, ...], seed: int) -> GameState`
 
 Initializes a new game:
 - Create `len(uids)` `Player` instances with assigned `Party`/`Role` per Secret Hitler rules.

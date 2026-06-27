@@ -29,11 +29,12 @@ class GameState:
     previous_chancellor: int | None
     winner: Party | None
     special_election_president: int | None
+    rng_state: tuple
     veto_denied_this_term: bool = False
     investigations: frozendict[int, int] = frozendict()
 
 
-def create_game(uids: tuple[int, ...], rng: Random) -> GameState:
+def create_game(uids: tuple[int, ...], seed: int = 42) -> GameState:
     player_count = len(uids)
     if not (5 <= player_count <= 10):
         raise ValueError(f"Player count must be between 5 and 10, got {player_count}")
@@ -47,6 +48,7 @@ def create_game(uids: tuple[int, ...], rng: Random) -> GameState:
         + [Role.FASCIST] * (num_fascists - 1)
         + [Role.LIBERAL] * num_liberals
     )
+    rng = Random(seed)
     rng.shuffle(roles_pool)
 
     players_list = []
@@ -70,6 +72,7 @@ def create_game(uids: tuple[int, ...], rng: Random) -> GameState:
         previous_chancellor=None,
         winner=None,
         special_election_president=None,
+        rng_state=rng.getstate(),
         veto_denied_this_term=False,
         investigations=frozendict(),
     )
@@ -134,7 +137,10 @@ def nominate_chancellor(state: GameState, chancellor_uid: int) -> GameState:
     return replace(state, nominated_chancellor=chancellor_uid, phase=GamePhase.VOTING)
 
 
-def _resolve_election(state: GameState, rng: Random) -> GameState:
+def _resolve_election(state: GameState) -> GameState:
+    rng = Random()
+    rng.setstate(state.rng_state)
+
     ja_votes = sum(1 for v in state.ballot_box.votes.values() if v == Vote.JA)
     nein_votes = sum(1 for v in state.ballot_box.votes.values() if v == Vote.NEIN)
 
@@ -143,7 +149,7 @@ def _resolve_election(state: GameState, rng: Random) -> GameState:
         chancellor = next(p for p in state.players if p.uid == chancellor_uid)
 
         if state.board.hitler_zone and chancellor.role == Role.HITLER:
-            return replace(state, winner=Party.FASCIST, phase=GamePhase.GAME_OVER)
+            return replace(state, winner=Party.FASCIST, phase=GamePhase.GAME_OVER, rng_state=rng.getstate())
 
         new_deck, drawn = draw_policies(state.deck)
 
@@ -155,6 +161,7 @@ def _resolve_election(state: GameState, rng: Random) -> GameState:
             election_tracker=ElectionTracker(failed_elections=0),
             previous_president=state.players[state.president_index].uid,
             previous_chancellor=chancellor_uid,
+            rng_state=rng.getstate(),
         )
     else:
         new_tracker, triggered_top_deck = increment_election_tracker(
@@ -174,6 +181,7 @@ def _resolve_election(state: GameState, rng: Random) -> GameState:
                 board=new_board,
                 previous_president=None,
                 previous_chancellor=None,
+                rng_state=rng.getstate(),
             )
 
             if new_board.winner is not None:
@@ -183,11 +191,11 @@ def _resolve_election(state: GameState, rng: Random) -> GameState:
 
             return _advance_to_nomination(new_state)
         else:
-            new_state = replace(state, election_tracker=new_tracker)
+            new_state = replace(state, election_tracker=new_tracker, rng_state=rng.getstate())
             return _advance_to_nomination(new_state)
 
 
-def cast_vote(state: GameState, uid: int, vote: Vote, rng: Random) -> GameState:
+def cast_vote(state: GameState, uid: int, vote: Vote) -> GameState:
     if state.phase != GamePhase.VOTING:
         raise ValueError(f"Cannot cast vote in phase {state.phase}")
 
@@ -203,6 +211,6 @@ def cast_vote(state: GameState, uid: int, vote: Vote, rng: Random) -> GameState:
 
     alive_count = sum(1 for p in state.players if p.is_alive)
     if new_ballot_box.vote_count == alive_count:
-        return _resolve_election(new_state, rng)
+        return _resolve_election(new_state)
 
     return new_state
