@@ -15,6 +15,7 @@ from tyrant.models.game_state import (
     nominate_chancellor,
     cast_vote,
     _resolve_election,
+    president_discard,
 )
 
 
@@ -637,6 +638,68 @@ class TestResolveElection(BaseGameStateTest):
         self.assertIsNotNone(new_state.winner)
         self.assertEqual(new_state.winner, expected_winner)
         self.assertEqual(new_state.phase, GamePhase.GAME_OVER)
+
+
+class TestPresidentDiscard(BaseGameStateTest):
+    def test_president_discard_immutability(self):
+        """Verifies that president_discard returns a new instance without mutating the input state."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENT_DISCARD,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+        )
+        new_state = president_discard(state, 1)
+        self.assert_pure_transition(state, new_state)
+
+    def test_president_discard(self):
+        """Verifies that discard and draw piles are updated, game phase advanced, and drawn policies updated."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        initial_discard_pile_size = len(state.deck.discard_pile)
+        drawn = (PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST)
+        state = replace(state, phase=GamePhase.PRESIDENT_DISCARD, drawn_policies=drawn)
+
+        new_state = president_discard(state, 1)
+
+        self.assertEqual(
+            len(new_state.deck.discard_pile), initial_discard_pile_size + 1
+        )
+        self.assertEqual(new_state.deck.discard_pile[-1], PolicyTile.LIBERAL)
+        self.assertEqual(
+            new_state.drawn_policies, (PolicyTile.FASCIST, PolicyTile.FASCIST)
+        )
+        self.assertEqual(new_state.phase, GamePhase.CHANCELLOR_ENACT)
+
+    def test_president_discard_wrong_game_phase(self):
+        """Verifies that an error is raised if the game phase is not PRESIDENT_DISCARD."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.NOMINATION,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+        )
+        with self.assertRaises(ValueError):
+            president_discard(state, 1)
+
+    def test_president_discard_improper_index(self):
+        """Verifies that invalid index raises ValueError."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENT_DISCARD,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+        )
+
+        invalid_indices = [-1, -3, 3]
+        for index in invalid_indices:
+            with self.subTest(discard_index=index):
+                with self.assertRaises(ValueError):
+                    president_discard(state, index)
+
+        state_empty = replace(state, drawn_policies=())
+        with self.subTest(discard_index=0):
+            with self.assertRaises(ValueError):
+                president_discard(state_empty, 0)
 
 
 if __name__ == "__main__":

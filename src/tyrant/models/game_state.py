@@ -5,7 +5,14 @@ from typing import Final
 from tyrant.models.enums import GamePhase, Party, Role, PolicyTile, Vote
 from tyrant.models.player import Player
 from tyrant.models.board import Board, play_tile
-from tyrant.models.deck import Deck, create_deck, draw_policies, top_deck, shuffle_deck
+from tyrant.models.deck import (
+    Deck,
+    create_deck,
+    draw_policies,
+    top_deck,
+    shuffle_deck,
+    discard_policies,
+)
 from tyrant.models.election_tracker import ElectionTracker, increment_election_tracker
 from tyrant.models.ballot_box import BallotBox, submit_vote
 
@@ -149,7 +156,12 @@ def _resolve_election(state: GameState) -> GameState:
         chancellor = next(p for p in state.players if p.uid == chancellor_uid)
 
         if state.board.hitler_zone and chancellor.role == Role.HITLER:
-            return replace(state, winner=Party.FASCIST, phase=GamePhase.GAME_OVER, rng_state=rng.getstate())
+            return replace(
+                state,
+                winner=Party.FASCIST,
+                phase=GamePhase.GAME_OVER,
+                rng_state=rng.getstate(),
+            )
 
         new_deck, drawn = draw_policies(state.deck)
 
@@ -191,7 +203,9 @@ def _resolve_election(state: GameState) -> GameState:
 
             return _advance_to_nomination(new_state)
         else:
-            new_state = replace(state, election_tracker=new_tracker, rng_state=rng.getstate())
+            new_state = replace(
+                state, election_tracker=new_tracker, rng_state=rng.getstate()
+            )
             return _advance_to_nomination(new_state)
 
 
@@ -214,3 +228,25 @@ def cast_vote(state: GameState, uid: int, vote: Vote) -> GameState:
         return _resolve_election(new_state)
 
     return new_state
+
+
+def president_discard(state: GameState, discard_index: int) -> GameState:
+    if state.phase != GamePhase.PRESIDENT_DISCARD:
+        raise ValueError(f"Cannot discard in phase {state.phase}")
+
+    if not (0 <= discard_index < len(state.drawn_policies)):
+        raise ValueError(f"Invalid discard index: {discard_index}")
+
+    discarded_tile = state.drawn_policies[discard_index]
+    remaining_policies = tuple(
+        p for i, p in enumerate(state.drawn_policies) if i != discard_index
+    )
+
+    new_deck = discard_policies(state.deck, discarded_tile)
+
+    return replace(
+        state,
+        deck=new_deck,
+        drawn_policies=remaining_policies,
+        phase=GamePhase.CHANCELLOR_ENACT,
+    )
