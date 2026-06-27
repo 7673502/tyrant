@@ -4,9 +4,9 @@ from typing import Final
 
 from tyrant.models.enums import GamePhase, Party, Role, PolicyTile, Vote
 from tyrant.models.player import Player
-from tyrant.models.board import Board
-from tyrant.models.deck import Deck, create_deck
-from tyrant.models.election_tracker import ElectionTracker
+from tyrant.models.board import Board, play_tile
+from tyrant.models.deck import Deck, create_deck, draw_policies, top_deck, shuffle_deck
+from tyrant.models.election_tracker import ElectionTracker, increment_election_tracker
 from tyrant.models.ballot_box import BallotBox, submit_vote
 
 ROLE_DISTRIBUTION: Final[frozendict[int, tuple[int, int]]] = frozendict(
@@ -134,12 +134,58 @@ def nominate_chancellor(state: GameState, chancellor_uid: int) -> GameState:
     return replace(state, nominated_chancellor=chancellor_uid, phase=GamePhase.VOTING)
 
 
-def _resolve_election(state: GameState) -> GameState:
-    # TODO: Implement step 4 (election resolution)
-    return state
+def _resolve_election(state: GameState, rng: Random) -> GameState:
+    ja_votes = sum(1 for v in state.ballot_box.votes.values() if v == Vote.JA)
+    nein_votes = sum(1 for v in state.ballot_box.votes.values() if v == Vote.NEIN)
+
+    if ja_votes > nein_votes:
+        chancellor_uid = state.nominated_chancellor
+        chancellor = next(p for p in state.players if p.uid == chancellor_uid)
+
+        if state.board.hitler_zone and chancellor.role == Role.HITLER:
+            return replace(state, winner=Party.FASCIST, phase=GamePhase.GAME_OVER)
+
+        new_deck, drawn = draw_policies(state.deck)
+
+        return replace(
+            state,
+            deck=new_deck,
+            phase=GamePhase.PRESIDENT_DISCARD,
+            drawn_policies=drawn,
+            election_tracker=ElectionTracker(failed_elections=0),
+            previous_president=state.players[state.president_index].uid,
+            previous_chancellor=chancellor_uid,
+        )
+    else:
+        new_tracker, triggered_top_deck = increment_election_tracker(
+            state.election_tracker
+        )
+
+        if triggered_top_deck:
+            new_deck, tile = top_deck(state.deck)
+            new_board, _ = play_tile(state.board, tile)
+
+            new_deck, _ = shuffle_deck(new_deck, rng)
+
+            new_state = replace(
+                state,
+                election_tracker=new_tracker,
+                deck=new_deck,
+                board=new_board,
+                previous_president=None,
+                previous_chancellor=None,
+            )
+
+            if new_board.winner is not None:
+                return replace(new_state, winner=new_board.winner, phase=GamePhase.GAME_OVER)
+
+            return _advance_to_nomination(new_state)
+        else:
+            new_state = replace(state, election_tracker=new_tracker)
+            return _advance_to_nomination(new_state)
 
 
-def cast_vote(state: GameState, uid: int, vote: Vote) -> GameState:
+def cast_vote(state: GameState, uid: int, vote: Vote, rng: Random) -> GameState:
     if state.phase != GamePhase.VOTING:
         raise ValueError(f"Cannot cast vote in phase {state.phase}")
 
@@ -155,6 +201,6 @@ def cast_vote(state: GameState, uid: int, vote: Vote) -> GameState:
 
     alive_count = sum(1 for p in state.players if p.is_alive)
     if new_ballot_box.vote_count == alive_count:
-        return _resolve_election(new_state)
+        return _resolve_election(new_state, rng)
 
     return new_state
