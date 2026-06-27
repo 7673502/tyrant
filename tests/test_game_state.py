@@ -86,6 +86,7 @@ class TestCreateGame(BaseGameStateTest):
                 self.assertEqual(hitlers, 1)
 
     def test_create_game_invalid_player_count(self):
+        """Verifies that an error is raised when creating a game with an invalid player count."""
         for count in [4, 11]:
             with self.subTest(player_count=count):
                 uids = tuple(i for i in range(4))
@@ -94,6 +95,7 @@ class TestCreateGame(BaseGameStateTest):
                     create_game(uids, self.rng)
 
     def test_create_game_invalid_player_uids(self):
+        """Verifies that an error is raised when player uids are not unique."""
         uids = (1, 1, 2, 3, 4, 4)
 
         with self.assertRaises(ValueError):
@@ -622,7 +624,9 @@ class TestResolveElection(BaseGameStateTest):
             state = replace(state, board=replace(state.board, fascist_played=5))
 
         new_state = _resolve_election(state, self.rng)
-        expected_winner = Party.LIBERAL if top_tile == PolicyTile.LIBERAL else Party.FASCIST
+        expected_winner = (
+            Party.LIBERAL if top_tile == PolicyTile.LIBERAL else Party.FASCIST
+        )
 
         self.assertIsNotNone(new_state.winner)
         self.assertEqual(new_state.winner, expected_winner)
