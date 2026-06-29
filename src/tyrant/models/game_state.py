@@ -305,3 +305,59 @@ def chancellor_veto(state: GameState) -> GameState:
         raise ValueError("Veto has already been denied this term")
 
     return replace(state, phase=GamePhase.PRESIDENT_VETO_RESPONSE)
+
+
+def president_veto_response(state: GameState, approve: bool) -> GameState:
+    if state.phase != GamePhase.PRESIDENT_VETO_RESPONSE:
+        raise ValueError(f"Cannot respond to veto in phase {state.phase}")
+
+    if not state.board.veto_power_unlocked:
+        raise ValueError("Veto power is not unlocked")
+
+    if approve:
+        new_deck = discard_policies(state.deck, *state.drawn_policies)
+
+        rng = Random()
+        rng.setstate(state.rng_state)
+
+        new_tracker, triggered_top_deck = increment_election_tracker(
+            state.election_tracker
+        )
+
+        if triggered_top_deck:
+            new_deck, tile = top_deck(new_deck)
+            new_board, _ = play_tile(state.board, tile)
+            new_deck, _ = shuffle_deck(new_deck, rng)
+
+            new_state = replace(
+                state,
+                election_tracker=new_tracker,
+                deck=new_deck,
+                board=new_board,
+                drawn_policies=(),
+                previous_president=None,
+                previous_chancellor=None,
+                rng_state=rng.getstate(),
+            )
+
+            if new_board.winner is not None:
+                return replace(
+                    new_state, phase=GamePhase.GAME_OVER, winner=new_board.winner
+                )
+
+            return _advance_to_nomination(new_state)
+        else:
+            new_state = replace(
+                state,
+                deck=new_deck,
+                election_tracker=new_tracker,
+                drawn_policies=(),
+                rng_state=rng.getstate(),
+            )
+            return _advance_to_nomination(new_state)
+    else:
+        return replace(
+            state,
+            veto_denied_this_term=True,
+            phase=GamePhase.CHANCELLOR_ENACT,
+        )

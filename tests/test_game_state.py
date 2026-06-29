@@ -17,6 +17,7 @@ from tyrant.models.game_state import (
     create_game,
     nominate_chancellor,
     president_discard,
+    president_veto_response,
 )
 from tyrant.models.player import Player
 
@@ -898,6 +899,127 @@ class TestChancellorVeto(BaseGameStateTest):
         )
         with self.assertRaises(ValueError):
             chancellor_veto(state)
+
+
+class TestPresidentVetoResponse(BaseGameStateTest):
+    def test_president_veto_response_immutability(self):
+        """Verifies that president_veto_response returns a new instance without mutating the input state."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENT_VETO_RESPONSE,
+            board=replace(state.board, fascist_played=5),
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        )
+        new_state = president_veto_response(state, approve=True)
+        self.assert_pure_transition(state, new_state)
+
+    def test_president_veto_response_approved(self):
+        """Verifies that approved veto discards policies and increments tracker."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENT_VETO_RESPONSE,
+            board=replace(state.board, fascist_played=5),
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.FASCIST, PolicyTile.LIBERAL),
+            election_tracker=ElectionTracker(failed_elections=1),
+            veto_denied_this_term=False,
+        )
+        initial_discard_count = len(state.deck.discard_pile)
+        new_state = president_veto_response(state, approve=True)
+
+        self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+        self.assertFalse(new_state.veto_denied_this_term)
+        self.assertEqual(new_state.election_tracker.failed_elections, 2)
+        self.assertEqual(len(new_state.drawn_policies), 0)
+        self.assertEqual(len(new_state.deck.discard_pile), initial_discard_count + 3)
+
+    def test_president_veto_response_denied(self):
+        """Verifies that denied veto returns to enact phase and sets denied flag."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENT_VETO_RESPONSE,
+            board=replace(state.board, fascist_played=5),
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+            veto_denied_this_term=False,
+        )
+        initial_discard_count = len(state.deck.discard_pile)
+        new_state = president_veto_response(state, approve=False)
+
+        self.assertEqual(new_state.phase, GamePhase.CHANCELLOR_ENACT)
+        self.assertTrue(new_state.veto_denied_this_term)
+        self.assertEqual(len(new_state.drawn_policies), 2)
+        self.assertEqual(len(new_state.deck.discard_pile), initial_discard_count)
+
+    def test_president_veto_response_invalid_phase(self):
+        """Verifies that an error is raised if the game phase is not PRESIDENT_VETO_RESPONSE."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.NOMINATION,
+            board=replace(state.board, fascist_played=5),
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        )
+        with self.assertRaises(ValueError):
+            president_veto_response(state, approve=True)
+
+    def test_president_veto_response_veto_locked(self):
+        """Verifies that an error is raised if veto power is locked (less than 5 fascist tiles)."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENT_VETO_RESPONSE,
+            board=replace(state.board, fascist_played=4),
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        )
+        with self.assertRaises(ValueError):
+            president_veto_response(state, approve=True)
+
+    def test_president_veto_response_approved_triggers_top_deck(self):
+        """Verifies that an approved veto that increments the tracker to 3 triggers a top-deck policy."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        new_draw_pile = (PolicyTile.FASCIST,) * 5 + (PolicyTile.LIBERAL,)
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENT_VETO_RESPONSE,
+            board=replace(state.board, fascist_played=5, liberal_played=0),
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+            election_tracker=ElectionTracker(failed_elections=2),
+            deck=replace(state.deck, draw_pile=new_draw_pile),
+            previous_president=1,
+            previous_chancellor=2,
+            veto_denied_this_term=False,
+        )
+        new_state = president_veto_response(state, approve=True)
+
+        self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+        self.assertEqual(new_state.election_tracker.failed_elections, 0)
+        self.assertEqual(new_state.board.liberal_played, 1)
+        self.assertEqual(new_state.board.fascist_played, 5)
+        self.assertIsNone(new_state.previous_president)
+        self.assertIsNone(new_state.previous_chancellor)
+        self.assertEqual(len(new_state.drawn_policies), 0)
+
+    def test_president_veto_response_approved_top_deck_win(self):
+        """Verifies that if the top-decked policy triggered by a veto wins the game, the phase goes to GAME_OVER."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        new_draw_pile = (PolicyTile.LIBERAL,) * 5 + (PolicyTile.FASCIST,)
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENT_VETO_RESPONSE,
+            board=replace(state.board, fascist_played=5, liberal_played=0),
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+            election_tracker=ElectionTracker(failed_elections=2),
+            deck=replace(state.deck, draw_pile=new_draw_pile),
+            veto_denied_this_term=False,
+        )
+        new_state = president_veto_response(state, approve=True)
+
+        self.assertEqual(new_state.phase, GamePhase.GAME_OVER)
+        self.assertEqual(new_state.winner, Party.FASCIST)
+        self.assertEqual(new_state.board.fascist_played, 6)
+        self.assertEqual(new_state.election_tracker.failed_elections, 0)
 
 
 if __name__ == "__main__":
