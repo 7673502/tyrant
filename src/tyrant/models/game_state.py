@@ -384,3 +384,23 @@ def investigate_loyalty(state: GameState, target_uid: int) -> tuple[GameState, P
     new_state = replace(state, investigations=new_investigations)
 
     return _advance_to_nomination(new_state), target.party
+
+
+def call_special_election(state: GameState, target_uid: int) -> GameState:
+    if state.phase != GamePhase.PRESIDENTIAL_POWER:
+        raise ValueError(f"Cannot call special election in phase {state.phase}")
+
+    president_uid = state.players[state.president_index].uid
+    if target_uid == president_uid:
+        raise ValueError("President cannot call special election on themselves")
+
+    target = next((p for p in state.players if p.uid == target_uid), None)
+    if target is None:
+        raise ValueError(f"Player with UID {target_uid} not found")
+
+    if not target.is_alive:
+        raise ValueError("Dead player cannot be chosen for special election.")
+
+    new_state = replace(state, special_election_president=target_uid)
+
+    return _advance_to_nomination(new_state)

@@ -11,6 +11,7 @@ from tyrant.models.game_state import (
     GameState,
     _advance_to_nomination,
     _resolve_election,
+    call_special_election,
     cast_vote,
     chancellor_enact,
     chancellor_veto,
@@ -1138,6 +1139,103 @@ class TestInvestigateLoyalty(BaseGameStateTest):
         target_uid = state.players[1].uid
         with self.assertRaises(ValueError):
             _, _ = investigate_loyalty(state, target_uid)
+
+
+class TestCallSpecialElection(BaseGameStateTest):
+    def test_special_election_immutability(self):
+        """Verifies that call_special_election returns a new instance without mutating the input state."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+
+        target_uid = state.players[1].uid
+        new_state = call_special_election(state, target_uid)
+
+        self.assert_pure_transition(state, new_state)
+
+    def test_special_election(self):
+        """Verifies that special election updates the president and then returns to normal rotation."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER, president_index=0)
+
+        target_uid = state.players[3].uid
+
+        new_state = call_special_election(state, target_uid)
+
+        # Check special election president is set and rotation advances to target
+        self.assertEqual(new_state.special_election_president, target_uid)
+        self.assertEqual(new_state.president_index, 0)
+        self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+
+        # Now advance to next nomination and ensure rotation returns to normal order
+        # Specifically, the president after the special election should be the one following the caller (index 1)
+        new_state_after_special = _advance_to_nomination(new_state)
+
+        self.assertIsNone(new_state_after_special.special_election_president)
+        self.assertEqual(new_state_after_special.president_index, 1)
+
+    def test_special_election_self(self):
+        """Verifies that the current president cannot investigate themselves."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+
+        president_uid = state.players[state.president_index].uid
+
+        with self.assertRaises(ValueError):
+            _ = call_special_election(state, president_uid)
+
+    def test_special_election_invalid_uid(self):
+        """Verifies that an error is raised if the target UID does not exist."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+
+        with self.assertRaises(ValueError):
+            _ = call_special_election(state, 999)
+
+    def test_special_election_wrong_phase(self):
+        """Verifies that an error is raised if the phase is not PRESIDENTIAL_POWER."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.NOMINATION)
+
+        target_uid = state.players[1].uid
+        with self.assertRaises(ValueError):
+            _ = call_special_election(state, target_uid)
+
+    def test_special_election_dead(self):
+        """Asserts that ValueError is raised if the target player is dead."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        new_players = list(state.players)
+        new_players[1] = replace(new_players[1], is_alive=False)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER, players=new_players)
+
+        target_uid = state.players[1].uid
+        with self.assertRaises(ValueError):
+            _ = call_special_election(state, target_uid)
+
+    def test_special_election_next_president_dead(self):
+        """Ensures that rotation skips a dead player and resumes correctly at the next alive player when the special election term ends."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+
+        # Kill the player who would be next in normal rotation (index 1)
+        new_players = list(state.players)
+        new_players[1] = replace(new_players[1], is_alive=False)
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENTIAL_POWER,
+            president_index=0,
+            players=new_players,
+        )
+
+        target_uid = state.players[3].uid
+
+        # Call special election
+        new_state = call_special_election(state, target_uid)
+
+        # End special election
+        new_state_after_special = _advance_to_nomination(new_state)
+
+        # The rotation should skip index 1 and go to index 2
+        self.assertIsNone(new_state_after_special.special_election_president)
+        self.assertEqual(new_state_after_special.president_index, 2)
 
 
 if __name__ == "__main__":
