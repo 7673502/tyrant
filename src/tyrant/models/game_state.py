@@ -2,19 +2,26 @@ from dataclasses import dataclass, replace
 from random import Random
 from typing import Final
 
-from tyrant.models.enums import GamePhase, Party, Role, PolicyTile, Vote
-from tyrant.models.player import Player
+from tyrant.models.ballot_box import BallotBox, submit_vote
 from tyrant.models.board import Board, play_tile
 from tyrant.models.deck import (
     Deck,
     create_deck,
-    draw_policies,
-    top_deck,
-    shuffle_deck,
     discard_policies,
+    draw_policies,
+    shuffle_deck,
+    top_deck,
 )
 from tyrant.models.election_tracker import ElectionTracker, increment_election_tracker
-from tyrant.models.ballot_box import BallotBox, submit_vote
+from tyrant.models.enums import (
+    GamePhase,
+    Party,
+    PolicyTile,
+    PresidentialPower,
+    Role,
+    Vote,
+)
+from tyrant.models.player import Player
 
 ROLE_DISTRIBUTION: Final[frozendict[int, tuple[int, int]]] = frozendict(
     {5: (3, 2), 6: (4, 2), 7: (4, 3), 8: (5, 3), 9: (5, 4), 10: (6, 4)}
@@ -36,7 +43,7 @@ class GameState:
     previous_chancellor: int | None
     winner: Party | None
     special_election_president: int | None
-    rng_state: tuple
+    rng_state: tuple[int, tuple[int, ...], float | None]
     veto_denied_this_term: bool = False
     investigations: frozendict[int, int] = frozendict()
 
@@ -250,3 +257,38 @@ def president_discard(state: GameState, discard_index: int) -> GameState:
         drawn_policies=remaining_policies,
         phase=GamePhase.CHANCELLOR_ENACT,
     )
+
+
+def chancellor_enact(state: GameState, enact_index: int) -> GameState:
+    if state.phase != GamePhase.CHANCELLOR_ENACT:
+        raise ValueError(f"Cannot enact in phase {state.phase}")
+
+    if not (0 <= enact_index < len(state.drawn_policies)):
+        raise ValueError(f"Invalid enact index: {enact_index}")
+
+    enacted_tile = state.drawn_policies[enact_index]
+    discard_index = 1 - enact_index
+    discarded_tile = state.drawn_policies[discard_index]
+
+    new_board, power = play_tile(state.board, enacted_tile)
+    new_deck = discard_policies(state.deck, discarded_tile)
+
+    rng = Random()
+    rng.setstate(state.rng_state)
+    new_deck, _ = shuffle_deck(new_deck, rng)
+
+    new_state = replace(
+        state,
+        board=new_board,
+        deck=new_deck,
+        drawn_policies=(),
+        rng_state=rng.getstate(),
+    )
+
+    if new_board.winner is not None:
+        return replace(new_state, phase=GamePhase.GAME_OVER, winner=new_board.winner)
+
+    if enacted_tile == PolicyTile.LIBERAL or power == PresidentialPower.NONE:
+        return _advance_to_nomination(new_state)
+    else:
+        return replace(new_state, phase=GamePhase.PRESIDENTIAL_POWER)

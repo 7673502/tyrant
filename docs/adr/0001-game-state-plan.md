@@ -137,11 +137,11 @@ President discards one of three drawn policies:
 
 **Verify:** Exactly 2 policies remain, discard pile grows by 1.
 
-### Step 6: `chancellor_discard(state: GameState, discard_index: int) -> GameState`
+### Step 6: `chancellor_enact(state: GameState, enact_index: int) -> GameState`
 
-Chancellor discards one of two remaining policies (or initiates veto):
+Chancellor enacts one of two remaining policies (or initiates veto):
 - Validate: phase is `CHANCELLOR_ENACT`, index is valid.
-- Play the remaining tile on the board via `play_tile`.
+- Play the enacted tile on the board via `play_tile`.
 - Discard the other tile.
 - Check board win conditions.
 - If liberal tile → call `_advance_to_nomination(state)`.
@@ -200,7 +200,7 @@ Produces a localized view of the GameState with hidden information removed based
 2. nominate_chancellor                         → verify: validation, dynamic term limits
 3. cast_vote + election resolution             → verify: ja/nein paths, Hitler win, top-deck
 4. president_discard                           → verify: 3→2 policies, discard pile
-5. chancellor_discard                          → verify: policy played, power triggers, wins
+5. chancellor_enact                          → verify: policy played, power triggers, wins
 6. chancellor_veto + president_veto_response   → verify: veto flow, tracker increment, denied flag
 7. Presidential power functions                → verify: each power, execution win
 8. scrub_state                                 → verify: information hiding based on rules

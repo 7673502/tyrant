@@ -1,22 +1,23 @@
 import unittest
+from dataclasses import fields, is_dataclass, replace
 from random import Random
-from dataclasses import is_dataclass, fields, replace
 
-from tyrant.models.enums import GamePhase, Party, Role, Vote, PolicyTile
-from tyrant.models.player import Player
+from tyrant.models.ballot_box import BallotBox, submit_vote
 from tyrant.models.board import Board
 from tyrant.models.deck import create_deck
 from tyrant.models.election_tracker import ElectionTracker
-from tyrant.models.ballot_box import BallotBox, submit_vote
+from tyrant.models.enums import GamePhase, Party, PolicyTile, Role, Vote
 from tyrant.models.game_state import (
     GameState,
-    create_game,
     _advance_to_nomination,
-    nominate_chancellor,
-    cast_vote,
     _resolve_election,
+    cast_vote,
+    chancellor_enact,
+    create_game,
+    nominate_chancellor,
     president_discard,
 )
+from tyrant.models.player import Player
 
 
 class BaseGameStateTest(unittest.TestCase):
@@ -700,6 +701,139 @@ class TestPresidentDiscard(BaseGameStateTest):
         with self.subTest(discard_index=0):
             with self.assertRaises(ValueError):
                 president_discard(state_empty, 0)
+
+
+class TestChancellorEnact(BaseGameStateTest):
+    def test_chancellor_enact_immutability(self):
+        """Verifies that chancellor_enact returns a new instance without mutating the input state."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.CHANCELLOR_ENACT,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        )
+        new_state = chancellor_enact(state, 1)
+        self.assert_pure_transition(state, new_state)
+
+    def test_chancellor_enact_liberal(self):
+        """Verifies that phase advances properly and discard/draw piles are updated."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        initial_discard = len(state.deck.discard_pile)
+        state = replace(
+            state,
+            phase=GamePhase.CHANCELLOR_ENACT,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        )
+        new_state = chancellor_enact(state, 1)
+
+        self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+        self.assertEqual(len(new_state.deck.discard_pile), initial_discard + 1)
+        self.assertEqual(new_state.deck.discard_pile[-1], PolicyTile.FASCIST)
+        self.assertEqual(new_state.board.liberal_played, 1)
+
+    def test_chancellor_enact_liberal_win(self):
+        """Verifies that game is over and liberal team won if the 5th liberal tile is enacted."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.CHANCELLOR_ENACT,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+            board=replace(state.board, liberal_played=4),
+        )
+        new_state = chancellor_enact(state, 1)
+
+        self.assertEqual(new_state.phase, GamePhase.GAME_OVER)
+        self.assertEqual(new_state.winner, Party.LIBERAL)
+
+    def test_chancellor_enact_fascist(self):
+        """Verifies that 1st fascist tile for 5-8 players has no power and advances to nomination."""
+        for count in range(5, 9):
+            with self.subTest(player_count=count):
+                state = create_game(tuple(range(1, count + 1)), 42)
+                state = replace(
+                    state,
+                    phase=GamePhase.CHANCELLOR_ENACT,
+                    drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+                )
+                new_state = chancellor_enact(state, 0)
+
+                self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+                self.assertEqual(new_state.board.fascist_played, 1)
+
+    def test_chancellor_enact_fascist_win(self):
+        """Verifies that game is over and fascist team won if the 6th fascist tile is enacted."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.CHANCELLOR_ENACT,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+            board=replace(state.board, fascist_played=5),
+        )
+        new_state = chancellor_enact(state, 0)
+
+        self.assertEqual(new_state.phase, GamePhase.GAME_OVER)
+        self.assertEqual(new_state.winner, Party.FASCIST)
+
+    def test_chancellor_enact_presidential_power(self):
+        """Verifies sequence of powers for 9-10 players."""
+        for count in (9, 10):
+            with self.subTest(player_count=count):
+                state = create_game(tuple(range(1, count + 1)), 42)
+
+                for played in range(5):
+                    test_state = replace(
+                        state,
+                        phase=GamePhase.CHANCELLOR_ENACT,
+                        drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+                        board=replace(state.board, fascist_played=played),
+                    )
+                    new_state = chancellor_enact(test_state, 0)
+                    self.assertEqual(new_state.phase, GamePhase.PRESIDENTIAL_POWER)
+
+    def test_chancellor_enact_reshuffle(self):
+        """Verifies reshuffle if draw pile < 3 after drawing."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        discarded = (PolicyTile.LIBERAL,) * 5 + (PolicyTile.FASCIST,) * 5
+        deck = replace(
+            state.deck,
+            draw_pile=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+            discard_pile=discarded,
+        )
+        state = replace(
+            state,
+            deck=deck,
+            phase=GamePhase.CHANCELLOR_ENACT,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        )
+
+        new_state = chancellor_enact(state, 1)
+
+        self.assertEqual(len(new_state.deck.draw_pile), 13)
+        self.assertEqual(len(new_state.deck.discard_pile), 0)
+
+    def test_chancellor_enact_wrong_phase(self):
+        """Verifies error raised if function is called during wrong phase."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.NOMINATION,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        )
+        with self.assertRaises(ValueError):
+            chancellor_enact(state, 0)
+
+    def test_chancellor_enact_invalid_index(self):
+        """Verifies error raised if passed index is out of bounds."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.CHANCELLOR_ENACT,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        )
+        for index in [-1, 2]:
+            with self.subTest(enact_index=index):
+                with self.assertRaises(ValueError):
+                    chancellor_enact(state, index)
 
 
 if __name__ == "__main__":
