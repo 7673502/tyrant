@@ -292,3 +292,16 @@ def chancellor_enact(state: GameState, enact_index: int) -> GameState:
         return _advance_to_nomination(new_state)
     else:
         return replace(new_state, phase=GamePhase.PRESIDENTIAL_POWER)
+
+
+def chancellor_veto(state: GameState) -> GameState:
+    if state.phase != GamePhase.CHANCELLOR_ENACT:
+        raise ValueError(f"Cannot veto in phase {state.phase}")
+
+    if not state.board.veto_power_unlocked:
+        raise ValueError("Veto power is not unlocked")
+
+    if state.veto_denied_this_term:
+        raise ValueError("Veto has already been denied this term")
+
+    return replace(state, phase=GamePhase.PRESIDENT_VETO_RESPONSE)
