@@ -13,6 +13,7 @@ from tyrant.models.game_state import (
     _resolve_election,
     cast_vote,
     chancellor_enact,
+    chancellor_veto,
     create_game,
     nominate_chancellor,
     president_discard,
@@ -834,6 +835,69 @@ class TestChancellorEnact(BaseGameStateTest):
             with self.subTest(enact_index=index):
                 with self.assertRaises(ValueError):
                     chancellor_enact(state, index)
+
+
+class TestChancellorVeto(BaseGameStateTest):
+    def test_chancellor_veto_immutability(self):
+        """Verifies that chancellor_veto returns a new instance without mutating the input state."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.CHANCELLOR_ENACT,
+            board=replace(state.board, fascist_played=5),
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        )
+        new_state = chancellor_veto(state)
+        self.assert_pure_transition(state, new_state)
+
+    def test_chancellor_veto(self):
+        """Verifies that chancellor_veto updates the game phase properly."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.CHANCELLOR_ENACT,
+            board=replace(state.board, fascist_played=5),
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        )
+        new_state = chancellor_veto(state)
+        self.assertEqual(new_state.phase, GamePhase.PRESIDENT_VETO_RESPONSE)
+
+    def test_chancellor_veto_invalid_phase(self):
+        """Verifies that an error is raised if the game phase is not CHANCELLOR_ENACT."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.NOMINATION,
+            board=replace(state.board, fascist_played=5),
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        )
+        with self.assertRaises(ValueError):
+            chancellor_veto(state)
+
+    def test_chancellor_veto_power_locked(self):
+        """Verifies that an error is raised if veto power is locked (less than 5 fascist tiles)."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.CHANCELLOR_ENACT,
+            board=replace(state.board, fascist_played=4),
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        )
+        with self.assertRaises(ValueError):
+            chancellor_veto(state)
+
+    def test_chancellor_double_veto(self):
+        """Verifies that if a veto already occurred this term, it cannot be vetoed again."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.CHANCELLOR_ENACT,
+            board=replace(state.board, fascist_played=5),
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+            veto_denied_this_term=True,
+        )
+        with self.assertRaises(ValueError):
+            chancellor_veto(state)
 
 
 if __name__ == "__main__":
