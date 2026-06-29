@@ -15,6 +15,7 @@ from tyrant.models.game_state import (
     chancellor_enact,
     chancellor_veto,
     create_game,
+    investigate_loyalty,
     nominate_chancellor,
     president_discard,
     president_veto_response,
@@ -1020,6 +1021,123 @@ class TestPresidentVetoResponse(BaseGameStateTest):
         self.assertEqual(new_state.winner, Party.FASCIST)
         self.assertEqual(new_state.board.fascist_played, 6)
         self.assertEqual(new_state.election_tracker.failed_elections, 0)
+
+
+class TestInvestigateLoyalty(BaseGameStateTest):
+    def test_investigate_loyalty_immutability(self):
+        """Verifies that investigate_loyalty returns a new instance without mutating the input state."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+
+        target_uid = state.players[1].uid
+        new_state, _ = investigate_loyalty(state, target_uid)
+
+        self.assert_pure_transition(state, new_state)
+
+    def test_investigate_loyalty_liberal(self):
+        """Verifies that investigating a liberal reveals their party and updates the map and phase."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+
+        president_uid = state.players[state.president_index].uid
+        liberal = next(
+            p
+            for p in state.players
+            if p.role == Role.LIBERAL and p.uid != president_uid
+        )
+
+        new_state, party = investigate_loyalty(state, liberal.uid)
+
+        self.assertEqual(party, Party.LIBERAL)
+        self.assertEqual(new_state.investigations[liberal.uid], president_uid)
+        self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+
+    def test_investigate_loyalty_fascists(self):
+        """Verifies that investigating a fascist (non-Hitler) reveals their party and updates map and phase."""
+        state = create_game((1, 2, 3, 4, 5, 6), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+
+        president_uid = state.players[state.president_index].uid
+        fascist = next(
+            (
+                p
+                for p in state.players
+                if p.role == Role.FASCIST and p.uid != president_uid
+            ),
+            None,
+        )
+
+        if not fascist:
+            state = _advance_to_nomination(state)
+            state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+            president_uid = state.players[state.president_index].uid
+            fascist = next(
+                p
+                for p in state.players
+                if p.role == Role.FASCIST and p.uid != president_uid
+            )
+
+        new_state, party = investigate_loyalty(state, fascist.uid)
+
+        self.assertEqual(party, Party.FASCIST)
+        self.assertEqual(new_state.investigations[fascist.uid], president_uid)
+        self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+
+    def test_investigate_loyalty_hitler(self):
+        """Verifies that investigating Hitler reveals fascist party and updates map and phase."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+
+        hitler = next(p for p in state.players if p.role == Role.HITLER)
+
+        if hitler.uid == state.players[state.president_index].uid:
+            state = _advance_to_nomination(state)
+            state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+
+        president_uid = state.players[state.president_index].uid
+        new_state, party = investigate_loyalty(state, hitler.uid)
+
+        self.assertEqual(party, Party.FASCIST)
+        self.assertEqual(new_state.investigations[hitler.uid], president_uid)
+        self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+
+    def test_investigate_loyalty_self_investigation(self):
+        """Verifies that the president cannot investigate themselves."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+
+        president_uid = state.players[state.president_index].uid
+
+        with self.assertRaises(ValueError):
+            _, _ = investigate_loyalty(state, president_uid)
+
+    def test_investigate_loyalty_invalid_uid(self):
+        """Verifies that an error is raised if the target UID does not exist."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+
+        with self.assertRaises(ValueError):
+            _, _ = investigate_loyalty(state, 999)
+
+    def test_investigate_loyalty_invalid_phase(self):
+        """Verifies that an error is raised if the phase is not PRESIDENTIAL_POWER."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.NOMINATION)
+
+        target_uid = state.players[1].uid
+        with self.assertRaises(ValueError):
+            _, _ = investigate_loyalty(state, target_uid)
+
+    def test_investigate_loyalty_dead(self):
+        """Verifies that an error is raised if the investigated player is dead."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        new_players = list(state.players)
+        new_players[1] = replace(new_players[1], is_alive=False)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER, players=new_players)
+
+        target_uid = state.players[1].uid
+        with self.assertRaises(ValueError):
+            _, _ = investigate_loyalty(state, target_uid)
 
 
 if __name__ == "__main__":

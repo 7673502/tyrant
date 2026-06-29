@@ -361,3 +361,26 @@ def president_veto_response(state: GameState, approve: bool) -> GameState:
             veto_denied_this_term=True,
             phase=GamePhase.CHANCELLOR_ENACT,
         )
+
+
+def investigate_loyalty(state: GameState, target_uid: int) -> tuple[GameState, Party]:
+    if state.phase != GamePhase.PRESIDENTIAL_POWER:
+        raise ValueError(f"Cannot investigate loyalty in phase {state.phase}")
+
+    investigator_uid = state.players[state.president_index].uid
+    if target_uid == investigator_uid:
+        raise ValueError("President cannot investigate themselves")
+
+    target = next((p for p in state.players if p.uid == target_uid), None)
+    if target is None:
+        raise ValueError(f"Player with UID {target_uid} not found")
+
+    if not target.is_alive:
+        raise ValueError("Dead player cannot be investigated.")
+
+    new_investigations = frozendict(
+        {**state.investigations, target_uid: investigator_uid}
+    )
+    new_state = replace(state, investigations=new_investigations)
+
+    return _advance_to_nomination(new_state), target.party
