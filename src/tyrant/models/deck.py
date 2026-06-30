@@ -1,6 +1,7 @@
-from random import Random
 from dataclasses import dataclass
+from random import Random
 from typing import Final
+
 from tyrant.models.enums import PolicyTile
 
 NUM_LIBERAL_POLICIES: Final = 6
@@ -14,12 +15,12 @@ class Deck:
     discard_pile: tuple[PolicyTile, ...] = ()
 
     @property
-    def peek(self) -> tuple[PolicyTile, ...]:
-        check_draw_size(self)
-        return self.draw_pile[-3:]
+    def peek(self) -> tuple[PolicyTile, PolicyTile, PolicyTile]:
+        _check_draw_size(self)
+        return (self.draw_pile[-1], self.draw_pile[-2], self.draw_pile[-3])
 
 
-def check_draw_size(deck: Deck):
+def _check_draw_size(deck: Deck):
     """Raises RuntimeError if the deck has fewer than 3 tiles in the draw pile."""
     if len(deck.draw_pile) < POLICY_DRAW_COUNT:
         raise RuntimeError(
@@ -47,7 +48,7 @@ def shuffle_deck(deck: Deck, rng: Random) -> tuple[Deck, bool]:
 
 def draw_policies(deck: Deck) -> tuple[Deck, tuple[PolicyTile, PolicyTile, PolicyTile]]:
     """Draws 3 policies from the deck."""
-    check_draw_size(deck)
+    _check_draw_size(deck)
     top_three = (deck.draw_pile[-1], deck.draw_pile[-2], deck.draw_pile[-3])
     new_draw_pile = deck.draw_pile[:-3]
     return Deck(draw_pile=new_draw_pile, discard_pile=deck.discard_pile), top_three
@@ -55,7 +56,7 @@ def draw_policies(deck: Deck) -> tuple[Deck, tuple[PolicyTile, PolicyTile, Polic
 
 def top_deck(deck: Deck) -> tuple[Deck, PolicyTile]:
     """Draws 1 policy from the top of the deck."""
-    check_draw_size(deck)
+    _check_draw_size(deck)
     tile = deck.draw_pile[-1]
     new_draw_pile = deck.draw_pile[:-1]
     return Deck(draw_pile=new_draw_pile, discard_pile=deck.discard_pile), tile

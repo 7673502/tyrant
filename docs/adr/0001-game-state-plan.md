@@ -61,6 +61,7 @@ class GameState:
     rng_state: tuple                        # state of the random number generator
     veto_denied_this_term: bool = False
     investigations: frozendict[int, int] = frozendict()  # investigated_uid -> investigator_uid
+    deck_shuffled_last_action: bool = False # explicitly flags if the deck was just reshuffled
 ```
 
 > [!NOTE]
@@ -178,7 +179,22 @@ One function per power, all requiring `phase == GamePhase.PRESIDENTIAL_POWER`:
 
 **Verify:** Each power transitions correctly, execution win condition, special election tracking, peek acknowledgement.
 
-### Step 10: `scrub_state(state: GameState, viewer_uid: int) -> GameState`
+### Step 10: `_ensure_deck_ready(state: GameState) -> GameState` (Just-In-Time Reshuffle Helper)
+
+Centralized helper for safely checking the deck according to Secret Hitler's reshuffle rules, utilizing a Just-In-Time (JIT) design. Rather than eagerly reshuffling at the end of a turn when the deck drops below 3, this helper is called exactly at the moment cards are needed.
+- **Design Decision (JIT Shuffle):** The deck is only ever reshuffled immediately before a draw or a peek if it lacks the minimum 3 cards required to trigger a reshuffle.
+- **Logic:** 
+  - If the draw pile has fewer than 3 cards: Shuffles the draw and discard piles together using the state's `rng_state`, updates the `rng_state`, and sets `deck_shuffled_last_action = True`.
+  - If the draw pile has 3 or more cards: Explicitly sets `deck_shuffled_last_action = False`.
+- **Usage Locations (The only places a reshuffle can happen):**
+  - **Before Drawing 3:** Election resolution (Ja majority).
+  - **Before Top-Decking 1:** Election resolution (Nein majority top-deck or Veto approval top-deck). Note: the check is always `<3` even if only drawing 1.
+  - **Before Peeking 3:** Presidential power (`policy_peek`).
+- **Note:** All public transition functions that *do not* invoke this helper must ensure `deck_shuffled_last_action = False` in their returned state so the flag only remains `True` for the exact action that triggered a reshuffle.
+
+**Verify:** Reshuffles only when <3 cards, flag is set correctly for both paths, rng state is advanced only when shuffling.
+
+### Step 11: `scrub_state(state: GameState, viewer_uid: int) -> GameState`
 
 Produces a localized view of the GameState with hidden information removed based on Secret Hitler rules.
 - **Roles and Parties:**
@@ -204,7 +220,8 @@ Produces a localized view of the GameState with hidden information removed based
 5. chancellor_enact                          → verify: policy played, power triggers, wins
 6. chancellor_veto + president_veto_response   → verify: veto flow, tracker increment, denied flag
 7. Presidential power functions + acknowledge_peek → verify: each power, execution win
-8. scrub_state                                 → verify: information hiding based on rules
+8. _ensure_deck_ready                          → verify: JIT reshuffle logic, accurate flag updates
+9. scrub_state                                 → verify: information hiding based on rules
 ```
 
 Each class and free function (including helpers) gets its own test class. Tests follow the existing patterns: immutability checks, correctness, edge cases.
@@ -216,5 +233,5 @@ All tests for `GameState` and its free functions must inherit from `BaseGameStat
 - For a function that generates a `GameState` from scratch without a previous state (e.g., `create_game(...)`), you must use `self.assert_state_immutable(state)` on the generated state.
 - The immutability test for each function should be explicitly named `test_[FUNCTION_NAME]_immutability`.
 
-**NOTE:** Exception to "zero comments rule"; if a function is incomplete because a component of it is dependent on a later step add a #TODO comment briefly describing what necessary functionality is still missing. These comments should be cleaned at the end of step 10.
+**NOTE:** Exception to "zero comments rule"; if a function is incomplete because a component of it is dependent on a later step add a #TODO comment briefly describing what necessary functionality is still missing. These comments should be cleaned at the end of step 11.
 

@@ -404,3 +404,23 @@ def call_special_election(state: GameState, target_uid: int) -> GameState:
     new_state = replace(state, special_election_president=target_uid)
 
     return _advance_to_nomination(new_state)
+
+
+def policy_peek(state: GameState) -> GameState:
+    if state.phase != GamePhase.PRESIDENTIAL_POWER:
+        raise ValueError(f"Cannot peek policies in phase {state.phase}")
+
+    # TODO: add _ensure_deck_ready integration for JIT reshuffle
+    return replace(
+        state,
+        drawn_policies=state.deck.peek,
+        phase=GamePhase.POLICY_PEEK,
+    )
+
+
+def acknowledge_peek(state: GameState) -> GameState:
+    if state.phase != GamePhase.POLICY_PEEK:
+        raise ValueError(f"Cannot acknowledge peek in phase {state.phase}")
+
+    new_state = replace(state, drawn_policies=())
+    return _advance_to_nomination(new_state)

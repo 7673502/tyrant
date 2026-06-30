@@ -11,6 +11,7 @@ from tyrant.models.game_state import (
     GameState,
     _advance_to_nomination,
     _resolve_election,
+    acknowledge_peek,
     call_special_election,
     cast_vote,
     chancellor_enact,
@@ -18,6 +19,7 @@ from tyrant.models.game_state import (
     create_game,
     investigate_loyalty,
     nominate_chancellor,
+    policy_peek,
     president_discard,
     president_veto_response,
 )
@@ -1236,6 +1238,93 @@ class TestCallSpecialElection(BaseGameStateTest):
         # The rotation should skip index 1 and go to index 2
         self.assertIsNone(new_state_after_special.special_election_president)
         self.assertEqual(new_state_after_special.president_index, 2)
+
+
+class TestPolicyPeek(BaseGameStateTest):
+    def test_policy_peek_immutability(self):
+        """Verifies that policy_peek returns a new instance without mutating the input state."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+        new_state = policy_peek(state)
+        self.assert_pure_transition(state, new_state)
+
+    def test_acknowledge_peek_immutability(self):
+        """Verifies that acknowledge_peek returns a new instance without mutating the input state."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.POLICY_PEEK,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+        )
+        new_state = acknowledge_peek(state)
+        self.assert_pure_transition(state, new_state)
+
+    def test_policy_peek(self):
+        """Verifies that policy_peek correctly updates drawn_policies with the top 3 cards without modifying the deck."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+
+        expected_cards = (
+            state.deck.draw_pile[-1],
+            state.deck.draw_pile[-2],
+            state.deck.draw_pile[-3],
+        )
+        original_deck = state.deck
+
+        new_state = policy_peek(state)
+
+        self.assertEqual(new_state.drawn_policies, expected_cards)
+        self.assertEqual(new_state.deck, original_deck)
+        self.assertEqual(new_state.phase, GamePhase.POLICY_PEEK)
+
+    def test_policy_peek_wrong_phase(self):
+        """Verifies that an error is raised if policy_peek is called in the wrong phase."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.NOMINATION)
+
+        with self.assertRaises(ValueError):
+            _ = policy_peek(state)
+
+    def test_acknowledge_peek(self):
+        """Verifies that acknowledge_peek clears drawn_policies and advances rotation."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.POLICY_PEEK,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+            president_index=0,
+        )
+
+        new_state = acknowledge_peek(state)
+
+        self.assertEqual(new_state.drawn_policies, ())
+        self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+        self.assertEqual(new_state.president_index, 1)
+
+    def test_acknowledge_peek_next_president_dead(self):
+        """Ensures that rotation skips a dead player and resumes correctly at the next alive player when the peek ends."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        new_players = list(state.players)
+        new_players[1] = replace(new_players[1], is_alive=False)
+        state = replace(
+            state,
+            phase=GamePhase.POLICY_PEEK,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+            president_index=0,
+            players=tuple(new_players),
+        )
+
+        new_state = acknowledge_peek(state)
+        self.assertEqual(new_state.president_index, 2)
+        self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+
+    def test_acknowledge_peek_wrong_phase(self):
+        """Verifies that an error is raised if acknowledge_peek is called in the wrong phase."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.NOMINATION)
+
+        with self.assertRaises(ValueError):
+            _ = acknowledge_peek(state)
 
 
 if __name__ == "__main__":
