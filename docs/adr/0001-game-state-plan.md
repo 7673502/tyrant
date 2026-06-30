@@ -172,10 +172,11 @@ One function per power, all requiring `phase == GamePhase.PRESIDENTIAL_POWER`:
 
 - `investigate_loyalty(state, target_uid) -> GameState` — Update `investigations` map. Call `_advance_to_nomination(state)`.
 - `call_special_election(state, target_uid) -> GameState` — Set `special_election_president`. Call `_advance_to_nomination(state)` (which respects the special election).
-- `policy_peek(state) -> GameState` — Caller reads `state.deck.peek`. Call `_advance_to_nomination(state)`.
+- `policy_peek(state) -> GameState` — Copy the top 3 cards from `deck.draw_pile` to `drawn_policies` (without removing them). Set `phase = GamePhase.POLICY_PEEK`.
+- `acknowledge_peek(state) -> GameState` — (Requires `phase == GamePhase.POLICY_PEEK`) Clears `drawn_policies` and calls `_advance_to_nomination(state)`.
 - `execute_player(state, target_uid) -> GameState` — Mark player dead. If Hitler is killed → liberal win. Call `_advance_to_nomination(state)`.
 
-**Verify:** Each power transitions correctly, execution win condition, special election tracking.
+**Verify:** Each power transitions correctly, execution win condition, special election tracking, peek acknowledgement.
 
 ### Step 10: `scrub_state(state: GameState, viewer_uid: int) -> GameState`
 
@@ -186,8 +187,8 @@ Produces a localized view of the GameState with hidden information removed based
   - If viewer is Fascist (or Hitler in 5-6 player games): Fascists see each other and Hitler. Non-fascists are hidden (`None`).
   - **Investigations:** If the viewer has investigated a player (i.e. `state.investigations.get(player_uid) == viewer_uid`), that player's party is visible to the viewer (role remains hidden).
 - **Deck:** The order of `draw_pile` and `discard_pile` is hidden (perhaps replaced with empty tuples or masked values so length is known but contents are not, pending exact implementation).
-- **Drawn Policies:** Hidden (`()`) unless the viewer is the active President during `PRESIDENT_DISCARD` or the active Chancellor during `CHANCELLOR_ENACT`.
-- **Policy Peek:** If the viewer just used Policy Peek, the top 3 cards can be temporarily revealed in a side channel, or `drawn_policies` is used to expose them.
+- **Drawn Policies:** Hidden (`()`) unless the viewer is the active President during `PRESIDENT_DISCARD` or `POLICY_PEEK`, or the active Chancellor during `CHANCELLOR_ENACT`.
+- **Policy Peek:** Handled automatically by the rule above since `drawn_policies` contains the peeked cards during `POLICY_PEEK`.
 
 **Verify:** Scrubbing correctly respects team-knowledge rules, investigations, player counts, and current active phases.
 
@@ -202,7 +203,7 @@ Produces a localized view of the GameState with hidden information removed based
 4. president_discard                           → verify: 3→2 policies, discard pile
 5. chancellor_enact                          → verify: policy played, power triggers, wins
 6. chancellor_veto + president_veto_response   → verify: veto flow, tracker increment, denied flag
-7. Presidential power functions                → verify: each power, execution win
+7. Presidential power functions + acknowledge_peek → verify: each power, execution win
 8. scrub_state                                 → verify: information hiding based on rules
 ```
 
