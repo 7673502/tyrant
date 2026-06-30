@@ -22,6 +22,7 @@ from tyrant.models.game_state import (
     policy_peek,
     president_discard,
     president_veto_response,
+    execute_player,
 )
 from tyrant.models.player import Player
 
@@ -1325,6 +1326,110 @@ class TestPolicyPeek(BaseGameStateTest):
 
         with self.assertRaises(ValueError):
             _ = acknowledge_peek(state)
+
+
+class TestExecutePlayer(BaseGameStateTest):
+    def test_execute_player_immutability(self):
+        """Verifies that execute_player returns a new instance without mutating the input state."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+        target_uid = state.players[1].uid
+        new_state = execute_player(state, target_uid)
+        self.assert_pure_transition(state, new_state)
+
+    def test_execute_player(self):
+        """Verifies that execute_player works as expected."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+
+        target_uid = state.players[1].uid
+        if state.players[1].role == Role.HITLER:
+            target_uid = state.players[2].uid
+
+        original_deck = state.deck
+        new_state = execute_player(state, target_uid)
+
+        target_player = next(p for p in new_state.players if p.uid == target_uid)
+        self.assertFalse(target_player.is_alive)
+
+        self.assertEqual(new_state.deck.draw_pile, original_deck.draw_pile)
+        self.assertEqual(new_state.deck.discard_pile, original_deck.discard_pile)
+
+        self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+
+    def test_execute_player_wrong_phase(self):
+        """Verifies that an error is raised if function is called with wrong GameState phase."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.NOMINATION)
+
+        target_uid = state.players[1].uid
+        with self.assertRaises(ValueError):
+            _ = execute_player(state, target_uid)
+
+    def test_execute_player_next_president_dead(self):
+        """Verifies that once the game goes to the next nomination phase, a dead player is skipped."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER, president_index=0)
+
+        target_uid = state.players[1].uid
+
+        if state.players[1].role == Role.HITLER:
+            state = create_game((1, 2, 3, 4, 5), 43)
+            state = replace(
+                state, phase=GamePhase.PRESIDENTIAL_POWER, president_index=0
+            )
+            target_uid = state.players[1].uid
+
+        new_state = execute_player(state, target_uid)
+
+        self.assertEqual(new_state.president_index, 2)
+
+    def test_execute_player_hitler_dies(self):
+        """Verifies that if hitler is executed, the liberals win and game phase is updated to game over."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+
+        hitler_uid = next(p.uid for p in state.players if p.role == Role.HITLER)
+
+        if state.players[state.president_index].uid == hitler_uid:
+            state = replace(state, president_index=(state.president_index + 1) % 5)
+
+        new_state = execute_player(state, hitler_uid)
+
+        self.assertEqual(new_state.winner, Party.LIBERAL)
+        self.assertEqual(new_state.phase, GamePhase.GAME_OVER)
+
+    def test_execute_player_self_executiion(self):
+        """Verifies that an error is raised so player cannot attempt to execute themselves."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+
+        president_uid = state.players[state.president_index].uid
+        with self.assertRaises(ValueError):
+            _ = execute_player(state, president_uid)
+
+    def test_execute_player_invalid_uid(self):
+        """Verifies that an error is raised if function is called with non-existent UID."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+
+        with self.assertRaises(ValueError):
+            _ = execute_player(state, 999)
+
+    def test_execute_player_already_dead(self):
+        """Verifies that a player who is already dead cannot be executed."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+
+        target_uid = state.players[1].uid
+        new_players = list(state.players)
+        new_players[1] = replace(new_players[1], is_alive=False)
+
+        state = replace(
+            state, phase=GamePhase.PRESIDENTIAL_POWER, players=tuple(new_players)
+        )
+
+        with self.assertRaises(ValueError):
+            _ = execute_player(state, target_uid)
 
 
 if __name__ == "__main__":

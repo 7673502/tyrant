@@ -424,3 +424,31 @@ def acknowledge_peek(state: GameState) -> GameState:
 
     new_state = replace(state, drawn_policies=())
     return _advance_to_nomination(new_state)
+
+
+def execute_player(state: GameState, target_uid: int) -> GameState:
+    if state.phase != GamePhase.PRESIDENTIAL_POWER:
+        raise ValueError(f"Cannot execute player in phase {state.phase}")
+
+    president_uid = state.players[state.president_index].uid
+    if target_uid == president_uid:
+        raise ValueError("President cannot execute themselves")
+
+    target = next((p for p in state.players if p.uid == target_uid), None)
+    if target is None:
+        raise ValueError(f"Player with UID {target_uid} not found")
+
+    if not target.is_alive:
+        raise ValueError("Cannot execute an already dead player")
+
+    new_players = list(state.players)
+    for i, p in enumerate(new_players):
+        if p.uid == target_uid:
+            new_players[i] = replace(p, is_alive=False)
+
+    new_state = replace(state, players=tuple(new_players))
+
+    if target.role == Role.HITLER:
+        return replace(new_state, phase=GamePhase.GAME_OVER, winner=Party.LIBERAL)
+
+    return _advance_to_nomination(new_state)
