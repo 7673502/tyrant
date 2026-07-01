@@ -17,12 +17,12 @@ from tyrant.models.game_state import (
     chancellor_enact,
     chancellor_veto,
     create_game,
+    execute_player,
     investigate_loyalty,
     nominate_chancellor,
     policy_peek,
     president_discard,
     president_veto_response,
-    execute_player,
 )
 from tyrant.models.player import Player
 
@@ -1399,7 +1399,7 @@ class TestExecutePlayer(BaseGameStateTest):
         self.assertEqual(new_state.winner, Party.LIBERAL)
         self.assertEqual(new_state.phase, GamePhase.GAME_OVER)
 
-    def test_execute_player_self_executiion(self):
+    def test_execute_player_self_execution(self):
         """Verifies that an error is raised so player cannot attempt to execute themselves."""
         state = create_game((1, 2, 3, 4, 5), 42)
         state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
