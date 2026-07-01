@@ -46,6 +46,7 @@ class GameState:
     rng_state: tuple[int, tuple[int, ...], float | None]
     veto_denied_this_term: bool = False
     investigations: frozendict[int, int] = frozendict()
+    deck_shuffled_last_action: bool = False
 
 
 def create_game(uids: tuple[int, ...], seed: int = 42) -> GameState:
@@ -89,6 +90,7 @@ def create_game(uids: tuple[int, ...], seed: int = 42) -> GameState:
         rng_state=rng.getstate(),
         veto_denied_this_term=False,
         investigations=frozendict(),
+        deck_shuffled_last_action=False,
     )
 
 
@@ -148,13 +150,25 @@ def nominate_chancellor(state: GameState, chancellor_uid: int) -> GameState:
                 "Target cannot be previous chancellor when <= 6 players are alive"
             )
 
-    return replace(state, nominated_chancellor=chancellor_uid, phase=GamePhase.VOTING)
+    return replace(state, nominated_chancellor=chancellor_uid, phase=GamePhase.VOTING, deck_shuffled_last_action=False)
+
+
+def _ensure_deck_ready(state: GameState) -> GameState:
+    if len(state.deck.draw_pile) < 3:
+        rng = Random()
+        rng.setstate(state.rng_state)
+        new_deck, _ = shuffle_deck(state.deck, rng)
+        return replace(
+            state,
+            deck=new_deck,
+            rng_state=rng.getstate(),
+            deck_shuffled_last_action=True,
+        )
+    else:
+        return replace(state, deck_shuffled_last_action=False)
 
 
 def _resolve_election(state: GameState) -> GameState:
-    rng = Random()
-    rng.setstate(state.rng_state)
-
     ja_votes = sum(1 for v in state.ballot_box.votes.values() if v == Vote.JA)
     nein_votes = sum(1 for v in state.ballot_box.votes.values() if v == Vote.NEIN)
 
@@ -167,9 +181,10 @@ def _resolve_election(state: GameState) -> GameState:
                 state,
                 winner=Party.FASCIST,
                 phase=GamePhase.GAME_OVER,
-                rng_state=rng.getstate(),
+                deck_shuffled_last_action=False,
             )
 
+        state = _ensure_deck_ready(state)
         new_deck, drawn = draw_policies(state.deck)
 
         return replace(
@@ -180,7 +195,6 @@ def _resolve_election(state: GameState) -> GameState:
             election_tracker=ElectionTracker(failed_elections=0),
             previous_president=state.players[state.president_index].uid,
             previous_chancellor=chancellor_uid,
-            rng_state=rng.getstate(),
         )
     else:
         new_tracker, triggered_top_deck = increment_election_tracker(
@@ -188,10 +202,9 @@ def _resolve_election(state: GameState) -> GameState:
         )
 
         if triggered_top_deck:
+            state = _ensure_deck_ready(state)
             new_deck, tile = top_deck(state.deck)
             new_board, _ = play_tile(state.board, tile)
-
-            new_deck, _ = shuffle_deck(new_deck, rng)
 
             new_state = replace(
                 state,
@@ -200,7 +213,6 @@ def _resolve_election(state: GameState) -> GameState:
                 board=new_board,
                 previous_president=None,
                 previous_chancellor=None,
-                rng_state=rng.getstate(),
             )
 
             if new_board.winner is not None:
@@ -211,7 +223,7 @@ def _resolve_election(state: GameState) -> GameState:
             return _advance_to_nomination(new_state)
         else:
             new_state = replace(
-                state, election_tracker=new_tracker, rng_state=rng.getstate()
+                state, election_tracker=new_tracker, deck_shuffled_last_action=False
             )
             return _advance_to_nomination(new_state)
 
@@ -228,7 +240,7 @@ def cast_vote(state: GameState, uid: int, vote: Vote) -> GameState:
         raise ValueError("Cannot vote when dead")
 
     new_ballot_box = submit_vote(state.ballot_box, uid, vote)
-    new_state = replace(state, ballot_box=new_ballot_box)
+    new_state = replace(state, ballot_box=new_ballot_box, deck_shuffled_last_action=False)
 
     alive_count = sum(1 for p in state.players if p.is_alive)
     if new_ballot_box.vote_count == alive_count:
@@ -256,6 +268,7 @@ def president_discard(state: GameState, discard_index: int) -> GameState:
         deck=new_deck,
         drawn_policies=remaining_policies,
         phase=GamePhase.CHANCELLOR_ENACT,
+        deck_shuffled_last_action=False,
     )
 
 
@@ -273,16 +286,12 @@ def chancellor_enact(state: GameState, enact_index: int) -> GameState:
     new_board, power = play_tile(state.board, enacted_tile)
     new_deck = discard_policies(state.deck, discarded_tile)
 
-    rng = Random()
-    rng.setstate(state.rng_state)
-    new_deck, _ = shuffle_deck(new_deck, rng)
-
     new_state = replace(
         state,
         board=new_board,
         deck=new_deck,
         drawn_policies=(),
-        rng_state=rng.getstate(),
+        deck_shuffled_last_action=False,
     )
 
     if new_board.winner is not None:
@@ -304,7 +313,7 @@ def chancellor_veto(state: GameState) -> GameState:
     if state.veto_denied_this_term:
         raise ValueError("Veto has already been denied this term")
 
-    return replace(state, phase=GamePhase.PRESIDENT_VETO_RESPONSE)
+    return replace(state, phase=GamePhase.PRESIDENT_VETO_RESPONSE, deck_shuffled_last_action=False)
 
 
 def president_veto_response(state: GameState, approve: bool) -> GameState:
@@ -316,18 +325,16 @@ def president_veto_response(state: GameState, approve: bool) -> GameState:
 
     if approve:
         new_deck = discard_policies(state.deck, *state.drawn_policies)
-
-        rng = Random()
-        rng.setstate(state.rng_state)
+        state = replace(state, deck=new_deck)
 
         new_tracker, triggered_top_deck = increment_election_tracker(
             state.election_tracker
         )
 
         if triggered_top_deck:
-            new_deck, tile = top_deck(new_deck)
+            state = _ensure_deck_ready(state)
+            new_deck, tile = top_deck(state.deck)
             new_board, _ = play_tile(state.board, tile)
-            new_deck, _ = shuffle_deck(new_deck, rng)
 
             new_state = replace(
                 state,
@@ -337,7 +344,6 @@ def president_veto_response(state: GameState, approve: bool) -> GameState:
                 drawn_policies=(),
                 previous_president=None,
                 previous_chancellor=None,
-                rng_state=rng.getstate(),
             )
 
             if new_board.winner is not None:
@@ -349,10 +355,9 @@ def president_veto_response(state: GameState, approve: bool) -> GameState:
         else:
             new_state = replace(
                 state,
-                deck=new_deck,
                 election_tracker=new_tracker,
                 drawn_policies=(),
-                rng_state=rng.getstate(),
+                deck_shuffled_last_action=False,
             )
             return _advance_to_nomination(new_state)
     else:
@@ -360,6 +365,7 @@ def president_veto_response(state: GameState, approve: bool) -> GameState:
             state,
             veto_denied_this_term=True,
             phase=GamePhase.CHANCELLOR_ENACT,
+            deck_shuffled_last_action=False,
         )
 
 
@@ -381,7 +387,7 @@ def investigate_loyalty(state: GameState, target_uid: int) -> tuple[GameState, P
     new_investigations = frozendict(
         {**state.investigations, target_uid: investigator_uid}
     )
-    new_state = replace(state, investigations=new_investigations)
+    new_state = replace(state, investigations=new_investigations, deck_shuffled_last_action=False)
 
     return _advance_to_nomination(new_state), target.party
 
@@ -401,7 +407,7 @@ def call_special_election(state: GameState, target_uid: int) -> GameState:
     if not target.is_alive:
         raise ValueError("Dead player cannot be chosen for special election.")
 
-    new_state = replace(state, special_election_president=target_uid)
+    new_state = replace(state, special_election_president=target_uid, deck_shuffled_last_action=False)
 
     return _advance_to_nomination(new_state)
 
@@ -410,7 +416,7 @@ def policy_peek(state: GameState) -> GameState:
     if state.phase != GamePhase.PRESIDENTIAL_POWER:
         raise ValueError(f"Cannot peek policies in phase {state.phase}")
 
-    # TODO: add _ensure_deck_ready integration for JIT reshuffle
+    state = _ensure_deck_ready(state)
     return replace(
         state,
         drawn_policies=state.deck.peek,
@@ -422,7 +428,7 @@ def acknowledge_peek(state: GameState) -> GameState:
     if state.phase != GamePhase.POLICY_PEEK:
         raise ValueError(f"Cannot acknowledge peek in phase {state.phase}")
 
-    new_state = replace(state, drawn_policies=())
+    new_state = replace(state, drawn_policies=(), deck_shuffled_last_action=False)
     return _advance_to_nomination(new_state)
 
 
@@ -446,7 +452,7 @@ def execute_player(state: GameState, target_uid: int) -> GameState:
         if p.uid == target_uid:
             new_players[i] = replace(p, is_alive=False)
 
-    new_state = replace(state, players=tuple(new_players))
+    new_state = replace(state, players=tuple(new_players), deck_shuffled_last_action=False)
 
     if target.role == Role.HITLER:
         return replace(new_state, phase=GamePhase.GAME_OVER, winner=Party.LIBERAL)

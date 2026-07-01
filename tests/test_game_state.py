@@ -10,6 +10,7 @@ from tyrant.models.enums import GamePhase, Party, PolicyTile, Role, Vote
 from tyrant.models.game_state import (
     GameState,
     _advance_to_nomination,
+    _ensure_deck_ready,
     _resolve_election,
     acknowledge_peek,
     call_special_election,
@@ -797,27 +798,6 @@ class TestChancellorEnact(BaseGameStateTest):
                     new_state = chancellor_enact(test_state, 0)
                     self.assertEqual(new_state.phase, GamePhase.PRESIDENTIAL_POWER)
 
-    def test_chancellor_enact_reshuffle(self):
-        """Verifies reshuffle if draw pile < 3 after drawing."""
-        state = create_game((1, 2, 3, 4, 5), 42)
-        discarded = (PolicyTile.LIBERAL,) * 5 + (PolicyTile.FASCIST,) * 5
-        deck = replace(
-            state.deck,
-            draw_pile=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
-            discard_pile=discarded,
-        )
-        state = replace(
-            state,
-            deck=deck,
-            phase=GamePhase.CHANCELLOR_ENACT,
-            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
-        )
-
-        new_state = chancellor_enact(state, 1)
-
-        self.assertEqual(len(new_state.deck.draw_pile), 13)
-        self.assertEqual(len(new_state.deck.discard_pile), 0)
-
     def test_chancellor_enact_wrong_phase(self):
         """Verifies error raised if function is called during wrong phase."""
         state = create_game((1, 2, 3, 4, 5), 42)
@@ -1430,6 +1410,138 @@ class TestExecutePlayer(BaseGameStateTest):
 
         with self.assertRaises(ValueError):
             _ = execute_player(state, target_uid)
+
+
+class TestEnsureDeckReady(BaseGameStateTest):
+    def test__ensure_deck_ready_no_shuffle(self):
+        """Ensures correctness after no shuffle is required when function is called."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        new_state = _ensure_deck_ready(state)
+        self.assertFalse(new_state.deck_shuffled_last_action)
+        self.assertEqual(len(new_state.deck.draw_pile), 17)
+
+    def test__ensure_deck_ready_yes_shuffle(self):
+        """Ensures correctness when shuffle is required after function is called."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        discarded = (PolicyTile.LIBERAL,) * 5 + (PolicyTile.FASCIST,) * 5
+        deck = replace(
+            state.deck,
+            draw_pile=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+            discard_pile=discarded,
+        )
+        state = replace(state, deck=deck)
+        new_state = _ensure_deck_ready(state)
+        self.assertTrue(new_state.deck_shuffled_last_action)
+        self.assertEqual(len(new_state.deck.draw_pile), 12)
+        self.assertEqual(len(new_state.deck.discard_pile), 0)
+
+    def test__ensure_deck_ready_reshuffle_immutability(self):
+        """Tests that after a reshuffle, passes immutability criteria outlined in design document."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        deck = replace(
+            state.deck,
+            draw_pile=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+            discard_pile=(PolicyTile.LIBERAL,),
+        )
+        state = replace(state, deck=deck)
+        new_state = _ensure_deck_ready(state)
+        self.assert_pure_transition(state, new_state)
+
+    def test__ensure_deck_ready_no_reshuffle_immutability(self):
+        """Tests that after no reshuffle occurs after calling _ensure_deck_ready, passes immutability criteria outlined in design document."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        new_state = _ensure_deck_ready(state)
+        self.assert_pure_transition(state, new_state)
+
+    def test__ensure_deck_ready_before_drawing_3(self):
+        """Before president draws 3, ensure reshuffle occurs (set up so <3 cards after the draw)."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        deck = replace(
+            state.deck,
+            draw_pile=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+            discard_pile=(PolicyTile.LIBERAL,),
+        )
+        state = replace(state, deck=deck)
+        state = nominate_chancellor(state, state.players[1].uid)
+        new_ballot = state.ballot_box
+        for i in range(5):
+            new_ballot = submit_vote(new_ballot, state.players[i].uid, Vote.JA)
+        state = replace(state, ballot_box=new_ballot)
+
+        new_state = _resolve_election(state)
+        self.assertTrue(new_state.deck_shuffled_last_action)
+        self.assertEqual(len(new_state.deck.draw_pile), 0)
+
+    def test__ensure_deck_ready_before_policy_peek(self):
+        """Before president peeks 3, ensure reshuffle occurs (set up so <3 cards in the draw pile)."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        deck = replace(
+            state.deck,
+            draw_pile=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+            discard_pile=(PolicyTile.LIBERAL,),
+        )
+        state = replace(state, deck=deck, phase=GamePhase.PRESIDENTIAL_POWER)
+        new_state = policy_peek(state)
+        self.assertTrue(new_state.deck_shuffled_last_action)
+        self.assertEqual(len(new_state.drawn_policies), 3)
+        self.assertEqual(len(new_state.deck.draw_pile), 3)
+
+    def test__ensure_deck_ready_before_top_deck(self):
+        """Before a top deck occurs, ensure reshuffle occurs (set up so <3 cards in the draw pile)."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        deck = replace(
+            state.deck,
+            draw_pile=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+            discard_pile=(PolicyTile.LIBERAL,),
+        )
+        state = replace(
+            state,
+            deck=deck,
+            election_tracker=replace(state.election_tracker, failed_elections=2),
+        )
+        state = nominate_chancellor(state, state.players[1].uid)
+        new_ballot = state.ballot_box
+        for i in range(5):
+            new_ballot = submit_vote(new_ballot, state.players[i].uid, Vote.NEIN)
+        state = replace(state, ballot_box=new_ballot)
+
+        new_state = _resolve_election(state)
+        self.assertTrue(new_state.deck_shuffled_last_action)
+        self.assertEqual(len(new_state.deck.draw_pile), 2)
+
+    def test__ensure_deck_ready_before_veto_top_deck(self):
+        """Before a top deck occurs after a veto, ensure reshuffle occurs (set up so <3 cards in the draw pile)."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        deck = replace(
+            state.deck,
+            draw_pile=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+            discard_pile=(PolicyTile.LIBERAL,),
+        )
+        state = replace(
+            state,
+            deck=deck,
+            phase=GamePhase.PRESIDENT_VETO_RESPONSE,
+            board=replace(state.board, fascist_played=5),
+            election_tracker=replace(state.election_tracker, failed_elections=2),
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.FASCIST),
+        )
+        new_state = president_veto_response(state, True)
+        self.assertTrue(new_state.deck_shuffled_last_action)
+        self.assertEqual(len(new_state.deck.draw_pile), 4)
+
+    def test__ensure_deck_ready_transition_functions(self):
+        """Ensures every transition function that does not make use of _ensure_deck_ready resets the flag to False."""
+        # This checks a representative set to make sure they reset the flag if it was True.
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, deck_shuffled_last_action=True)
+
+        state_nom = replace(state, phase=GamePhase.NOMINATION)
+        new_state = nominate_chancellor(state_nom, state_nom.players[1].uid)
+        self.assertFalse(new_state.deck_shuffled_last_action)
+
+        state_voting = replace(state, phase=GamePhase.VOTING)
+        new_state = cast_vote(state_voting, state_voting.players[0].uid, Vote.JA)
+        self.assertFalse(new_state.deck_shuffled_last_action)
 
 
 if __name__ == "__main__":
