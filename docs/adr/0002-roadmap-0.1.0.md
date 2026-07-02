@@ -20,13 +20,13 @@ Compose the core models into a single top-level state container and implement th
 - **State Transitions:** Pure-functional helpers that accept a `GameState` and return a new `GameState` (e.g., `nominate_chancellor`, `cast_vote`, `execute_player`).
 - **Just-In-Time Shuffling:** Safely shuffle the deck only exactly when necessary to maintain deterministic reproducibility.
 - **View Localization (`scrub_state`):** Redact hidden information from the state based on the requesting player's role, using a unified Python 3.15 `sentinel("HIDDEN")` type.
-- **Immutability Testing:** Base test classes that enforce zero-mutation state transitions across 140+ test cases.
+- **Immutability Testing:** Base test classes that enforce zero-mutation state transitions across all test cases.
 
 ## Phase 3: Custom Exception Hierarchy
 Improve the developer and LLM experience by replacing generic `ValueError` exceptions with a rigid, catchable exception tree.
 
 - **Base Error:** Create `TyrantError`.
-- **Specific Errors:** Create `InvalidMoveError`, `WrongPhaseError`, `SelfTargetingError`, `TermLimitError`, etc.
+- **Specific Error:** Create `InvalidMoveError`
 - **Refactoring:** Update all state transition functions to raise these specific errors.
 
 ## Phase 4: Agent Protocol & Baseline Bots
