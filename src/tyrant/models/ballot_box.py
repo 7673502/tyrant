@@ -1,10 +1,10 @@
 from dataclasses import dataclass
-from tyrant.models.enums import Vote
+from tyrant.models.enums import Vote, HIDDEN
 
 
 @dataclass(frozen=True)
 class BallotBox:
-    votes: frozendict[int, Vote] = frozendict()
+    votes: frozendict[int, Vote | HIDDEN] = frozendict()
 
     @property
     def vote_count(self) -> int:

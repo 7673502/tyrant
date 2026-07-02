@@ -1,5 +1,7 @@
 from enum import StrEnum, auto
 
+HIDDEN = sentinel("HIDDEN")
+
 
 class Party(StrEnum):
     FASCIST = auto()
@@ -35,7 +37,8 @@ class GamePhase(StrEnum):
     NOMINATION = auto()
     VOTING = auto()
     PRESIDENT_DISCARD = auto()
-    CHANCELLOR_DISCARD = auto()
+    CHANCELLOR_ENACT = auto()
     PRESIDENTIAL_POWER = auto()
+    POLICY_PEEK = auto()
     PRESIDENT_VETO_RESPONSE = auto()
     GAME_OVER = auto()
