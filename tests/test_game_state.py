@@ -6,7 +6,7 @@ from tyrant.models.ballot_box import BallotBox, submit_vote
 from tyrant.models.board import Board
 from tyrant.models.deck import create_deck
 from tyrant.models.election_tracker import ElectionTracker
-from tyrant.models.enums import GamePhase, Party, PolicyTile, Role, Vote
+from tyrant.models.enums import HIDDEN, GamePhase, Party, PolicyTile, Role, Vote
 from tyrant.models.game_state import (
     GameState,
     _advance_to_nomination,
@@ -24,6 +24,7 @@ from tyrant.models.game_state import (
     policy_peek,
     president_discard,
     president_veto_response,
+    scrub_state,
 )
 from tyrant.models.player import Player
 
@@ -1542,6 +1543,292 @@ class TestEnsureDeckReady(BaseGameStateTest):
         state_voting = replace(state, phase=GamePhase.VOTING)
         new_state = cast_vote(state_voting, state_voting.players[0].uid, Vote.JA)
         self.assertFalse(new_state.deck_shuffled_last_action)
+
+
+class TestScrubState(BaseGameStateTest):
+    def test_scrub_state_immutability(self):
+        """Test scrub_state preserves immutability and does not mutate the original state."""
+        state = create_game(tuple(range(1, 8)), seed=42)
+        viewer_uid = state.players[0].uid
+
+        new_state = scrub_state(state, viewer_uid)
+
+        self.assert_pure_transition(state, new_state)
+
+    def test_scrub_state_liberal(self):
+        """Ensure liberal player cannot see roles of anyone else."""
+        for player_count in range(5, 11):
+            with self.subTest(player_count=player_count):
+                state = create_game(tuple(range(1, player_count + 1)), seed=42)
+                liberal = next(p for p in state.players if p.role == Role.LIBERAL)
+
+                scrubbed = scrub_state(state, liberal.uid)
+
+                for p in scrubbed.players:
+                    if p.uid == liberal.uid:
+                        self.assertEqual(p.role, Role.LIBERAL)
+                        self.assertEqual(p.party, Party.LIBERAL)
+                    else:
+                        self.assertIs(p.role, HIDDEN)
+                        self.assertIs(p.party, HIDDEN)
+
+    def test_scrub_state_fascist(self):
+        """Ensure fascist (non-hitler) player can see every other fascist's (including hitler) role."""
+        for player_count in range(5, 11):
+            with self.subTest(player_count=player_count):
+                state = create_game(tuple(range(1, player_count + 1)), seed=42)
+                fascist = next(p for p in state.players if p.role == Role.FASCIST)
+
+                scrubbed = scrub_state(state, fascist.uid)
+
+                for p in scrubbed.players:
+                    orig = next(
+                        orig_p for orig_p in state.players if orig_p.uid == p.uid
+                    )
+                    if orig.role in (Role.FASCIST, Role.HITLER):
+                        self.assertEqual(p.role, orig.role)
+                        self.assertEqual(p.party, Party.FASCIST)
+                    elif p.uid == fascist.uid:
+                        # Should not happen since we handled it, but just in case
+                        self.assertEqual(p.role, Role.FASCIST)
+                    else:
+                        self.assertIs(p.role, HIDDEN)
+                        self.assertIs(p.party, HIDDEN)
+
+    def test_scrub_state_hitler_5_6_player(self):
+        """Ensure hitler can see everyone other fascist's role in 5-6 player games."""
+        for player_count in (5, 6):
+            with self.subTest(player_count=player_count):
+                state = create_game(tuple(range(1, player_count + 1)), seed=42)
+                hitler = next(p for p in state.players if p.role == Role.HITLER)
+
+                scrubbed = scrub_state(state, hitler.uid)
+
+                for p in scrubbed.players:
+                    orig = next(
+                        orig_p for orig_p in state.players if orig_p.uid == p.uid
+                    )
+                    if orig.role in (Role.FASCIST, Role.HITLER):
+                        self.assertEqual(p.role, orig.role)
+                        self.assertEqual(p.party, Party.FASCIST)
+                    else:
+                        self.assertIs(p.role, HIDDEN)
+                        self.assertIs(p.party, HIDDEN)
+
+    def test_scrub_state_hitler_7_to_10_player(self):
+        """Ensure hitler cannot see anyone's roles in 7-10 player games."""
+        for player_count in range(7, 11):
+            with self.subTest(player_count=player_count):
+                state = create_game(tuple(range(1, player_count + 1)), seed=42)
+                hitler = next(p for p in state.players if p.role == Role.HITLER)
+
+                scrubbed = scrub_state(state, hitler.uid)
+
+                for p in scrubbed.players:
+                    if p.uid == hitler.uid:
+                        self.assertEqual(p.role, Role.HITLER)
+                        self.assertEqual(p.party, Party.FASCIST)
+                    else:
+                        self.assertIs(p.role, HIDDEN)
+                        self.assertIs(p.party, HIDDEN)
+
+    def test_scrub_state_not_president(self):
+        """Ensure after the president has discarded, that a player who is not the president cannot see what has been drawn/discarded."""
+        state = create_game(tuple(range(1, 8)), seed=42)
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENT_DISCARD,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+        )
+        not_president = state.players[(state.president_index + 1) % len(state.players)]
+
+        scrubbed = scrub_state(state, not_president.uid)
+
+        self.assertEqual(scrubbed.drawn_policies, ())
+
+    def test_scrub_state_chancellor(self):
+        """Ensure after the president has discarded, the chancellor has no way of knowing what the discarded card was."""
+        state = create_game(tuple(range(1, 8)), seed=42)
+        chancellor_uid = state.players[
+            (state.president_index + 1) % len(state.players)
+        ].uid
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENT_DISCARD,
+            nominated_chancellor=chancellor_uid,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+        )
+
+        scrubbed = scrub_state(state, chancellor_uid)
+
+        self.assertEqual(scrubbed.drawn_policies, ())
+
+    def test_scrub_state_voting(self):
+        """Ensure during the voting phase that other players cannot see other players' votes."""
+        state = create_game(tuple(range(1, 8)), seed=42)
+        uid1 = state.players[0].uid
+        uid2 = state.players[1].uid
+
+        box = replace(
+            state.ballot_box, votes=frozendict({uid1: Vote.JA, uid2: Vote.NEIN})
+        )
+        state = replace(state, phase=GamePhase.VOTING, ballot_box=box)
+
+        scrubbed = scrub_state(state, uid1)
+
+        self.assertEqual(len(scrubbed.ballot_box.votes), 2)
+        self.assertEqual(scrubbed.ballot_box.votes[uid1], Vote.JA)
+        self.assertIs(scrubbed.ballot_box.votes[uid2], HIDDEN)
+
+    def test_scrub_state_investigator(self):
+        """Ensure if a player has investigated someone that player can see that in their scrubbed state."""
+        state = create_game(tuple(range(1, 8)), seed=42)
+        investigator = state.players[0]
+        target = state.players[1]
+
+        state = replace(
+            state, investigations=frozendict({target.uid: investigator.uid})
+        )
+
+        scrubbed = scrub_state(state, investigator.uid)
+
+        target_scrubbed = next(p for p in scrubbed.players if p.uid == target.uid)
+        self.assertEqual(target_scrubbed.party, target.party)
+        # Role remains hidden from investigation
+        self.assertIs(target_scrubbed.role, HIDDEN)
+
+    def test_scrub_state_not_investigator(self):
+        """Ensure if an investigation has occurred, any player who did not investigate cannot see the result."""
+        state = create_game(tuple(range(1, 8)), seed=42)
+        investigator = next(p for p in state.players if p.role == Role.LIBERAL)
+        # Give investigator a target that isn't themselves and isn't the bystander
+        bystander = next(
+            p
+            for p in state.players
+            if p.role == Role.LIBERAL and p.uid != investigator.uid
+        )
+        target = next(
+            p for p in state.players if p.uid not in (investigator.uid, bystander.uid)
+        )
+
+        state = replace(
+            state, investigations=frozendict({target.uid: investigator.uid})
+        )
+
+        scrubbed = scrub_state(state, bystander.uid)
+
+        target_scrubbed = next(p for p in scrubbed.players if p.uid == target.uid)
+        self.assertIs(target_scrubbed.party, HIDDEN)
+        self.assertIs(target_scrubbed.role, HIDDEN)
+
+    def test_scrub_state_draw_pile(self):
+        """Ensure that the draw pile cannot be viewed by any player in the scrubbed state."""
+        state = create_game(tuple(range(1, 8)), seed=42)
+        uid = state.players[0].uid
+
+        scrubbed = scrub_state(state, uid)
+
+        self.assertEqual(len(scrubbed.deck.draw_pile), len(state.deck.draw_pile))
+        self.assertTrue(all(tile is HIDDEN for tile in scrubbed.deck.draw_pile))
+
+    def test_scrub_state_discard_pile(self):
+        """Ensure that the discard pile cannot be viewed by any player in the scrubbed state."""
+        state = create_game(tuple(range(1, 8)), seed=42)
+        uid = state.players[0].uid
+
+        # Add something to discard pile
+        deck = replace(
+            state.deck, discard_pile=(PolicyTile.FASCIST, PolicyTile.LIBERAL)
+        )
+        state = replace(state, deck=deck)
+
+        scrubbed = scrub_state(state, uid)
+
+        self.assertEqual(len(scrubbed.deck.discard_pile), len(state.deck.discard_pile))
+        self.assertTrue(all(tile is HIDDEN for tile in scrubbed.deck.discard_pile))
+
+    def test_scrub_state_policy_peek_president(self):
+        """Ensure that the president can see the drawn policies during a policy peek."""
+        state = create_game(tuple(range(1, 8)), seed=42)
+        president = state.players[state.president_index]
+        policies = (PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST)
+        state = replace(state, phase=GamePhase.POLICY_PEEK, drawn_policies=policies)
+
+        scrubbed = scrub_state(state, president.uid)
+
+        self.assertEqual(scrubbed.drawn_policies, policies)
+
+    def test_scrub_state_policy_peek_not_president(self):
+        """Ensure a player that is not the president can not see the drawn policies during a policy peek."""
+        state = create_game(tuple(range(1, 8)), seed=42)
+        not_president = state.players[(state.president_index + 1) % len(state.players)]
+        policies = (PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST)
+        state = replace(state, phase=GamePhase.POLICY_PEEK, drawn_policies=policies)
+
+        scrubbed = scrub_state(state, not_president.uid)
+
+        self.assertEqual(scrubbed.drawn_policies, ())
+
+    def test_scrub_state_drawn_policies_visibility(self):
+        """During PRESIDENT_DISCARD and POLICY_PEEK, only President sees drawn_policies. During CHANCELLOR_ENACT, only Chancellor sees."""
+        state = create_game(tuple(range(1, 8)), seed=42)
+        president = state.players[state.president_index]
+        chancellor_uid = state.players[
+            (state.president_index + 1) % len(state.players)
+        ].uid
+        bystander_uid = state.players[
+            (state.president_index + 2) % len(state.players)
+        ].uid
+        policies_3 = (PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST)
+        policies_2 = (PolicyTile.FASCIST, PolicyTile.LIBERAL)
+
+        # PRESIDENT_DISCARD
+        state_pd = replace(
+            state,
+            phase=GamePhase.PRESIDENT_DISCARD,
+            nominated_chancellor=chancellor_uid,
+            drawn_policies=policies_3,
+        )
+        self.assertEqual(
+            scrub_state(state_pd, president.uid).drawn_policies, policies_3
+        )
+        self.assertEqual(scrub_state(state_pd, chancellor_uid).drawn_policies, ())
+        self.assertEqual(scrub_state(state_pd, bystander_uid).drawn_policies, ())
+
+        # POLICY_PEEK
+        state_pp = replace(
+            state,
+            phase=GamePhase.POLICY_PEEK,
+            nominated_chancellor=chancellor_uid,
+            drawn_policies=policies_3,
+        )
+        self.assertEqual(
+            scrub_state(state_pp, president.uid).drawn_policies, policies_3
+        )
+        self.assertEqual(scrub_state(state_pp, chancellor_uid).drawn_policies, ())
+        self.assertEqual(scrub_state(state_pp, bystander_uid).drawn_policies, ())
+
+        # CHANCELLOR_ENACT
+        state_ce = replace(
+            state,
+            phase=GamePhase.CHANCELLOR_ENACT,
+            nominated_chancellor=chancellor_uid,
+            drawn_policies=policies_2,
+        )
+        self.assertEqual(
+            scrub_state(state_ce, chancellor_uid).drawn_policies, policies_2
+        )
+        self.assertEqual(scrub_state(state_ce, president.uid).drawn_policies, ())
+        self.assertEqual(scrub_state(state_ce, bystander_uid).drawn_policies, ())
+
+    def test_scrub_state_rng_state(self):
+        """Ensure that the rng_state is scrubbed to prevent predicting future draws."""
+        state = create_game(tuple(range(1, 8)), seed=42)
+        uid = state.players[0].uid
+
+        scrubbed = scrub_state(state, uid)
+
+        self.assertIs(scrubbed.rng_state, HIDDEN)
 
 
 if __name__ == "__main__":

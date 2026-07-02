@@ -1,10 +1,10 @@
 from dataclasses import dataclass
-from tyrant.models.enums import Party, Role
+from tyrant.models.enums import Party, Role, HIDDEN
 
 
 @dataclass(frozen=True)
 class Player:
     uid: int
-    party: Party | None
-    role: Role | None
+    party: Party | HIDDEN
+    role: Role | HIDDEN
     is_alive: bool = True

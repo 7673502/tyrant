@@ -14,6 +14,7 @@ from tyrant.models.deck import (
 )
 from tyrant.models.election_tracker import ElectionTracker, increment_election_tracker
 from tyrant.models.enums import (
+    HIDDEN,
     GamePhase,
     Party,
     PolicyTile,
@@ -38,12 +39,12 @@ class GameState:
     president_index: int
     nominated_chancellor: int | None
     ballot_box: BallotBox
-    drawn_policies: tuple[PolicyTile, ...]
+    drawn_policies: tuple[PolicyTile | HIDDEN, ...]
     previous_president: int | None
     previous_chancellor: int | None
     winner: Party | None
     special_election_president: int | None
-    rng_state: tuple[int, tuple[int, ...], float | None]
+    rng_state: tuple[int, tuple[int, ...], float | None] | HIDDEN
     veto_denied_this_term: bool = False
     investigations: frozendict[int, int] = frozendict()
     deck_shuffled_last_action: bool = False
@@ -150,7 +151,12 @@ def nominate_chancellor(state: GameState, chancellor_uid: int) -> GameState:
                 "Target cannot be previous chancellor when <= 6 players are alive"
             )
 
-    return replace(state, nominated_chancellor=chancellor_uid, phase=GamePhase.VOTING, deck_shuffled_last_action=False)
+    return replace(
+        state,
+        nominated_chancellor=chancellor_uid,
+        phase=GamePhase.VOTING,
+        deck_shuffled_last_action=False,
+    )
 
 
 def _ensure_deck_ready(state: GameState) -> GameState:
@@ -240,7 +246,9 @@ def cast_vote(state: GameState, uid: int, vote: Vote) -> GameState:
         raise ValueError("Cannot vote when dead")
 
     new_ballot_box = submit_vote(state.ballot_box, uid, vote)
-    new_state = replace(state, ballot_box=new_ballot_box, deck_shuffled_last_action=False)
+    new_state = replace(
+        state, ballot_box=new_ballot_box, deck_shuffled_last_action=False
+    )
 
     alive_count = sum(1 for p in state.players if p.is_alive)
     if new_ballot_box.vote_count == alive_count:
@@ -313,7 +321,9 @@ def chancellor_veto(state: GameState) -> GameState:
     if state.veto_denied_this_term:
         raise ValueError("Veto has already been denied this term")
 
-    return replace(state, phase=GamePhase.PRESIDENT_VETO_RESPONSE, deck_shuffled_last_action=False)
+    return replace(
+        state, phase=GamePhase.PRESIDENT_VETO_RESPONSE, deck_shuffled_last_action=False
+    )
 
 
 def president_veto_response(state: GameState, approve: bool) -> GameState:
@@ -387,7 +397,9 @@ def investigate_loyalty(state: GameState, target_uid: int) -> tuple[GameState, P
     new_investigations = frozendict(
         {**state.investigations, target_uid: investigator_uid}
     )
-    new_state = replace(state, investigations=new_investigations, deck_shuffled_last_action=False)
+    new_state = replace(
+        state, investigations=new_investigations, deck_shuffled_last_action=False
+    )
 
     return _advance_to_nomination(new_state), target.party
 
@@ -407,7 +419,9 @@ def call_special_election(state: GameState, target_uid: int) -> GameState:
     if not target.is_alive:
         raise ValueError("Dead player cannot be chosen for special election.")
 
-    new_state = replace(state, special_election_president=target_uid, deck_shuffled_last_action=False)
+    new_state = replace(
+        state, special_election_president=target_uid, deck_shuffled_last_action=False
+    )
 
     return _advance_to_nomination(new_state)
 
@@ -452,9 +466,81 @@ def execute_player(state: GameState, target_uid: int) -> GameState:
         if p.uid == target_uid:
             new_players[i] = replace(p, is_alive=False)
 
-    new_state = replace(state, players=tuple(new_players), deck_shuffled_last_action=False)
+    new_state = replace(
+        state, players=tuple(new_players), deck_shuffled_last_action=False
+    )
 
     if target.role == Role.HITLER:
         return replace(new_state, phase=GamePhase.GAME_OVER, winner=Party.LIBERAL)
 
     return _advance_to_nomination(new_state)
+
+
+def scrub_state(state: GameState, viewer_uid: int) -> GameState:
+    viewer = next((p for p in state.players if p.uid == viewer_uid), None)
+    if viewer is None:
+        raise ValueError(f"Viewer with UID {viewer_uid} not found")
+
+    new_players = []
+    for p in state.players:
+        if p.uid == viewer_uid:
+            new_players.append(p)
+            continue
+
+        is_visible = False
+        role_visible = False
+
+        if viewer.role == Role.LIBERAL:
+            pass
+        elif viewer.role == Role.HITLER:
+            if len(state.players) <= 6:
+                if p.role in (Role.FASCIST, Role.HITLER):
+                    is_visible = True
+                    role_visible = True
+        elif viewer.role == Role.FASCIST:
+            if p.role in (Role.FASCIST, Role.HITLER):
+                is_visible = True
+                role_visible = True
+
+        if state.investigations.get(p.uid) == viewer_uid:
+            is_visible = True
+
+        if is_visible:
+            # party is always shown if is_visible is True
+            new_players.append(replace(p, role=p.role if role_visible else HIDDEN))
+        else:
+            new_players.append(replace(p, party=HIDDEN, role=HIDDEN))
+
+    scrubbed_draw = tuple(HIDDEN for _ in state.deck.draw_pile)
+    scrubbed_discard = tuple(HIDDEN for _ in state.deck.discard_pile)
+    new_deck = replace(
+        state.deck,
+        draw_pile=scrubbed_draw,
+        discard_pile=scrubbed_discard,
+    )
+
+    new_drawn_policies = ()
+    if state.phase in (GamePhase.PRESIDENT_DISCARD, GamePhase.POLICY_PEEK):
+        president = state.players[state.president_index]
+        if viewer_uid == president.uid:
+            new_drawn_policies = state.drawn_policies
+    elif state.phase == GamePhase.CHANCELLOR_ENACT:
+        if viewer_uid == state.nominated_chancellor:
+            new_drawn_policies = state.drawn_policies
+
+    new_ballot_box = state.ballot_box
+    if state.phase == GamePhase.VOTING:
+        new_votes = {
+            uid: (vote if uid == viewer_uid else HIDDEN)
+            for uid, vote in state.ballot_box.votes.items()
+        }
+        new_ballot_box = replace(state.ballot_box, votes=frozendict(new_votes))
+
+    return replace(
+        state,
+        players=tuple(new_players),
+        deck=new_deck,
+        drawn_policies=new_drawn_policies,
+        ballot_box=new_ballot_box,
+        rng_state=HIDDEN,
+    )

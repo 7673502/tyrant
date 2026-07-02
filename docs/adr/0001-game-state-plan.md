@@ -198,13 +198,18 @@ Centralized helper for safely checking the deck according to Secret Hitler's res
 
 Produces a localized view of the GameState with hidden information removed based on Secret Hitler rules.
 - **Roles and Parties:**
-  - If viewer is Liberal: All other players' roles/parties are hidden (`None`).
-  - If viewer is Hitler (in 7-10 player games): All other players' roles/parties are hidden (`None`).
-  - If viewer is Fascist (or Hitler in 5-6 player games): Fascists see each other and Hitler. Non-fascists are hidden (`None`).
+  - If viewer is Liberal: All other players' roles/parties are hidden (`HIDDEN` sentinel).
+  - If viewer is Hitler (in 7-10 player games): All other players' roles/parties are hidden (`HIDDEN` sentinel).
+  - If viewer is Fascist (or Hitler in 5-6 player games): Fascists see each other and Hitler. Non-fascists are hidden (`HIDDEN` sentinel).
   - **Investigations:** If the viewer has investigated a player (i.e. `state.investigations.get(player_uid) == viewer_uid`), that player's party is visible to the viewer (role remains hidden).
-- **Deck:** The order of `draw_pile` and `discard_pile` is hidden (perhaps replaced with empty tuples or masked values so length is known but contents are not, pending exact implementation).
+- **Deck:** The order of `draw_pile` and `discard_pile` is hidden (tiles replaced with `HIDDEN` sentinel to preserve length).
 - **Drawn Policies:** Hidden (`()`) unless the viewer is the active President during `PRESIDENT_DISCARD` or `POLICY_PEEK`, or the active Chancellor during `CHANCELLOR_ENACT`.
 - **Policy Peek:** Handled automatically by the rule above since `drawn_policies` contains the peeked cards during `POLICY_PEEK`.
+- **Votes:** During `VOTING`, all other players' votes in `ballot_box.votes` are replaced with `HIDDEN` to preserve who has voted without leaking what they voted.
+- **RNG State:** Replaced with `HIDDEN` to prevent clients from predicting future deck draws.
+
+> [!NOTE]
+> We decided to use Python 3.15's built-in `sentinel` type (`HIDDEN = sentinel("HIDDEN")`) over `None` or an overloaded Enum value. This provides the strongest type safety and creates a unified semantic convention where `None` means "absent" and `HIDDEN` means "redacted".
 
 **Verify:** Scrubbing correctly respects team-knowledge rules, investigations, player counts, and current active phases.
 

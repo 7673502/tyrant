@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from random import Random
 from typing import Final
 
-from tyrant.models.enums import PolicyTile
+from tyrant.models.enums import PolicyTile, HIDDEN
 
 NUM_LIBERAL_POLICIES: Final = 6
 NUM_FASCIST_POLICIES: Final = 11
@@ -11,11 +11,13 @@ POLICY_DRAW_COUNT: Final = 3
 
 @dataclass(frozen=True)
 class Deck:
-    draw_pile: tuple[PolicyTile, ...]
-    discard_pile: tuple[PolicyTile, ...] = ()
+    draw_pile: tuple[PolicyTile | HIDDEN, ...]
+    discard_pile: tuple[PolicyTile | HIDDEN, ...] = ()
 
     @property
-    def peek(self) -> tuple[PolicyTile, PolicyTile, PolicyTile]:
+    def peek(
+        self,
+    ) -> tuple[PolicyTile | HIDDEN, PolicyTile | HIDDEN, PolicyTile | HIDDEN]:
         _check_draw_size(self)
         return (self.draw_pile[-1], self.draw_pile[-2], self.draw_pile[-3])
 

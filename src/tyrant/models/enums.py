@@ -1,5 +1,7 @@
 from enum import StrEnum, auto
 
+HIDDEN = sentinel("HIDDEN")
+
 
 class Party(StrEnum):
     FASCIST = auto()
