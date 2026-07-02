@@ -33,7 +33,7 @@ Improve the developer and LLM experience by replacing generic `ValueError` excep
 Create the interface that all external players (AI or human) must implement to plug into the engine.
 
 - **Agent Protocol:** Define a Python `Protocol` outlining required decision methods (e.g., `get_vote(state)`, `get_nomination(state)`).
-- **RandomAgent:** Implement a bot that selects valid moves completely at random to serve as a baseline testing utility.
+- **RandomBot:** Implement a bot that selects valid moves completely at random to serve as a baseline testing utility.
 
 ## Phase 5: Core Game Loop (`GameRunner`)
 Build the orchestrator that sits on top of the state transitions and manages a live game between agents.
