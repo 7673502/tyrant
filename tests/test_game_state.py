@@ -2,6 +2,7 @@ import unittest
 from dataclasses import fields, is_dataclass, replace
 from random import Random
 
+from tyrant.exceptions import InvalidMoveError, TyrantError
 from tyrant.models.ballot_box import BallotBox, submit_vote
 from tyrant.models.board import Board
 from tyrant.models.deck import create_deck
@@ -103,14 +104,14 @@ class TestCreateGame(BaseGameStateTest):
             with self.subTest(player_count=count):
                 uids = tuple(i for i in range(4))
 
-                with self.assertRaises(ValueError):
+                with self.assertRaises(TyrantError):
                     create_game(uids, 42)
 
     def test_create_game_invalid_player_uids(self):
         """Verifies that an error is raised when player uids are not unique."""
         uids = (1, 1, 2, 3, 4, 4)
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TyrantError):
             create_game(uids, 42)
 
 
@@ -302,7 +303,7 @@ class TestNominateChancellor(BaseGameStateTest):
         state = replace(state, phase=GamePhase.VOTING)
 
         target_uid = state.players[1].uid
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             nominate_chancellor(state, target_uid)
 
     def test_nominate_chancellor_leq_6(self):
@@ -322,7 +323,7 @@ class TestNominateChancellor(BaseGameStateTest):
                     previous_president=prev_pres,
                 )
 
-                with self.assertRaises(ValueError):
+                with self.assertRaises(InvalidMoveError):
                     nominate_chancellor(state, prev_chanc)
 
                 new_state = nominate_chancellor(state, prev_pres)
@@ -345,10 +346,10 @@ class TestNominateChancellor(BaseGameStateTest):
                     previous_president=prev_pres,
                 )
 
-                with self.assertRaises(ValueError):
+                with self.assertRaises(InvalidMoveError):
                     nominate_chancellor(state, prev_chanc)
 
-                with self.assertRaises(ValueError):
+                with self.assertRaises(InvalidMoveError):
                     nominate_chancellor(state, prev_pres)
 
     def test_nominate_chancellor_leq_6_alive(self):
@@ -378,7 +379,7 @@ class TestNominateChancellor(BaseGameStateTest):
                     previous_president=prev_pres,
                 )
 
-                with self.assertRaises(ValueError):
+                with self.assertRaises(InvalidMoveError):
                     nominate_chancellor(state, prev_chanc)
 
                 new_state = nominate_chancellor(state, prev_pres)
@@ -392,20 +393,20 @@ class TestNominateChancellor(BaseGameStateTest):
         state = replace(state, players=tuple(new_players))
 
         dead_uid = state.players[1].uid
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             nominate_chancellor(state, dead_uid)
 
     def test_nominate_self(self):
         """Verifies that the current president cannot nominate themselves."""
         state = create_game((1, 2, 3, 4, 5), 42)
         pres_uid = state.players[state.president_index].uid
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             nominate_chancellor(state, pres_uid)
 
     def test_nominate_invalid_uid(self):
         """Verifies that the chancellor UID is valid."""
         state = create_game((1, 2, 3, 4, 5), 42)
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             nominate_chancellor(state, 6)
 
 
@@ -460,7 +461,7 @@ class TestCastVote(BaseGameStateTest):
         state = create_game((1, 2, 3, 4, 5), 42)
         state = replace(state, phase=GamePhase.VOTING)
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             cast_vote(state, 999, Vote.JA)
 
     def test_cast_vote_dead(self):
@@ -472,7 +473,7 @@ class TestCastVote(BaseGameStateTest):
         state = replace(state, players=tuple(new_players), phase=GamePhase.VOTING)
 
         dead_uid = state.players[0].uid
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             cast_vote(state, dead_uid, Vote.JA)
 
     def test_cast_vote_wrong_game_phase(self):
@@ -480,7 +481,7 @@ class TestCastVote(BaseGameStateTest):
         state = create_game((1, 2, 3, 4, 5), 42)
         state = replace(state, phase=GamePhase.NOMINATION)
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             cast_vote(state, 1, Vote.JA)
 
 
@@ -688,11 +689,11 @@ class TestPresidentDiscard(BaseGameStateTest):
             phase=GamePhase.NOMINATION,
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
         )
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             president_discard(state, 1)
 
     def test_president_discard_improper_index(self):
-        """Verifies that invalid index raises ValueError."""
+        """Verifies that invalid index raises InvalidMoveError."""
         state = create_game((1, 2, 3, 4, 5), 42)
         state = replace(
             state,
@@ -703,12 +704,12 @@ class TestPresidentDiscard(BaseGameStateTest):
         invalid_indices = [-1, -3, 3]
         for index in invalid_indices:
             with self.subTest(discard_index=index):
-                with self.assertRaises(ValueError):
+                with self.assertRaises(InvalidMoveError):
                     president_discard(state, index)
 
         state_empty = replace(state, drawn_policies=())
         with self.subTest(discard_index=0):
-            with self.assertRaises(ValueError):
+            with self.assertRaises(InvalidMoveError):
                 president_discard(state_empty, 0)
 
 
@@ -807,7 +808,7 @@ class TestChancellorEnact(BaseGameStateTest):
             phase=GamePhase.NOMINATION,
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
         )
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             chancellor_enact(state, 0)
 
     def test_chancellor_enact_invalid_index(self):
@@ -820,7 +821,7 @@ class TestChancellorEnact(BaseGameStateTest):
         )
         for index in [-1, 2]:
             with self.subTest(enact_index=index):
-                with self.assertRaises(ValueError):
+                with self.assertRaises(InvalidMoveError):
                     chancellor_enact(state, index)
 
 
@@ -858,7 +859,7 @@ class TestChancellorVeto(BaseGameStateTest):
             board=replace(state.board, fascist_played=5),
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
         )
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             chancellor_veto(state)
 
     def test_chancellor_veto_power_locked(self):
@@ -870,7 +871,7 @@ class TestChancellorVeto(BaseGameStateTest):
             board=replace(state.board, fascist_played=4),
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
         )
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             chancellor_veto(state)
 
     def test_chancellor_double_veto(self):
@@ -883,7 +884,7 @@ class TestChancellorVeto(BaseGameStateTest):
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
             veto_denied_this_term=True,
         )
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             chancellor_veto(state)
 
 
@@ -947,7 +948,7 @@ class TestPresidentVetoResponse(BaseGameStateTest):
             board=replace(state.board, fascist_played=5),
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
         )
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             president_veto_response(state, approve=True)
 
     def test_president_veto_response_veto_locked(self):
@@ -959,7 +960,7 @@ class TestPresidentVetoResponse(BaseGameStateTest):
             board=replace(state.board, fascist_played=4),
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
         )
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             president_veto_response(state, approve=True)
 
     def test_president_veto_response_approved_triggers_top_deck(self):
@@ -1093,7 +1094,7 @@ class TestInvestigateLoyalty(BaseGameStateTest):
 
         president_uid = state.players[state.president_index].uid
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             _, _ = investigate_loyalty(state, president_uid)
 
     def test_investigate_loyalty_invalid_uid(self):
@@ -1101,7 +1102,7 @@ class TestInvestigateLoyalty(BaseGameStateTest):
         state = create_game((1, 2, 3, 4, 5), 42)
         state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             _, _ = investigate_loyalty(state, 999)
 
     def test_investigate_loyalty_invalid_phase(self):
@@ -1110,7 +1111,7 @@ class TestInvestigateLoyalty(BaseGameStateTest):
         state = replace(state, phase=GamePhase.NOMINATION)
 
         target_uid = state.players[1].uid
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             _, _ = investigate_loyalty(state, target_uid)
 
     def test_investigate_loyalty_dead(self):
@@ -1121,7 +1122,7 @@ class TestInvestigateLoyalty(BaseGameStateTest):
         state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER, players=new_players)
 
         target_uid = state.players[1].uid
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             _, _ = investigate_loyalty(state, target_uid)
 
 
@@ -1164,7 +1165,7 @@ class TestCallSpecialElection(BaseGameStateTest):
 
         president_uid = state.players[state.president_index].uid
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             _ = call_special_election(state, president_uid)
 
     def test_special_election_invalid_uid(self):
@@ -1172,7 +1173,7 @@ class TestCallSpecialElection(BaseGameStateTest):
         state = create_game((1, 2, 3, 4, 5), 42)
         state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             _ = call_special_election(state, 999)
 
     def test_special_election_wrong_phase(self):
@@ -1181,18 +1182,18 @@ class TestCallSpecialElection(BaseGameStateTest):
         state = replace(state, phase=GamePhase.NOMINATION)
 
         target_uid = state.players[1].uid
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             _ = call_special_election(state, target_uid)
 
     def test_special_election_dead(self):
-        """Asserts that ValueError is raised if the target player is dead."""
+        """Asserts that InvalidMoveError is raised if the target player is dead."""
         state = create_game((1, 2, 3, 4, 5), 42)
         new_players = list(state.players)
         new_players[1] = replace(new_players[1], is_alive=False)
         state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER, players=new_players)
 
         target_uid = state.players[1].uid
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             _ = call_special_election(state, target_uid)
 
     def test_special_election_next_president_dead(self):
@@ -1264,7 +1265,7 @@ class TestPolicyPeek(BaseGameStateTest):
         state = create_game((1, 2, 3, 4, 5), 42)
         state = replace(state, phase=GamePhase.NOMINATION)
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             _ = policy_peek(state)
 
     def test_acknowledge_peek(self):
@@ -1305,7 +1306,7 @@ class TestPolicyPeek(BaseGameStateTest):
         state = create_game((1, 2, 3, 4, 5), 42)
         state = replace(state, phase=GamePhase.NOMINATION)
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             _ = acknowledge_peek(state)
 
 
@@ -1344,7 +1345,7 @@ class TestExecutePlayer(BaseGameStateTest):
         state = replace(state, phase=GamePhase.NOMINATION)
 
         target_uid = state.players[1].uid
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             _ = execute_player(state, target_uid)
 
     def test_execute_player_next_president_dead(self):
@@ -1386,7 +1387,7 @@ class TestExecutePlayer(BaseGameStateTest):
         state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
 
         president_uid = state.players[state.president_index].uid
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             _ = execute_player(state, president_uid)
 
     def test_execute_player_invalid_uid(self):
@@ -1394,7 +1395,7 @@ class TestExecutePlayer(BaseGameStateTest):
         state = create_game((1, 2, 3, 4, 5), 42)
         state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             _ = execute_player(state, 999)
 
     def test_execute_player_already_dead(self):
@@ -1409,7 +1410,7 @@ class TestExecutePlayer(BaseGameStateTest):
             state, phase=GamePhase.PRESIDENTIAL_POWER, players=tuple(new_players)
         )
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidMoveError):
             _ = execute_player(state, target_uid)
 
 

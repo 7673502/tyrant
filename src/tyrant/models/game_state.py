@@ -2,6 +2,7 @@ from dataclasses import dataclass, replace
 from random import Random
 from typing import Final
 
+from tyrant.exceptions import InvalidMoveError, TyrantError
 from tyrant.models.ballot_box import BallotBox, submit_vote
 from tyrant.models.board import Board, play_tile
 from tyrant.models.deck import (
@@ -53,9 +54,9 @@ class GameState:
 def create_game(uids: tuple[int, ...], seed: int = 42) -> GameState:
     player_count = len(uids)
     if not (5 <= player_count <= 10):
-        raise ValueError(f"Player count must be between 5 and 10, got {player_count}")
+        raise TyrantError(f"Player count must be between 5 and 10, got {player_count}")
     if len(uids) != len(set(uids)):
-        raise ValueError("Player UIDs must be unique")
+        raise TyrantError("Player UIDs must be unique")
 
     num_liberals, num_fascists = ROLE_DISTRIBUTION[player_count]
 
@@ -126,28 +127,28 @@ def _advance_to_nomination(state: GameState) -> GameState:
 
 def nominate_chancellor(state: GameState, chancellor_uid: int) -> GameState:
     if state.phase != GamePhase.NOMINATION:
-        raise ValueError(f"Cannot nominate chancellor in phase {state.phase}")
+        raise InvalidMoveError(f"Cannot nominate chancellor in phase {state.phase}")
 
     president = state.players[state.president_index]
     if chancellor_uid == president.uid:
-        raise ValueError("President cannot nominate themselves")
+        raise InvalidMoveError("President cannot nominate themselves")
 
     chancellor = next((p for p in state.players if p.uid == chancellor_uid), None)
     if chancellor is None:
-        raise ValueError(f"Player with UID {chancellor_uid} not found")
+        raise InvalidMoveError(f"Player with UID {chancellor_uid} not found")
 
     if not chancellor.is_alive:
-        raise ValueError("Cannot nominate a dead player")
+        raise InvalidMoveError("Cannot nominate a dead player")
 
     alive_count = sum(1 for p in state.players if p.is_alive)
     if alive_count > 6:
         if chancellor_uid in (state.previous_president, state.previous_chancellor):
-            raise ValueError(
+            raise InvalidMoveError(
                 "Target cannot be previous president or chancellor when > 6 players are alive"
             )
     else:
         if chancellor_uid == state.previous_chancellor:
-            raise ValueError(
+            raise InvalidMoveError(
                 "Target cannot be previous chancellor when <= 6 players are alive"
             )
 
@@ -236,14 +237,14 @@ def _resolve_election(state: GameState) -> GameState:
 
 def cast_vote(state: GameState, uid: int, vote: Vote) -> GameState:
     if state.phase != GamePhase.VOTING:
-        raise ValueError(f"Cannot cast vote in phase {state.phase}")
+        raise InvalidMoveError(f"Cannot cast vote in phase {state.phase}")
 
     player = next((p for p in state.players if p.uid == uid), None)
     if player is None:
-        raise ValueError(f"Player with UID {uid} not found")
+        raise InvalidMoveError(f"Player with UID {uid} not found")
 
     if not player.is_alive:
-        raise ValueError("Cannot vote when dead")
+        raise InvalidMoveError("Cannot vote when dead")
 
     new_ballot_box = submit_vote(state.ballot_box, uid, vote)
     new_state = replace(
@@ -259,10 +260,10 @@ def cast_vote(state: GameState, uid: int, vote: Vote) -> GameState:
 
 def president_discard(state: GameState, discard_index: int) -> GameState:
     if state.phase != GamePhase.PRESIDENT_DISCARD:
-        raise ValueError(f"Cannot discard in phase {state.phase}")
+        raise InvalidMoveError(f"Cannot discard in phase {state.phase}")
 
     if not (0 <= discard_index < len(state.drawn_policies)):
-        raise ValueError(f"Invalid discard index: {discard_index}")
+        raise InvalidMoveError(f"Invalid discard index: {discard_index}")
 
     discarded_tile = state.drawn_policies[discard_index]
     remaining_policies = tuple(
@@ -282,10 +283,10 @@ def president_discard(state: GameState, discard_index: int) -> GameState:
 
 def chancellor_enact(state: GameState, enact_index: int) -> GameState:
     if state.phase != GamePhase.CHANCELLOR_ENACT:
-        raise ValueError(f"Cannot enact in phase {state.phase}")
+        raise InvalidMoveError(f"Cannot enact in phase {state.phase}")
 
     if not (0 <= enact_index < len(state.drawn_policies)):
-        raise ValueError(f"Invalid enact index: {enact_index}")
+        raise InvalidMoveError(f"Invalid enact index: {enact_index}")
 
     enacted_tile = state.drawn_policies[enact_index]
     discard_index = 1 - enact_index
@@ -313,13 +314,13 @@ def chancellor_enact(state: GameState, enact_index: int) -> GameState:
 
 def chancellor_veto(state: GameState) -> GameState:
     if state.phase != GamePhase.CHANCELLOR_ENACT:
-        raise ValueError(f"Cannot veto in phase {state.phase}")
+        raise InvalidMoveError(f"Cannot veto in phase {state.phase}")
 
     if not state.board.veto_power_unlocked:
-        raise ValueError("Veto power is not unlocked")
+        raise InvalidMoveError("Veto power is not unlocked")
 
     if state.veto_denied_this_term:
-        raise ValueError("Veto has already been denied this term")
+        raise InvalidMoveError("Veto has already been denied this term")
 
     return replace(
         state, phase=GamePhase.PRESIDENT_VETO_RESPONSE, deck_shuffled_last_action=False
@@ -328,10 +329,10 @@ def chancellor_veto(state: GameState) -> GameState:
 
 def president_veto_response(state: GameState, approve: bool) -> GameState:
     if state.phase != GamePhase.PRESIDENT_VETO_RESPONSE:
-        raise ValueError(f"Cannot respond to veto in phase {state.phase}")
+        raise InvalidMoveError(f"Cannot respond to veto in phase {state.phase}")
 
     if not state.board.veto_power_unlocked:
-        raise ValueError("Veto power is not unlocked")
+        raise InvalidMoveError("Veto power is not unlocked")
 
     if approve:
         new_deck = discard_policies(state.deck, *state.drawn_policies)
@@ -381,18 +382,18 @@ def president_veto_response(state: GameState, approve: bool) -> GameState:
 
 def investigate_loyalty(state: GameState, target_uid: int) -> tuple[GameState, Party]:
     if state.phase != GamePhase.PRESIDENTIAL_POWER:
-        raise ValueError(f"Cannot investigate loyalty in phase {state.phase}")
+        raise InvalidMoveError(f"Cannot investigate loyalty in phase {state.phase}")
 
     investigator_uid = state.players[state.president_index].uid
     if target_uid == investigator_uid:
-        raise ValueError("President cannot investigate themselves")
+        raise InvalidMoveError("President cannot investigate themselves")
 
     target = next((p for p in state.players if p.uid == target_uid), None)
     if target is None:
-        raise ValueError(f"Player with UID {target_uid} not found")
+        raise InvalidMoveError(f"Player with UID {target_uid} not found")
 
     if not target.is_alive:
-        raise ValueError("Dead player cannot be investigated.")
+        raise InvalidMoveError("Dead player cannot be investigated.")
 
     new_investigations = frozendict(
         {**state.investigations, target_uid: investigator_uid}
@@ -406,18 +407,18 @@ def investigate_loyalty(state: GameState, target_uid: int) -> tuple[GameState, P
 
 def call_special_election(state: GameState, target_uid: int) -> GameState:
     if state.phase != GamePhase.PRESIDENTIAL_POWER:
-        raise ValueError(f"Cannot call special election in phase {state.phase}")
+        raise InvalidMoveError(f"Cannot call special election in phase {state.phase}")
 
     president_uid = state.players[state.president_index].uid
     if target_uid == president_uid:
-        raise ValueError("President cannot call special election on themselves")
+        raise InvalidMoveError("President cannot call special election on themselves")
 
     target = next((p for p in state.players if p.uid == target_uid), None)
     if target is None:
-        raise ValueError(f"Player with UID {target_uid} not found")
+        raise InvalidMoveError(f"Player with UID {target_uid} not found")
 
     if not target.is_alive:
-        raise ValueError("Dead player cannot be chosen for special election.")
+        raise InvalidMoveError("Dead player cannot be chosen for special election.")
 
     new_state = replace(
         state, special_election_president=target_uid, deck_shuffled_last_action=False
@@ -428,7 +429,7 @@ def call_special_election(state: GameState, target_uid: int) -> GameState:
 
 def policy_peek(state: GameState) -> GameState:
     if state.phase != GamePhase.PRESIDENTIAL_POWER:
-        raise ValueError(f"Cannot peek policies in phase {state.phase}")
+        raise InvalidMoveError(f"Cannot peek policies in phase {state.phase}")
 
     state = _ensure_deck_ready(state)
     return replace(
@@ -440,7 +441,7 @@ def policy_peek(state: GameState) -> GameState:
 
 def acknowledge_peek(state: GameState) -> GameState:
     if state.phase != GamePhase.POLICY_PEEK:
-        raise ValueError(f"Cannot acknowledge peek in phase {state.phase}")
+        raise InvalidMoveError(f"Cannot acknowledge peek in phase {state.phase}")
 
     new_state = replace(state, drawn_policies=(), deck_shuffled_last_action=False)
     return _advance_to_nomination(new_state)
@@ -448,18 +449,18 @@ def acknowledge_peek(state: GameState) -> GameState:
 
 def execute_player(state: GameState, target_uid: int) -> GameState:
     if state.phase != GamePhase.PRESIDENTIAL_POWER:
-        raise ValueError(f"Cannot execute player in phase {state.phase}")
+        raise InvalidMoveError(f"Cannot execute player in phase {state.phase}")
 
     president_uid = state.players[state.president_index].uid
     if target_uid == president_uid:
-        raise ValueError("President cannot execute themselves")
+        raise InvalidMoveError("President cannot execute themselves")
 
     target = next((p for p in state.players if p.uid == target_uid), None)
     if target is None:
-        raise ValueError(f"Player with UID {target_uid} not found")
+        raise InvalidMoveError(f"Player with UID {target_uid} not found")
 
     if not target.is_alive:
-        raise ValueError("Cannot execute an already dead player")
+        raise InvalidMoveError("Cannot execute an already dead player")
 
     new_players = list(state.players)
     for i, p in enumerate(new_players):
@@ -479,7 +480,7 @@ def execute_player(state: GameState, target_uid: int) -> GameState:
 def scrub_state(state: GameState, viewer_uid: int) -> GameState:
     viewer = next((p for p in state.players if p.uid == viewer_uid), None)
     if viewer is None:
-        raise ValueError(f"Viewer with UID {viewer_uid} not found")
+        raise TyrantError(f"Viewer with UID {viewer_uid} not found")
 
     new_players = []
     for p in state.players:
