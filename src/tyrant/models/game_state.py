@@ -141,15 +141,15 @@ def nominate_chancellor(state: GameState, chancellor_uid: int) -> GameState:
         raise InvalidMoveError("Cannot nominate a dead player")
 
     alive_count = sum(1 for p in state.players if p.is_alive)
-    if alive_count > 6:
+    if alive_count > 5:
         if chancellor_uid in (state.previous_president, state.previous_chancellor):
             raise InvalidMoveError(
-                "Target cannot be previous president or chancellor when > 6 players are alive"
+                "Target cannot be previous president or chancellor when > 5 players are alive"
             )
     else:
         if chancellor_uid == state.previous_chancellor:
             raise InvalidMoveError(
-                "Target cannot be previous chancellor when <= 6 players are alive"
+                "Target cannot be previous chancellor when <= 5 players are alive"
             )
 
     return replace(

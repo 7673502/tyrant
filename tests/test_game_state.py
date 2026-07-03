@@ -306,9 +306,9 @@ class TestNominateChancellor(BaseGameStateTest):
         with self.assertRaises(InvalidMoveError):
             nominate_chancellor(state, target_uid)
 
-    def test_nominate_chancellor_leq_6(self):
+    def test_nominate_chancellor_leq_5(self):
         """Verifies that the target chancellor cannot be the previous chancellor but can be the previous president."""
-        for count in (5, 6):
+        for count in (5,):
             with self.subTest(player_count=count):
                 uids = tuple(range(1, count + 1))
                 state = create_game(uids, 42)
@@ -329,9 +329,9 @@ class TestNominateChancellor(BaseGameStateTest):
                 new_state = nominate_chancellor(state, prev_pres)
                 self.assertEqual(new_state.nominated_chancellor, prev_pres)
 
-    def test_nominate_chancellor_geq_7(self):
+    def test_nominate_chancellor_geq_6(self):
         """Verifies that the target chancellor cannot be the previous chancellor or president."""
-        for count in range(7, 11):
+        for count in range(6, 11):
             with self.subTest(player_count=count):
                 uids = tuple(range(1, count + 1))
                 state = create_game(uids, 42)
@@ -352,14 +352,14 @@ class TestNominateChancellor(BaseGameStateTest):
                 with self.assertRaises(InvalidMoveError):
                     nominate_chancellor(state, prev_pres)
 
-    def test_nominate_chancellor_leq_6_alive(self):
-        """Verifies that when <= 6 players are alive, previous chancellor cannot be elected but previous president can."""
-        for count in range(7, 11):
+    def test_nominate_chancellor_leq_5_alive(self):
+        """Verifies that when <= 5 players are alive, previous chancellor cannot be elected but previous president can."""
+        for count in range(6, 11):
             with self.subTest(player_count=count):
                 uids = tuple(range(1, count + 1))
                 state = create_game(uids, 42)
 
-                dead_players = state.players[6:]
+                dead_players = state.players[5:]
 
                 new_players = []
                 for p in state.players:
@@ -1153,6 +1153,24 @@ class TestCallSpecialElection(BaseGameStateTest):
 
         # Now advance to next nomination and ensure rotation returns to normal order
         # Specifically, the president after the special election should be the one following the caller (index 1)
+        new_state_after_special = _advance_to_nomination(new_state)
+
+        self.assertIsNone(new_state_after_special.special_election_president)
+        self.assertEqual(new_state_after_special.president_index, 1)
+
+    def test_special_election_next_president(self):
+        """Verifies that a player can be chosen for special election even if they are the next president in normal rotation."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER, president_index=0)
+
+        target_uid = state.players[1].uid
+
+        new_state = call_special_election(state, target_uid)
+
+        self.assertEqual(new_state.special_election_president, target_uid)
+        self.assertEqual(new_state.president_index, 0)
+        self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+
         new_state_after_special = _advance_to_nomination(new_state)
 
         self.assertIsNone(new_state_after_special.special_election_president)
