@@ -1,5 +1,6 @@
 from dataclasses import dataclass, replace
 from typing import Final
+
 from tyrant.models.enums import Party, PolicyTile, PresidentialPower
 
 HITLER_ZONE_COUNT: Final = 3
