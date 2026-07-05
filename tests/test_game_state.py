@@ -7,7 +7,15 @@ from tyrant.models.ballot_box import BallotBox, submit_vote
 from tyrant.models.board import Board
 from tyrant.models.deck import create_deck
 from tyrant.models.election_tracker import ElectionTracker
-from tyrant.models.enums import HIDDEN, GamePhase, Party, PolicyTile, Role, Vote
+from tyrant.models.enums import (
+    HIDDEN,
+    GamePhase,
+    Party,
+    PolicyTile,
+    PresidentialPower,
+    Role,
+    Vote,
+)
 from tyrant.models.game_state import (
     GameState,
     _advance_to_nomination,
@@ -1848,6 +1856,55 @@ class TestScrubState(BaseGameStateTest):
         scrubbed = scrub_state(state, uid)
 
         self.assertIs(scrubbed.rng_state, HIDDEN)
+
+
+class TestPowerCleanup(BaseGameStateTest):
+    def test_investigate_loyalty_power_cleanup(self):
+        """Verifies that investigate_loyalty resets active_power to NONE."""
+        state = create_game(tuple(range(1, 8)), seed=42)
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENTIAL_POWER,
+            active_power=PresidentialPower.INVESTIGATE_LOYALTY,
+        )
+        target_uid = state.players[(state.president_index + 1) % len(state.players)].uid
+        new_state, _ = investigate_loyalty(state, target_uid)
+        self.assertEqual(new_state.active_power, PresidentialPower.NONE)
+
+    def test_call_special_election_power_cleanup(self):
+        """Verifies that call_special_election resets active_power to NONE."""
+        state = create_game(tuple(range(1, 8)), seed=42)
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENTIAL_POWER,
+            active_power=PresidentialPower.CALL_SPECIAL_ELECTION,
+        )
+        target_uid = state.players[(state.president_index + 1) % len(state.players)].uid
+        new_state = call_special_election(state, target_uid)
+        self.assertEqual(new_state.active_power, PresidentialPower.NONE)
+
+    def test_acknowledge_peek_power_cleanup(self):
+        """Verifies that acknowledge_peek resets active_power to NONE."""
+        state = create_game(tuple(range(1, 8)), seed=42)
+        state = replace(
+            state,
+            phase=GamePhase.POLICY_PEEK,
+            active_power=PresidentialPower.POLICY_PEEK,
+        )
+        new_state = acknowledge_peek(state)
+        self.assertEqual(new_state.active_power, PresidentialPower.NONE)
+
+    def test_execute_player_power_cleanup(self):
+        """Verifies that execute_player resets active_power to NONE."""
+        state = create_game(tuple(range(1, 8)), seed=42)
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENTIAL_POWER,
+            active_power=PresidentialPower.EXECUTION,
+        )
+        target_uid = state.players[(state.president_index + 1) % len(state.players)].uid
+        new_state = execute_player(state, target_uid)
+        self.assertEqual(new_state.active_power, PresidentialPower.NONE)
 
 
 if __name__ == "__main__":

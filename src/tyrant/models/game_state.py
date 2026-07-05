@@ -49,6 +49,7 @@ class GameState:
     veto_denied_this_term: bool = False
     investigations: frozendict[int, int] = frozendict()
     deck_shuffled_last_action: bool = False
+    active_power: PresidentialPower = PresidentialPower.NONE
 
 
 def create_game(uids: tuple[int, ...], seed: int = 42) -> GameState:
@@ -122,6 +123,7 @@ def _advance_to_nomination(state: GameState) -> GameState:
         ballot_box=BallotBox(),
         veto_denied_this_term=False,
         nominated_chancellor=None,
+        active_power=PresidentialPower.NONE,
     )
 
 
@@ -309,7 +311,9 @@ def chancellor_enact(state: GameState, enact_index: int) -> GameState:
     if enacted_tile == PolicyTile.LIBERAL or power == PresidentialPower.NONE:
         return _advance_to_nomination(new_state)
     else:
-        return replace(new_state, phase=GamePhase.PRESIDENTIAL_POWER)
+        return replace(
+            new_state, phase=GamePhase.PRESIDENTIAL_POWER, active_power=power
+        )
 
 
 def chancellor_veto(state: GameState) -> GameState:
@@ -472,7 +476,12 @@ def execute_player(state: GameState, target_uid: int) -> GameState:
     )
 
     if target.role == Role.HITLER:
-        return replace(new_state, phase=GamePhase.GAME_OVER, winner=Party.LIBERAL)
+        return replace(
+            new_state,
+            phase=GamePhase.GAME_OVER,
+            winner=Party.LIBERAL,
+            active_power=PresidentialPower.NONE,
+        )
 
     return _advance_to_nomination(new_state)
 
