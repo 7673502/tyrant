@@ -23,11 +23,8 @@ class Agent(Protocol):
 def _get_legal_actions_nomination(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
-    if not any(p.uid == player_uid for p in state.players):
-        raise TyrantError(f"Player with UID {player_uid} not found")
-
-    president = state.players[state.president_index]
-    if player_uid != president.uid:
+    president_uid = state.players[state.president_index].uid
+    if player_uid != president_uid:
         return tuple()
 
     actions: list[Action] = []
@@ -50,13 +47,29 @@ def _get_legal_actions_nomination(
     return tuple(actions)
 
 
+def _get_legal_actions_voting(state: GameState, player_uid: int) -> tuple[Action, ...]:
+    if player_uid in state.ballot_box.votes:
+        return tuple()
+
+    return (
+        Action(id="vote_ja", description="Vote JA"),
+        Action(id="vote_nein", description="Vote NEIN"),
+    )
+
+
 def get_legal_actions(state: GameState, player_uid: int) -> tuple[Action, ...]:
     # TODO
+    player = next((p for p in state.players if p.uid == player_uid), None)
+    if player is None:
+        raise TyrantError(f"Player with UID {player_uid} not found")
+    if not player.is_alive:
+        return tuple()
+
     match state.phase:
         case GamePhase.NOMINATION:
             return _get_legal_actions_nomination(state, player_uid)
         case GamePhase.VOTING:
-            pass
+            return _get_legal_actions_voting(state, player_uid)
         case GamePhase.PRESIDENT_DISCARD:
             pass
         case GamePhase.CHANCELLOR_ENACT:
