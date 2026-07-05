@@ -315,5 +315,115 @@ class TestGetLegalActionsPresidentDiscard(unittest.TestCase):
             _ = get_legal_actions(state, invalid_uid)
 
 
+class TestGetLegalActionsChancellorEnact(unittest.TestCase):
+    def test__get_legal_actions_chancellor_enact_immutability(self):
+        """Ensure the output is an immutable tuple."""
+        state = create_game(tuple(range(5)))
+        state = replace(
+            state,
+            phase=GamePhase.CHANCELLOR_ENACT,
+            nominated_chancellor=state.players[1].uid,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        )
+        actions = get_legal_actions(state, state.players[1].uid)
+        self.assertIsInstance(actions, tuple)
+
+    def test__get_legal_actions_chancellor_enact_chancellor_receives_actions(self):
+        """Ensure the active nominated_chancellor receives the exact enact actions for the drawn policies."""
+        state = create_game(tuple(range(5)))
+        chancellor_uid = state.players[1].uid
+        state = replace(
+            state,
+            phase=GamePhase.CHANCELLOR_ENACT,
+            nominated_chancellor=chancellor_uid,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        )
+        actions = get_legal_actions(state, chancellor_uid)
+        self.assertEqual(len(actions), 2)
+        self.assertEqual(actions[0].id, "enact_0")
+        self.assertEqual(actions[0].description, "Enact Fascist")
+        self.assertEqual(actions[1].id, "enact_1")
+        self.assertEqual(actions[1].description, "Enact Liberal")
+
+    def test__get_legal_actions_chancellor_enact_non_chancellor(self):
+        """Ensure every other player (including the active president) receives an empty tuple."""
+        state = create_game(tuple(range(5)))
+        chancellor_uid = state.players[1].uid
+        state = replace(
+            state,
+            phase=GamePhase.CHANCELLOR_ENACT,
+            nominated_chancellor=chancellor_uid,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        )
+        for p in state.players:
+            if p.uid != chancellor_uid:
+                actions = get_legal_actions(state, p.uid)
+                self.assertEqual(actions, tuple())
+
+    def test__get_legal_actions_chancellor_enact_dead_player(self):
+        """Ensure a dead player receives an empty tuple."""
+        state = create_game(tuple(range(5)))
+        dead_uid = state.players[1].uid
+        new_players = list(state.players)
+        new_players[1] = replace(new_players[1], is_alive=False)
+        state = replace(
+            state,
+            players=tuple(new_players),
+            phase=GamePhase.CHANCELLOR_ENACT,
+            nominated_chancellor=dead_uid,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        )
+        actions = get_legal_actions(state, dead_uid)
+        self.assertEqual(actions, tuple())
+
+    def test__get_legal_actions_chancellor_enact_invalid_uid(self):
+        """Ensure TyrantError is raised for trying to get actions for an invalid uid."""
+        state = create_game(tuple(range(5)))
+        state = replace(
+            state,
+            phase=GamePhase.CHANCELLOR_ENACT,
+            nominated_chancellor=state.players[1].uid,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        )
+        invalid_uid = 999
+        with self.assertRaises(TyrantError):
+            _ = get_legal_actions(state, invalid_uid)
+
+    def test__get_legal_actions_chancellor_enact_veto_locked(self):
+        """Ensure the veto action is NOT in the returned tuple when veto_power_unlocked is False."""
+        state = create_game(tuple(range(5)))
+        chancellor_uid = state.players[1].uid
+        state = replace(
+            state,
+            phase=GamePhase.CHANCELLOR_ENACT,
+            nominated_chancellor=chancellor_uid,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        )
+        self.assertFalse(state.board.veto_power_unlocked)
+        actions = get_legal_actions(state, chancellor_uid)
+        action_ids = [a.id for a in actions]
+        self.assertNotIn("veto", action_ids)
+        self.assertEqual(len(actions), 2)
+
+    def test__get_legal_actions_chancellor_enact_veto_unlocked(self):
+        """Ensure the veto action IS appended to the returned tuple when veto_power_unlocked is True."""
+        state = create_game(tuple(range(5)))
+        chancellor_uid = state.players[1].uid
+        new_board = replace(state.board, fascist_played=5)
+        state = replace(
+            state,
+            board=new_board,
+            phase=GamePhase.CHANCELLOR_ENACT,
+            nominated_chancellor=chancellor_uid,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        )
+        actions = get_legal_actions(state, chancellor_uid)
+        action_ids = [a.id for a in actions]
+        self.assertIn("veto", action_ids)
+        self.assertEqual(len(actions), 3)
+        self.assertEqual(actions[-1].id, "veto")
+        self.assertEqual(actions[-1].description, "Veto Policies")
+
+
 if __name__ == "__main__":
     unittest.main()
