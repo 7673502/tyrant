@@ -4,7 +4,7 @@ from dataclasses import FrozenInstanceError, is_dataclass, replace
 from tyrant.exceptions import TyrantError
 from tyrant.models.agents import Action, get_legal_actions
 from tyrant.models.election_tracker import ElectionTracker
-from tyrant.models.enums import GamePhase, Vote
+from tyrant.models.enums import GamePhase, PolicyTile, Vote
 from tyrant.models.game_state import cast_vote, create_game, nominate_chancellor
 
 
@@ -237,6 +237,82 @@ class TestGetLegalActionsVoting(unittest.TestCase):
 
         actions = get_legal_actions(state, voter_uid)
         self.assertEqual(actions, tuple())
+
+
+class TestGetLegalActionsPresidentDiscard(unittest.TestCase):
+    def test__get_legal_actions_president_discard_immutability(self):
+        """Ensure the output of _get_legal_actions_president_discard is an immutable tuple."""
+        state = create_game(tuple(range(5)))
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENT_DISCARD,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+        )
+        actions = get_legal_actions(state, state.players[state.president_index].uid)
+        self.assertIsInstance(actions, tuple)
+
+    def test__get_legal_actions_president_discard_president_receives_actions(self):
+        """Ensure the active president receives discard actions for each drawn policy."""
+        state = create_game(tuple(range(5)))
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENT_DISCARD,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+        )
+        president_uid = state.players[state.president_index].uid
+        actions = get_legal_actions(state, president_uid)
+
+        self.assertEqual(len(actions), 3)
+        self.assertEqual(actions[0].id, "discard_0")
+        self.assertEqual(actions[0].description, "Discard Fascist")
+        self.assertEqual(actions[1].id, "discard_1")
+        self.assertEqual(actions[1].description, "Discard Liberal")
+        self.assertEqual(actions[2].id, "discard_2")
+        self.assertEqual(actions[2].description, "Discard Fascist")
+
+    def test__get_legal_actions_president_discard_non_president(self):
+        """Ensure every non-president player receives an empty tuple."""
+        state = create_game(tuple(range(5)))
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENT_DISCARD,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+        )
+        president_uid = state.players[state.president_index].uid
+
+        for p in state.players:
+            if p.uid != president_uid:
+                actions = get_legal_actions(state, p.uid)
+                self.assertEqual(actions, tuple())
+
+    def test__get_legal_actions_president_discard_dead_player(self):
+        """Ensure a dead player receives an empty tuple of actions."""
+        state = create_game(tuple(range(5)))
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENT_DISCARD,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+        )
+
+        dead_uid = state.players[0].uid
+        new_players = list(state.players)
+        new_players[0] = replace(new_players[0], is_alive=False)
+        state = replace(state, players=tuple(new_players))
+
+        actions = get_legal_actions(state, dead_uid)
+        self.assertEqual(actions, tuple())
+
+    def test__get_legal_actions_president_discard_invalid_uid(self):
+        """Ensure TyrantError is raised for trying to get actions for an invalid uid."""
+        state = create_game(tuple(range(5)))
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENT_DISCARD,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+        )
+        invalid_uid = 999
+        with self.assertRaises(TyrantError):
+            _ = get_legal_actions(state, invalid_uid)
 
 
 if __name__ == "__main__":

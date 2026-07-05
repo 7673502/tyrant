@@ -57,6 +57,22 @@ def _get_legal_actions_voting(state: GameState, player_uid: int) -> tuple[Action
     )
 
 
+def _get_legal_actions_president_discard(
+    state: GameState, player_uid: int
+) -> tuple[Action, ...]:
+    president_uid = state.players[state.president_index].uid
+    if player_uid != president_uid:
+        return tuple()
+
+    actions: list[Action] = []
+    for i, policy in enumerate(state.drawn_policies):
+        actions.append(
+            Action(id=f"discard_{i}", description=f"Discard {policy.name.title()}")
+        )
+
+    return tuple(actions)
+
+
 def get_legal_actions(state: GameState, player_uid: int) -> tuple[Action, ...]:
     # TODO
     player = next((p for p in state.players if p.uid == player_uid), None)
@@ -71,7 +87,7 @@ def get_legal_actions(state: GameState, player_uid: int) -> tuple[Action, ...]:
         case GamePhase.VOTING:
             return _get_legal_actions_voting(state, player_uid)
         case GamePhase.PRESIDENT_DISCARD:
-            pass
+            return _get_legal_actions_president_discard(state, player_uid)
         case GamePhase.CHANCELLOR_ENACT:
             pass
         case GamePhase.PRESIDENTIAL_POWER:
