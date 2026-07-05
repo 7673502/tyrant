@@ -73,8 +73,43 @@ def _get_legal_actions_president_discard(
     return tuple(actions)
 
 
+def _get_legal_actions_chancellor_enact(
+    state: GameState, player_uid: int
+) -> tuple[Action, ...]:
+    if player_uid != state.nominated_chancellor:
+        return tuple()
+
+    actions: list[Action] = []
+    for i, policy in enumerate(state.drawn_policies):
+        actions.append(
+            Action(id=f"enact_{i}", description=f"Enact {policy.name.title()}")
+        )
+
+    if state.board.veto_power_unlocked:
+        actions.append(Action(id="veto", description="Veto Policies"))
+
+    return tuple(actions)
+
+
+def _get_legal_actions_presidential_power(
+    state: GameState, player_uid: int
+) -> tuple[Action, ...]:
+    return tuple()  # TODO
+
+
+def _get_legal_actions_policy_peek(
+    state: GameState, player_uid: int
+) -> tuple[Action, ...]:
+    return tuple()  # TODO
+
+
+def _get_legal_actions_president_veto_response(
+    state: GameState, player_uid: int
+) -> tuple[Action, ...]:
+    return tuple()  # TODO
+
+
 def get_legal_actions(state: GameState, player_uid: int) -> tuple[Action, ...]:
-    # TODO
     player = next((p for p in state.players if p.uid == player_uid), None)
     if player is None:
         raise TyrantError(f"Player with UID {player_uid} not found")
@@ -89,13 +124,12 @@ def get_legal_actions(state: GameState, player_uid: int) -> tuple[Action, ...]:
         case GamePhase.PRESIDENT_DISCARD:
             return _get_legal_actions_president_discard(state, player_uid)
         case GamePhase.CHANCELLOR_ENACT:
-            pass
+            return _get_legal_actions_chancellor_enact(state, player_uid)
         case GamePhase.PRESIDENTIAL_POWER:
-            pass
+            return _get_legal_actions_presidential_power(state, player_uid)
         case GamePhase.POLICY_PEEK:
-            pass
+            return _get_legal_actions_policy_peek(state, player_uid)
         case GamePhase.PRESIDENT_VETO_RESPONSE:
-            pass
+            return _get_legal_actions_president_veto_response(state, player_uid)
         case _:  # no actions available during SETUP and GAME_OVER
             return tuple()
-    raise NotImplementedError()
