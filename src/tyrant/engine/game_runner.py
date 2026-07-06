@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Sequence
 
 from tyrant.engine.router import apply_action, get_legal_actions
 from tyrant.exceptions import TyrantError
@@ -12,7 +12,7 @@ from tyrant.models.game_state import GameState, create_game, scrub_state
 class GameRunner:
     def __init__(
         self,
-        agents: list[Agent],
+        agents: Sequence[Agent],
         initial_state: GameState | None = None,
         seed: int | None = None,
     ):
