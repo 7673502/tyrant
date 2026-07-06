@@ -38,17 +38,19 @@ class GameState:
     election_tracker: ElectionTracker
     phase: GamePhase
     president_index: int
-    nominated_chancellor: int | None
+    chancellor: int | None  # chancellor uid
     ballot_box: BallotBox
     drawn_policies: tuple[PolicyTile | HIDDEN, ...]
-    previous_president: int | None
-    previous_chancellor: int | None
+    previous_president: int | None  # previous president uid
+    previous_chancellor: int | None  # previous chancellor uid
     winner: Party | None
     special_election_president: int | None
     rng_state: tuple[int, tuple[int, ...], float | None] | HIDDEN
     veto_denied_this_term: bool = False
     investigations: frozendict[int, int] = frozendict()
     deck_shuffled_last_action: bool = False
+    active_power: PresidentialPower = PresidentialPower.NONE
+    current_investigation_result: Party | HIDDEN | None = None
 
 
 def create_game(uids: tuple[int, ...], seed: int = 42) -> GameState:
@@ -82,7 +84,7 @@ def create_game(uids: tuple[int, ...], seed: int = 42) -> GameState:
         election_tracker=ElectionTracker(),
         phase=GamePhase.NOMINATION,
         president_index=0,
-        nominated_chancellor=None,
+        chancellor=None,
         ballot_box=BallotBox(),
         drawn_policies=(),
         previous_president=None,
@@ -93,6 +95,7 @@ def create_game(uids: tuple[int, ...], seed: int = 42) -> GameState:
         veto_denied_this_term=False,
         investigations=frozendict(),
         deck_shuffled_last_action=False,
+        current_investigation_result=None,
     )
 
 
@@ -121,7 +124,9 @@ def _advance_to_nomination(state: GameState) -> GameState:
         phase=GamePhase.NOMINATION,
         ballot_box=BallotBox(),
         veto_denied_this_term=False,
-        nominated_chancellor=None,
+        chancellor=None,
+        active_power=PresidentialPower.NONE,
+        current_investigation_result=None,
     )
 
 
@@ -141,20 +146,20 @@ def nominate_chancellor(state: GameState, chancellor_uid: int) -> GameState:
         raise InvalidMoveError("Cannot nominate a dead player")
 
     alive_count = sum(1 for p in state.players if p.is_alive)
-    if alive_count > 6:
+    if alive_count > 5:
         if chancellor_uid in (state.previous_president, state.previous_chancellor):
             raise InvalidMoveError(
-                "Target cannot be previous president or chancellor when > 6 players are alive"
+                "Target cannot be previous president or chancellor when > 5 players are alive"
             )
     else:
         if chancellor_uid == state.previous_chancellor:
             raise InvalidMoveError(
-                "Target cannot be previous chancellor when <= 6 players are alive"
+                "Target cannot be previous chancellor when <= 5 players are alive"
             )
 
     return replace(
         state,
-        nominated_chancellor=chancellor_uid,
+        chancellor=chancellor_uid,
         phase=GamePhase.VOTING,
         deck_shuffled_last_action=False,
     )
@@ -180,7 +185,7 @@ def _resolve_election(state: GameState) -> GameState:
     nein_votes = sum(1 for v in state.ballot_box.votes.values() if v == Vote.NEIN)
 
     if ja_votes > nein_votes:
-        chancellor_uid = state.nominated_chancellor
+        chancellor_uid = state.chancellor
         chancellor = next(p for p in state.players if p.uid == chancellor_uid)
 
         if state.board.hitler_zone and chancellor.role == Role.HITLER:
@@ -309,7 +314,9 @@ def chancellor_enact(state: GameState, enact_index: int) -> GameState:
     if enacted_tile == PolicyTile.LIBERAL or power == PresidentialPower.NONE:
         return _advance_to_nomination(new_state)
     else:
-        return replace(new_state, phase=GamePhase.PRESIDENTIAL_POWER)
+        return replace(
+            new_state, phase=GamePhase.PRESIDENTIAL_POWER, active_power=power
+        )
 
 
 def chancellor_veto(state: GameState) -> GameState:
@@ -380,7 +387,7 @@ def president_veto_response(state: GameState, approve: bool) -> GameState:
         )
 
 
-def investigate_loyalty(state: GameState, target_uid: int) -> tuple[GameState, Party]:
+def investigate_loyalty(state: GameState, target_uid: int) -> GameState:
     if state.phase != GamePhase.PRESIDENTIAL_POWER:
         raise InvalidMoveError(f"Cannot investigate loyalty in phase {state.phase}")
 
@@ -398,11 +405,27 @@ def investigate_loyalty(state: GameState, target_uid: int) -> tuple[GameState, P
     new_investigations = frozendict(
         {**state.investigations, target_uid: investigator_uid}
     )
-    new_state = replace(
-        state, investigations=new_investigations, deck_shuffled_last_action=False
+    return replace(
+        state,
+        investigations=new_investigations,
+        deck_shuffled_last_action=False,
+        phase=GamePhase.INVESTIGATION,
+        current_investigation_result=target.party,
     )
 
-    return _advance_to_nomination(new_state), target.party
+
+def acknowledge_investigation(state: GameState) -> GameState:
+    if state.phase != GamePhase.INVESTIGATION:
+        raise InvalidMoveError(
+            f"Cannot acknowledge investigation in phase {state.phase}"
+        )
+
+    new_state = replace(
+        state,
+        current_investigation_result=None,
+        deck_shuffled_last_action=False,
+    )
+    return _advance_to_nomination(new_state)
 
 
 def call_special_election(state: GameState, target_uid: int) -> GameState:
@@ -472,7 +495,12 @@ def execute_player(state: GameState, target_uid: int) -> GameState:
     )
 
     if target.role == Role.HITLER:
-        return replace(new_state, phase=GamePhase.GAME_OVER, winner=Party.LIBERAL)
+        return replace(
+            new_state,
+            phase=GamePhase.GAME_OVER,
+            winner=Party.LIBERAL,
+            active_power=PresidentialPower.NONE,
+        )
 
     return _advance_to_nomination(new_state)
 
@@ -526,7 +554,7 @@ def scrub_state(state: GameState, viewer_uid: int) -> GameState:
         if viewer_uid == president.uid:
             new_drawn_policies = state.drawn_policies
     elif state.phase == GamePhase.CHANCELLOR_ENACT:
-        if viewer_uid == state.nominated_chancellor:
+        if viewer_uid == state.chancellor:
             new_drawn_policies = state.drawn_policies
 
     new_ballot_box = state.ballot_box
@@ -537,6 +565,12 @@ def scrub_state(state: GameState, viewer_uid: int) -> GameState:
         }
         new_ballot_box = replace(state.ballot_box, votes=frozendict(new_votes))
 
+    new_investigation_result = state.current_investigation_result
+    if state.phase == GamePhase.INVESTIGATION:
+        president = state.players[state.president_index]
+        if viewer_uid != president.uid:
+            new_investigation_result = HIDDEN
+
     return replace(
         state,
         players=tuple(new_players),
@@ -544,4 +578,5 @@ def scrub_state(state: GameState, viewer_uid: int) -> GameState:
         drawn_policies=new_drawn_policies,
         ballot_box=new_ballot_box,
         rng_state=HIDDEN,
+        current_investigation_result=new_investigation_result,
     )

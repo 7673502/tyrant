@@ -7,12 +7,21 @@ from tyrant.models.ballot_box import BallotBox, submit_vote
 from tyrant.models.board import Board
 from tyrant.models.deck import create_deck
 from tyrant.models.election_tracker import ElectionTracker
-from tyrant.models.enums import HIDDEN, GamePhase, Party, PolicyTile, Role, Vote
+from tyrant.models.enums import (
+    HIDDEN,
+    GamePhase,
+    Party,
+    PolicyTile,
+    PresidentialPower,
+    Role,
+    Vote,
+)
 from tyrant.models.game_state import (
     GameState,
     _advance_to_nomination,
     _ensure_deck_ready,
     _resolve_election,
+    acknowledge_investigation,
     acknowledge_peek,
     call_special_election,
     cast_vote,
@@ -57,7 +66,7 @@ class TestGameState(BaseGameStateTest):
             election_tracker=ElectionTracker(),
             phase=GamePhase.NOMINATION,
             president_index=0,
-            nominated_chancellor=None,
+            chancellor=None,
             ballot_box=BallotBox(),
             drawn_policies=(),
             previous_president=None,
@@ -130,7 +139,7 @@ class TestAdvanceToNomination(BaseGameStateTest):
             election_tracker=ElectionTracker(),
             phase=GamePhase.VOTING,
             president_index=0,
-            nominated_chancellor=2,
+            chancellor=2,
             ballot_box=BallotBox(),
             drawn_policies=(),
             previous_president=1,
@@ -150,7 +159,7 @@ class TestAdvanceToNomination(BaseGameStateTest):
 
         self.assertEqual(new_state.president_index, 1)
         self.assertEqual(new_state.phase, GamePhase.NOMINATION)
-        self.assertIsNone(new_state.nominated_chancellor)
+        self.assertIsNone(new_state.chancellor)
         self.assertFalse(new_state.veto_denied_this_term)
 
     def test_advance_wrap_around(self):
@@ -167,7 +176,7 @@ class TestAdvanceToNomination(BaseGameStateTest):
             election_tracker=ElectionTracker(),
             phase=GamePhase.VOTING,
             president_index=0,
-            nominated_chancellor=2,
+            chancellor=2,
             ballot_box=BallotBox(),
             drawn_policies=(),
             previous_president=1,
@@ -200,7 +209,7 @@ class TestAdvanceToNomination(BaseGameStateTest):
             election_tracker=ElectionTracker(),
             phase=GamePhase.VOTING,
             president_index=0,
-            nominated_chancellor=None,
+            chancellor=None,
             ballot_box=BallotBox(),
             drawn_policies=(),
             previous_president=None,
@@ -229,7 +238,7 @@ class TestAdvanceToNomination(BaseGameStateTest):
             election_tracker=ElectionTracker(),
             phase=GamePhase.PRESIDENTIAL_POWER,
             president_index=0,
-            nominated_chancellor=None,
+            chancellor=None,
             ballot_box=BallotBox(),
             drawn_policies=(),
             previous_president=1,
@@ -259,7 +268,7 @@ class TestAdvanceToNomination(BaseGameStateTest):
             election_tracker=ElectionTracker(),
             phase=GamePhase.CHANCELLOR_ENACT,
             president_index=0,
-            nominated_chancellor=None,
+            chancellor=None,
             ballot_box=BallotBox(),
             drawn_policies=(),
             previous_president=3,
@@ -294,7 +303,7 @@ class TestNominateChancellor(BaseGameStateTest):
         target_uid = state.players[1].uid
         new_state = nominate_chancellor(state, target_uid)
 
-        self.assertEqual(new_state.nominated_chancellor, target_uid)
+        self.assertEqual(new_state.chancellor, target_uid)
         self.assertEqual(new_state.phase, GamePhase.VOTING)
 
     def test_nominate_chancellor_wrong_game_phase(self):
@@ -306,9 +315,9 @@ class TestNominateChancellor(BaseGameStateTest):
         with self.assertRaises(InvalidMoveError):
             nominate_chancellor(state, target_uid)
 
-    def test_nominate_chancellor_leq_6(self):
+    def test_nominate_chancellor_leq_5(self):
         """Verifies that the target chancellor cannot be the previous chancellor but can be the previous president."""
-        for count in (5, 6):
+        for count in (5,):
             with self.subTest(player_count=count):
                 uids = tuple(range(1, count + 1))
                 state = create_game(uids, 42)
@@ -327,11 +336,11 @@ class TestNominateChancellor(BaseGameStateTest):
                     nominate_chancellor(state, prev_chanc)
 
                 new_state = nominate_chancellor(state, prev_pres)
-                self.assertEqual(new_state.nominated_chancellor, prev_pres)
+                self.assertEqual(new_state.chancellor, prev_pres)
 
-    def test_nominate_chancellor_geq_7(self):
+    def test_nominate_chancellor_geq_6(self):
         """Verifies that the target chancellor cannot be the previous chancellor or president."""
-        for count in range(7, 11):
+        for count in range(6, 11):
             with self.subTest(player_count=count):
                 uids = tuple(range(1, count + 1))
                 state = create_game(uids, 42)
@@ -352,14 +361,14 @@ class TestNominateChancellor(BaseGameStateTest):
                 with self.assertRaises(InvalidMoveError):
                     nominate_chancellor(state, prev_pres)
 
-    def test_nominate_chancellor_leq_6_alive(self):
-        """Verifies that when <= 6 players are alive, previous chancellor cannot be elected but previous president can."""
-        for count in range(7, 11):
+    def test_nominate_chancellor_leq_5_alive(self):
+        """Verifies that when <= 5 players are alive, previous chancellor cannot be elected but previous president can."""
+        for count in range(6, 11):
             with self.subTest(player_count=count):
                 uids = tuple(range(1, count + 1))
                 state = create_game(uids, 42)
 
-                dead_players = state.players[6:]
+                dead_players = state.players[5:]
 
                 new_players = []
                 for p in state.players:
@@ -383,7 +392,7 @@ class TestNominateChancellor(BaseGameStateTest):
                     nominate_chancellor(state, prev_chanc)
 
                 new_state = nominate_chancellor(state, prev_pres)
-                self.assertEqual(new_state.nominated_chancellor, prev_pres)
+                self.assertEqual(new_state.chancellor, prev_pres)
 
     def test_nominate_chancellor_dead(self):
         """Verifies that the passed chancellor is alive."""
@@ -525,7 +534,7 @@ class TestResolveElection(BaseGameStateTest):
         self.assertEqual(
             new_state.previous_president, state.players[state.president_index].uid
         )
-        self.assertEqual(new_state.previous_chancellor, state.nominated_chancellor)
+        self.assertEqual(new_state.previous_chancellor, state.chancellor)
 
     def test__resolve_election_successful_vote_after_failure(self):
         """Verifies that a successful election resets the failed elections tracker."""
@@ -1016,7 +1025,7 @@ class TestInvestigateLoyalty(BaseGameStateTest):
         state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
 
         target_uid = state.players[1].uid
-        new_state, _ = investigate_loyalty(state, target_uid)
+        new_state = investigate_loyalty(state, target_uid)
 
         self.assert_pure_transition(state, new_state)
 
@@ -1032,11 +1041,11 @@ class TestInvestigateLoyalty(BaseGameStateTest):
             if p.role == Role.LIBERAL and p.uid != president_uid
         )
 
-        new_state, party = investigate_loyalty(state, liberal.uid)
+        new_state = investigate_loyalty(state, liberal.uid)
 
-        self.assertEqual(party, Party.LIBERAL)
+        self.assertEqual(new_state.current_investigation_result, Party.LIBERAL)
         self.assertEqual(new_state.investigations[liberal.uid], president_uid)
-        self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+        self.assertEqual(new_state.phase, GamePhase.INVESTIGATION)
 
     def test_investigate_loyalty_fascists(self):
         """Verifies that investigating a fascist (non-Hitler) reveals their party and updates map and phase."""
@@ -1063,11 +1072,11 @@ class TestInvestigateLoyalty(BaseGameStateTest):
                 if p.role == Role.FASCIST and p.uid != president_uid
             )
 
-        new_state, party = investigate_loyalty(state, fascist.uid)
+        new_state = investigate_loyalty(state, fascist.uid)
 
-        self.assertEqual(party, Party.FASCIST)
+        self.assertEqual(new_state.current_investigation_result, Party.FASCIST)
         self.assertEqual(new_state.investigations[fascist.uid], president_uid)
-        self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+        self.assertEqual(new_state.phase, GamePhase.INVESTIGATION)
 
     def test_investigate_loyalty_hitler(self):
         """Verifies that investigating Hitler reveals fascist party and updates map and phase."""
@@ -1081,11 +1090,11 @@ class TestInvestigateLoyalty(BaseGameStateTest):
             state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
 
         president_uid = state.players[state.president_index].uid
-        new_state, party = investigate_loyalty(state, hitler.uid)
+        new_state = investigate_loyalty(state, hitler.uid)
 
-        self.assertEqual(party, Party.FASCIST)
+        self.assertEqual(new_state.current_investigation_result, Party.FASCIST)
         self.assertEqual(new_state.investigations[hitler.uid], president_uid)
-        self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+        self.assertEqual(new_state.phase, GamePhase.INVESTIGATION)
 
     def test_investigate_loyalty_self_investigation(self):
         """Verifies that the president cannot investigate themselves."""
@@ -1095,7 +1104,7 @@ class TestInvestigateLoyalty(BaseGameStateTest):
         president_uid = state.players[state.president_index].uid
 
         with self.assertRaises(InvalidMoveError):
-            _, _ = investigate_loyalty(state, president_uid)
+            investigate_loyalty(state, president_uid)
 
     def test_investigate_loyalty_invalid_uid(self):
         """Verifies that an error is raised if the target UID does not exist."""
@@ -1103,7 +1112,7 @@ class TestInvestigateLoyalty(BaseGameStateTest):
         state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
 
         with self.assertRaises(InvalidMoveError):
-            _, _ = investigate_loyalty(state, 999)
+            investigate_loyalty(state, 999)
 
     def test_investigate_loyalty_invalid_phase(self):
         """Verifies that an error is raised if the phase is not PRESIDENTIAL_POWER."""
@@ -1112,18 +1121,54 @@ class TestInvestigateLoyalty(BaseGameStateTest):
 
         target_uid = state.players[1].uid
         with self.assertRaises(InvalidMoveError):
-            _, _ = investigate_loyalty(state, target_uid)
+            investigate_loyalty(state, target_uid)
 
     def test_investigate_loyalty_dead(self):
         """Verifies that an error is raised if the investigated player is dead."""
         state = create_game((1, 2, 3, 4, 5), 42)
         new_players = list(state.players)
         new_players[1] = replace(new_players[1], is_alive=False)
-        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER, players=new_players)
+        state = replace(
+            state, phase=GamePhase.PRESIDENTIAL_POWER, players=tuple(new_players)
+        )
 
         target_uid = state.players[1].uid
         with self.assertRaises(InvalidMoveError):
-            _, _ = investigate_loyalty(state, target_uid)
+            investigate_loyalty(state, target_uid)
+
+
+class TestAcknowledgeInvestigation(BaseGameStateTest):
+    def test_acknowledge_investigation_immutability(self):
+        """Verifies that acknowledge_investigation returns a new instance without mutating the input state."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.INVESTIGATION,
+            current_investigation_result=Party.LIBERAL,
+        )
+        new_state = acknowledge_investigation(state)
+        self.assert_pure_transition(state, new_state)
+
+    def test_acknowledge_investigation(self):
+        """Verifies that acknowledging an investigation clears the result and advances the phase."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.INVESTIGATION,
+            current_investigation_result=Party.LIBERAL,
+        )
+
+        new_state = acknowledge_investigation(state)
+        self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+        self.assertIsNone(new_state.current_investigation_result)
+
+    def test_acknowledge_investigation_wrong_phase(self):
+        """Verifies that an error is raised if the phase is not INVESTIGATION."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+
+        with self.assertRaises(InvalidMoveError):
+            acknowledge_investigation(state)
 
 
 class TestCallSpecialElection(BaseGameStateTest):
@@ -1153,6 +1198,24 @@ class TestCallSpecialElection(BaseGameStateTest):
 
         # Now advance to next nomination and ensure rotation returns to normal order
         # Specifically, the president after the special election should be the one following the caller (index 1)
+        new_state_after_special = _advance_to_nomination(new_state)
+
+        self.assertIsNone(new_state_after_special.special_election_president)
+        self.assertEqual(new_state_after_special.president_index, 1)
+
+    def test_special_election_next_president(self):
+        """Verifies that a player can be chosen for special election even if they are the next president in normal rotation."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER, president_index=0)
+
+        target_uid = state.players[1].uid
+
+        new_state = call_special_election(state, target_uid)
+
+        self.assertEqual(new_state.special_election_president, target_uid)
+        self.assertEqual(new_state.president_index, 0)
+        self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+
         new_state_after_special = _advance_to_nomination(new_state)
 
         self.assertIsNone(new_state_after_special.special_election_president)
@@ -1656,7 +1719,7 @@ class TestScrubState(BaseGameStateTest):
         state = replace(
             state,
             phase=GamePhase.PRESIDENT_DISCARD,
-            nominated_chancellor=chancellor_uid,
+            chancellor=chancellor_uid,
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
         )
 
@@ -1787,7 +1850,7 @@ class TestScrubState(BaseGameStateTest):
         state_pd = replace(
             state,
             phase=GamePhase.PRESIDENT_DISCARD,
-            nominated_chancellor=chancellor_uid,
+            chancellor=chancellor_uid,
             drawn_policies=policies_3,
         )
         self.assertEqual(
@@ -1800,7 +1863,7 @@ class TestScrubState(BaseGameStateTest):
         state_pp = replace(
             state,
             phase=GamePhase.POLICY_PEEK,
-            nominated_chancellor=chancellor_uid,
+            chancellor=chancellor_uid,
             drawn_policies=policies_3,
         )
         self.assertEqual(
@@ -1813,7 +1876,7 @@ class TestScrubState(BaseGameStateTest):
         state_ce = replace(
             state,
             phase=GamePhase.CHANCELLOR_ENACT,
-            nominated_chancellor=chancellor_uid,
+            chancellor=chancellor_uid,
             drawn_policies=policies_2,
         )
         self.assertEqual(
@@ -1830,6 +1893,54 @@ class TestScrubState(BaseGameStateTest):
         scrubbed = scrub_state(state, uid)
 
         self.assertIs(scrubbed.rng_state, HIDDEN)
+
+
+class TestPowerCleanup(BaseGameStateTest):
+    def test_acknowledge_investigation_power_cleanup(self):
+        """Verifies that acknowledge_investigation resets active_power to NONE."""
+        state = create_game(tuple(range(1, 8)), seed=42)
+        state = replace(
+            state,
+            phase=GamePhase.INVESTIGATION,
+            active_power=PresidentialPower.INVESTIGATE_LOYALTY,
+        )
+        new_state = acknowledge_investigation(state)
+        self.assertEqual(new_state.active_power, PresidentialPower.NONE)
+
+    def test_call_special_election_power_cleanup(self):
+        """Verifies that call_special_election resets active_power to NONE."""
+        state = create_game(tuple(range(1, 8)), seed=42)
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENTIAL_POWER,
+            active_power=PresidentialPower.CALL_SPECIAL_ELECTION,
+        )
+        target_uid = state.players[(state.president_index + 1) % len(state.players)].uid
+        new_state = call_special_election(state, target_uid)
+        self.assertEqual(new_state.active_power, PresidentialPower.NONE)
+
+    def test_acknowledge_peek_power_cleanup(self):
+        """Verifies that acknowledge_peek resets active_power to NONE."""
+        state = create_game(tuple(range(1, 8)), seed=42)
+        state = replace(
+            state,
+            phase=GamePhase.POLICY_PEEK,
+            active_power=PresidentialPower.POLICY_PEEK,
+        )
+        new_state = acknowledge_peek(state)
+        self.assertEqual(new_state.active_power, PresidentialPower.NONE)
+
+    def test_execute_player_power_cleanup(self):
+        """Verifies that execute_player resets active_power to NONE."""
+        state = create_game(tuple(range(1, 8)), seed=42)
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENTIAL_POWER,
+            active_power=PresidentialPower.EXECUTION,
+        )
+        target_uid = state.players[(state.president_index + 1) % len(state.players)].uid
+        new_state = execute_player(state, target_uid)
+        self.assertEqual(new_state.active_power, PresidentialPower.NONE)
 
 
 if __name__ == "__main__":
