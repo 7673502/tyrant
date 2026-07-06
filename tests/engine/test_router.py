@@ -1,21 +1,11 @@
 import unittest
-from dataclasses import FrozenInstanceError, is_dataclass, replace
+from dataclasses import replace
 
+from tyrant.engine.router import get_legal_actions
 from tyrant.exceptions import TyrantError
-from tyrant.models.agents import Action, get_legal_actions
 from tyrant.models.election_tracker import ElectionTracker
 from tyrant.models.enums import GamePhase, PolicyTile, Vote
 from tyrant.models.game_state import cast_vote, create_game, nominate_chancellor
-
-
-class TestAction(unittest.TestCase):
-    def test_action_immutability(self):
-        """Test that the Action dataclass is frozen."""
-        action = Action(id="vote_ja", description="Vote JA")
-        self.assertTrue(is_dataclass(action))
-
-        with self.assertRaises(FrozenInstanceError):
-            action.id = "vote_nein"
 
 
 class TestGetLegalActionsNomination(unittest.TestCase):
