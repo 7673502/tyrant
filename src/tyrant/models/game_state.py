@@ -53,7 +53,7 @@ class GameState:
     current_investigation_result: Party | HIDDEN | None = None
 
 
-def create_game(uids: tuple[int, ...], seed: int = 42) -> GameState:
+def create_game(uids: tuple[int, ...], seed: int | None = 42) -> GameState:
     player_count = len(uids)
     if not (5 <= player_count <= 10):
         raise TyrantError(f"Player count must be between 5 and 10, got {player_count}")

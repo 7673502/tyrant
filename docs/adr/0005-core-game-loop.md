@@ -60,18 +60,11 @@ On each iteration, the loop polls every player using the router's `get_legal_act
     from tyrant.engine.router import get_legal_actions, apply_action
 
     async def _run_iteration(self) -> GameState:
-        """
-        Polls all players for legal actions. If a player has legal actions,
-        queries the corresponding agent asynchronously. The first action to resolve
-        is applied to the state.
-        """
         pending_tasks = []
         
-        # 1. Bouncer-Driven Polling
         for agent in self.agents.values():
             valid_actions = get_legal_actions(self.state, agent.uid)
             if valid_actions:
-                # 2. Concurrency: schedule agent queries together
                 pending_tasks.append(
                     self._query_agent(agent, self.state, valid_actions)
                 )
@@ -79,20 +72,14 @@ On each iteration, the loop polls every player using the router's `get_legal_act
         if not pending_tasks:
             raise TyrantError("Stalemate: No players have legal actions.")
             
-        # 3. Pure Async Execution: wait for the first action to arrive
-        done, pending = await asyncio.wait(
-            pending_tasks, return_when=asyncio.FIRST_COMPLETED
-        )
+        # Wait for EVERY valid actor to finish their thought
+        results = await asyncio.gather(*pending_tasks)
         
-        # Cancel any pending queries for players who didn't act fast enough
-        for task in pending:
-            task.cancel()
+        # Apply their chosen actions sequentially to the state
+        for agent_uid, chosen_action in results:
+            self.state = apply_action(self.state, chosen_action, agent_uid)
             
-        # Extract the resolved action
-        agent_uid, chosen_action = done.pop().result()
-        
-        # Route it to the mutator
-        return apply_action(self.state, chosen_action, agent_uid)
+        return self.state
         
     async def _query_agent(
         self, agent: Agent, state: GameState, valid_actions: tuple[Action, ...]
@@ -104,8 +91,8 @@ On each iteration, the loop polls every player using the router's `get_legal_act
 ### 4. Execution Requirements
 To implement this, the following steps are required:
 1. **`src/tyrant/engine/agent.py`**: Define the `Agent` protocol interface.
-2. **`src/tyrant/engine/runner.py`**: Implement the `GameRunner` class with the `run` and `_run_iteration` methods.
-3. **Tests in `tests/engine/test_runner.py`**:
+2. **`src/tyrant/engine/game_runner.py`**: Implement the `GameRunner` class with the `run` and `_run_iteration` methods.
+3. **Tests in `tests/engine/test_game_runner.py`**:
    - Create mock agents that resolve synchronously.
    - Create mock agents that use `asyncio.sleep` to simulate network delays. This will explicitly test concurrency (e.g. simulating concurrent voters).
    - Test that `apply_action` generates a new state on the first resolved vote, and the subsequent loop picks up the remaining voters correctly (as they will still have legal actions if the ballot box isn't full).
