@@ -3,12 +3,14 @@ from tyrant.models.action import Action
 from tyrant.models.enums import GamePhase, PresidentialPower, Vote
 from tyrant.models.game_state import (
     GameState,
+    acknowledge_investigation,
     acknowledge_peek,
     call_special_election,
     cast_vote,
     chancellor_enact,
     chancellor_veto,
     execute_player,
+    investigate_loyalty,
     nominate_chancellor,
     policy_peek,
     president_discard,
@@ -150,7 +152,20 @@ def _get_legal_actions_presidential_power(
             )
 
 
-def _get_legal_actions_policy_peek(
+def _get_legal_actions_acknowledge_investigation(
+    state: GameState, player_uid: int
+) -> tuple[Action, ...]:
+    if player_uid != state.players[state.president_index].uid:
+        return tuple()
+    return (
+        Action(
+            id="acknowledge_investigation",
+            description="Done Reading Party Identity of Investigated Player",
+        ),
+    )
+
+
+def _get_legal_actions_acknowledge_peek(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
     if player_uid != state.players[state.president_index].uid:
@@ -190,8 +205,10 @@ def get_legal_actions(state: GameState, player_uid: int) -> tuple[Action, ...]:
             return _get_legal_actions_chancellor_enact(state, player_uid)
         case GamePhase.PRESIDENTIAL_POWER:
             return _get_legal_actions_presidential_power(state, player_uid)
+        case GamePhase.INVESTIGATION:
+            return _get_legal_actions_acknowledge_investigation(state, player_uid)
         case GamePhase.POLICY_PEEK:
-            return _get_legal_actions_policy_peek(state, player_uid)
+            return _get_legal_actions_acknowledge_peek(state, player_uid)
         case GamePhase.PRESIDENT_VETO_RESPONSE:
             return _get_legal_actions_president_veto_response(state, player_uid)
         case _:  # no actions available during SETUP and GAME_OVER
@@ -217,9 +234,8 @@ def apply_action(state: GameState, action: Action, player_uid: int) -> GameState
         case ["veto"]:
             return chancellor_veto(state)
         case ["investigate", target_str]:
-            # target_uid = int(target_str)
-            # return investigate_loyalty(state, target_uid)
-            raise NotImplementedError()
+            target_uid = int(target_str)
+            return investigate_loyalty(state, target_uid)
         case ["special", target_str]:
             target_uid = int(target_str)
             return call_special_election(state, target_uid)
@@ -228,10 +244,12 @@ def apply_action(state: GameState, action: Action, player_uid: int) -> GameState
             return execute_player(state, target_uid)
         case ["peek"]:
             return policy_peek(state)
-        case ["acknowledge_peek"]:
+        case ["acknowledge", "peek"]:
             return acknowledge_peek(state)
+        case ["acknowledge", "investigation"]:
+            return acknowledge_investigation(state)
         case [veto_str, "veto"]:
-            approve = veto_str == "approve"
+            approve = veto_str == "accept"
             return president_veto_response(state, approve)
         case _:
             raise TyrantError(f"Unrecognized action ID format: {action.id}")

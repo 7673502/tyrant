@@ -387,7 +387,7 @@ def president_veto_response(state: GameState, approve: bool) -> GameState:
         )
 
 
-def investigate_loyalty(state: GameState, target_uid: int) -> tuple[GameState, Party]:
+def investigate_loyalty(state: GameState, target_uid: int) -> GameState:
     if state.phase != GamePhase.PRESIDENTIAL_POWER:
         raise InvalidMoveError(f"Cannot investigate loyalty in phase {state.phase}")
 
