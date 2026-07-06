@@ -74,7 +74,7 @@ def _get_legal_actions_president_discard(
 def _get_legal_actions_chancellor_enact(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
-    if player_uid != state.nominated_chancellor:
+    if player_uid != state.chancellor:
         return tuple()
 
     actions: list[Action] = []
@@ -94,7 +94,7 @@ def _get_legal_actions_investigate_loyalty(
 ) -> tuple[Action, ...]:
     actions: list[Action] = []
     for p in state.players:
-        if p.is_alive and p.uid != player_uid:
+        if p.is_alive and p.uid != player_uid and p.uid not in state.investigations:
             actions.append(
                 Action(
                     id=f"investigate_{p.uid}", description=f"Investigate Player {p.uid}"

@@ -312,20 +312,20 @@ class TestGetLegalActionsChancellorEnact(unittest.TestCase):
         state = replace(
             state,
             phase=GamePhase.CHANCELLOR_ENACT,
-            nominated_chancellor=state.players[1].uid,
+            chancellor=state.players[1].uid,
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
         )
         actions = get_legal_actions(state, state.players[1].uid)
         self.assertIsInstance(actions, tuple)
 
     def test__get_legal_actions_chancellor_enact_chancellor_receives_actions(self):
-        """Ensure the active nominated_chancellor receives the exact enact actions for the drawn policies."""
+        """Ensure the active chancellor receives the exact enact actions for the drawn policies."""
         state = create_game(tuple(range(5)))
         chancellor_uid = state.players[1].uid
         state = replace(
             state,
             phase=GamePhase.CHANCELLOR_ENACT,
-            nominated_chancellor=chancellor_uid,
+            chancellor=chancellor_uid,
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
         )
         actions = get_legal_actions(state, chancellor_uid)
@@ -342,7 +342,7 @@ class TestGetLegalActionsChancellorEnact(unittest.TestCase):
         state = replace(
             state,
             phase=GamePhase.CHANCELLOR_ENACT,
-            nominated_chancellor=chancellor_uid,
+            chancellor=chancellor_uid,
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
         )
         for p in state.players:
@@ -360,7 +360,7 @@ class TestGetLegalActionsChancellorEnact(unittest.TestCase):
             state,
             players=tuple(new_players),
             phase=GamePhase.CHANCELLOR_ENACT,
-            nominated_chancellor=dead_uid,
+            chancellor=dead_uid,
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
         )
         actions = get_legal_actions(state, dead_uid)
@@ -372,7 +372,7 @@ class TestGetLegalActionsChancellorEnact(unittest.TestCase):
         state = replace(
             state,
             phase=GamePhase.CHANCELLOR_ENACT,
-            nominated_chancellor=state.players[1].uid,
+            chancellor=state.players[1].uid,
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
         )
         invalid_uid = 999
@@ -386,7 +386,7 @@ class TestGetLegalActionsChancellorEnact(unittest.TestCase):
         state = replace(
             state,
             phase=GamePhase.CHANCELLOR_ENACT,
-            nominated_chancellor=chancellor_uid,
+            chancellor=chancellor_uid,
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
         )
         self.assertFalse(state.board.veto_power_unlocked)
@@ -404,7 +404,7 @@ class TestGetLegalActionsChancellorEnact(unittest.TestCase):
             state,
             board=new_board,
             phase=GamePhase.CHANCELLOR_ENACT,
-            nominated_chancellor=chancellor_uid,
+            chancellor=chancellor_uid,
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
         )
         actions = get_legal_actions(state, chancellor_uid)

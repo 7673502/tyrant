@@ -38,11 +38,11 @@ class GameState:
     election_tracker: ElectionTracker
     phase: GamePhase
     president_index: int
-    nominated_chancellor: int | None
+    chancellor: int | None  # chancellor uid
     ballot_box: BallotBox
     drawn_policies: tuple[PolicyTile | HIDDEN, ...]
-    previous_president: int | None
-    previous_chancellor: int | None
+    previous_president: int | None  # previous president uid
+    previous_chancellor: int | None  # previous chancellor uid
     winner: Party | None
     special_election_president: int | None
     rng_state: tuple[int, tuple[int, ...], float | None] | HIDDEN
@@ -84,7 +84,7 @@ def create_game(uids: tuple[int, ...], seed: int = 42) -> GameState:
         election_tracker=ElectionTracker(),
         phase=GamePhase.NOMINATION,
         president_index=0,
-        nominated_chancellor=None,
+        chancellor=None,
         ballot_box=BallotBox(),
         drawn_policies=(),
         previous_president=None,
@@ -124,7 +124,7 @@ def _advance_to_nomination(state: GameState) -> GameState:
         phase=GamePhase.NOMINATION,
         ballot_box=BallotBox(),
         veto_denied_this_term=False,
-        nominated_chancellor=None,
+        chancellor=None,
         active_power=PresidentialPower.NONE,
         current_investigation_result=None,
     )
@@ -159,7 +159,7 @@ def nominate_chancellor(state: GameState, chancellor_uid: int) -> GameState:
 
     return replace(
         state,
-        nominated_chancellor=chancellor_uid,
+        chancellor=chancellor_uid,
         phase=GamePhase.VOTING,
         deck_shuffled_last_action=False,
     )
@@ -185,7 +185,7 @@ def _resolve_election(state: GameState) -> GameState:
     nein_votes = sum(1 for v in state.ballot_box.votes.values() if v == Vote.NEIN)
 
     if ja_votes > nein_votes:
-        chancellor_uid = state.nominated_chancellor
+        chancellor_uid = state.chancellor
         chancellor = next(p for p in state.players if p.uid == chancellor_uid)
 
         if state.board.hitler_zone and chancellor.role == Role.HITLER:
@@ -554,7 +554,7 @@ def scrub_state(state: GameState, viewer_uid: int) -> GameState:
         if viewer_uid == president.uid:
             new_drawn_policies = state.drawn_policies
     elif state.phase == GamePhase.CHANCELLOR_ENACT:
-        if viewer_uid == state.nominated_chancellor:
+        if viewer_uid == state.chancellor:
             new_drawn_policies = state.drawn_policies
 
     new_ballot_box = state.ballot_box
