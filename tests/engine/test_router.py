@@ -4,7 +4,7 @@ from dataclasses import replace
 from tyrant.engine.router import get_legal_actions
 from tyrant.exceptions import TyrantError
 from tyrant.models.election_tracker import ElectionTracker
-from tyrant.models.enums import GamePhase, PolicyTile, Vote
+from tyrant.models.enums import GamePhase, PolicyTile, PresidentialPower, Vote
 from tyrant.models.game_state import cast_vote, create_game, nominate_chancellor
 
 
@@ -413,6 +413,231 @@ class TestGetLegalActionsChancellorEnact(unittest.TestCase):
         self.assertEqual(len(actions), 3)
         self.assertEqual(actions[-1].id, "veto")
         self.assertEqual(actions[-1].description, "Veto Policies")
+
+
+class TestGetLegalActionsPresidentialPower(unittest.TestCase):
+    def test__get_legal_actions_presidential_power_immutability(self):
+        """Ensure the output of _get_legal_actions_presidential_power is an immutable tuple."""
+        state = create_game(tuple(range(5)))
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENTIAL_POWER,
+            active_power=PresidentialPower.POLICY_PEEK,
+        )
+        actions = get_legal_actions(state, state.players[state.president_index].uid)
+        self.assertIsInstance(actions, tuple)
+
+    def test__get_legal_actions_presidential_power_non_president(self):
+        """Ensure every non-president player receives an empty tuple."""
+        state = create_game(tuple(range(5)))
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENTIAL_POWER,
+            active_power=PresidentialPower.POLICY_PEEK,
+        )
+        president_uid = state.players[state.president_index].uid
+        for p in state.players:
+            if p.uid != president_uid:
+                actions = get_legal_actions(state, p.uid)
+                self.assertEqual(actions, tuple())
+
+    def test__get_legal_actions_presidential_power_policy_peek(self):
+        """Ensure the president receives a peek action when active power is POLICY_PEEK."""
+        state = create_game(tuple(range(5)))
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENTIAL_POWER,
+            active_power=PresidentialPower.POLICY_PEEK,
+        )
+        president_uid = state.players[state.president_index].uid
+        actions = get_legal_actions(state, president_uid)
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0].id, "peek")
+
+    def test__get_legal_actions_presidential_power_investigate_loyalty(self):
+        """Ensure the president receives investigate actions for all other alive players."""
+        state = create_game(tuple(range(5)))
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENTIAL_POWER,
+            active_power=PresidentialPower.INVESTIGATE_LOYALTY,
+        )
+        president_uid = state.players[state.president_index].uid
+        actions = get_legal_actions(state, president_uid)
+        self.assertEqual(len(actions), 4)
+        for action in actions:
+            parts = action.id.split("_")
+            self.assertTrue(parts[0] == "investigate")
+            self.assertTrue(int(parts[1]) != president_uid)
+
+    def test__get_legal_actions_presidential_power_investigate_loyalty_excludes_already_investigated(
+        self,
+    ):
+        """Ensure already investigated players are excluded from investigate actions."""
+        state = create_game(tuple(range(5)))
+        president_uid = state.players[state.president_index].uid
+        other_uids = [p.uid for p in state.players if p.uid != president_uid]
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENTIAL_POWER,
+            active_power=PresidentialPower.INVESTIGATE_LOYALTY,
+            investigations=(other_uids[0],),
+        )
+        actions = get_legal_actions(state, president_uid)
+        self.assertEqual(len(actions), 3)
+        action_ids = [a.id for a in actions]
+        self.assertNotIn(f"investigate_{other_uids[0]}", action_ids)
+
+    def test__get_legal_actions_presidential_power_call_special_election(self):
+        """Ensure the president receives special election actions for all other alive players."""
+        state = create_game(tuple(range(5)))
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENTIAL_POWER,
+            active_power=PresidentialPower.CALL_SPECIAL_ELECTION,
+        )
+        president_uid = state.players[state.president_index].uid
+        actions = get_legal_actions(state, president_uid)
+        self.assertEqual(len(actions), 4)
+        for action in actions:
+            parts = action.id.split("_")
+            self.assertTrue(parts[0] == "special")
+            self.assertTrue(int(parts[1]) != president_uid)
+
+    def test__get_legal_actions_presidential_power_execution(self):
+        """Ensure the president receives execute actions for all other alive players."""
+        state = create_game(tuple(range(5)))
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENTIAL_POWER,
+            active_power=PresidentialPower.EXECUTION,
+        )
+        president_uid = state.players[state.president_index].uid
+        actions = get_legal_actions(state, president_uid)
+        self.assertEqual(len(actions), 4)
+        for action in actions:
+            self.assertTrue(action.id.startswith("execute_"))
+            parts = action.id.split("_")
+            self.assertTrue(parts[0] == "execute")
+            self.assertTrue(int(parts[1]) != president_uid)
+
+    def test__get_legal_actions_presidential_power_none_raises_error(self):
+        """Ensure TyrantError is raised if the active power is NONE."""
+        state = create_game(tuple(range(5)))
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENTIAL_POWER,
+            active_power=PresidentialPower.NONE,
+        )
+        president_uid = state.players[state.president_index].uid
+        with self.assertRaises(TyrantError):
+            _ = get_legal_actions(state, president_uid)
+
+
+class TestGetLegalActionsInvestigation(unittest.TestCase):
+    def test__get_legal_actions_investigation_immutability(self):
+        """Ensure the output of _get_legal_actions_acknowledge_investigation is an immutable tuple."""
+        state = create_game(tuple(range(5)))
+        state = replace(state, phase=GamePhase.INVESTIGATION)
+        actions = get_legal_actions(state, state.players[state.president_index].uid)
+        self.assertIsInstance(actions, tuple)
+
+    def test__get_legal_actions_investigation_non_president(self):
+        """Ensure every non-president player receives an empty tuple."""
+        state = create_game(tuple(range(5)))
+        state = replace(state, phase=GamePhase.INVESTIGATION)
+        president_uid = state.players[state.president_index].uid
+        for p in state.players:
+            if p.uid != president_uid:
+                actions = get_legal_actions(state, p.uid)
+                self.assertEqual(actions, tuple())
+
+    def test__get_legal_actions_investigation_president(self):
+        """Ensure the president receives the acknowledge investigation action."""
+        state = create_game(tuple(range(5)))
+        state = replace(state, phase=GamePhase.INVESTIGATION)
+        president_uid = state.players[state.president_index].uid
+        actions = get_legal_actions(state, president_uid)
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0].id, "acknowledge_investigation")
+
+
+class TestGetLegalActionsPolicyPeek(unittest.TestCase):
+    def test__get_legal_actions_policy_peek_immutability(self):
+        """Ensure the output of _get_legal_actions_acknowledge_peek is an immutable tuple."""
+        state = create_game(tuple(range(5)))
+        state = replace(state, phase=GamePhase.POLICY_PEEK)
+        actions = get_legal_actions(state, state.players[state.president_index].uid)
+        self.assertIsInstance(actions, tuple)
+
+    def test__get_legal_actions_policy_peek_non_president(self):
+        """Ensure every non-president player receives an empty tuple."""
+        state = create_game(tuple(range(5)))
+        state = replace(state, phase=GamePhase.POLICY_PEEK)
+        president_uid = state.players[state.president_index].uid
+        for p in state.players:
+            if p.uid != president_uid:
+                actions = get_legal_actions(state, p.uid)
+                self.assertEqual(actions, tuple())
+
+    def test__get_legal_actions_policy_peek_president(self):
+        """Ensure the president receives the acknowledge peek action."""
+        state = create_game(tuple(range(5)))
+        state = replace(state, phase=GamePhase.POLICY_PEEK)
+        president_uid = state.players[state.president_index].uid
+        actions = get_legal_actions(state, president_uid)
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0].id, "acknowledge_peek")
+
+
+class TestGetLegalActionsPresidentVetoResponse(unittest.TestCase):
+    def test__get_legal_actions_president_veto_response_immutability(self):
+        """Ensure the output of _get_legal_actions_president_veto_response is an immutable tuple."""
+        state = create_game(tuple(range(5)))
+        state = replace(state, phase=GamePhase.PRESIDENT_VETO_RESPONSE)
+        actions = get_legal_actions(state, state.players[state.president_index].uid)
+        self.assertIsInstance(actions, tuple)
+
+    def test__get_legal_actions_president_veto_response_non_president(self):
+        """Ensure every non-president player receives an empty tuple."""
+        state = create_game(tuple(range(5)))
+        state = replace(state, phase=GamePhase.PRESIDENT_VETO_RESPONSE)
+        president_uid = state.players[state.president_index].uid
+        for p in state.players:
+            if p.uid != president_uid:
+                actions = get_legal_actions(state, p.uid)
+                self.assertEqual(actions, tuple())
+
+    def test__get_legal_actions_president_veto_response_president(self):
+        """Ensure the president receives the accept and decline veto actions."""
+        state = create_game(tuple(range(5)))
+        state = replace(state, phase=GamePhase.PRESIDENT_VETO_RESPONSE)
+        president_uid = state.players[state.president_index].uid
+        actions = get_legal_actions(state, president_uid)
+        self.assertEqual(len(actions), 2)
+        action_ids = [a.id for a in actions]
+        self.assertIn("accept_veto", action_ids)
+        self.assertIn("decline_veto", action_ids)
+
+
+class TestGetLegalActionsSetup(unittest.TestCase):
+    def test__get_legal_actions_setup(self):
+        """Ensure every player receives an empty tuple during the SETUP phase."""
+        state = create_game(tuple(range(5)))
+        state = replace(state, phase=GamePhase.SETUP)
+        for p in state.players:
+            actions = get_legal_actions(state, p.uid)
+            self.assertEqual(actions, tuple())
+
+
+class TestGetLegalActionsGameOver(unittest.TestCase):
+    def test__get_legal_actions_game_over(self):
+        """Ensure every player receives an empty tuple during the GAME_OVER phase."""
+        state = create_game(tuple(range(5)))
+        state = replace(state, phase=GamePhase.GAME_OVER)
+        for p in state.players:
+            actions = get_legal_actions(state, p.uid)
+            self.assertEqual(actions, tuple())
 
 
 if __name__ == "__main__":
