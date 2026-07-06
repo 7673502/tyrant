@@ -40,5 +40,6 @@ class GamePhase(StrEnum):
     CHANCELLOR_ENACT = auto()
     PRESIDENTIAL_POWER = auto()
     POLICY_PEEK = auto()
+    INVESTIGATION = auto()
     PRESIDENT_VETO_RESPONSE = auto()
     GAME_OVER = auto()

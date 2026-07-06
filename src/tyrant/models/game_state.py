@@ -50,6 +50,7 @@ class GameState:
     investigations: frozendict[int, int] = frozendict()
     deck_shuffled_last_action: bool = False
     active_power: PresidentialPower = PresidentialPower.NONE
+    current_investigation_result: Party | HIDDEN | None = None
 
 
 def create_game(uids: tuple[int, ...], seed: int = 42) -> GameState:
@@ -94,6 +95,7 @@ def create_game(uids: tuple[int, ...], seed: int = 42) -> GameState:
         veto_denied_this_term=False,
         investigations=frozendict(),
         deck_shuffled_last_action=False,
+        current_investigation_result=None,
     )
 
 
@@ -124,6 +126,7 @@ def _advance_to_nomination(state: GameState) -> GameState:
         veto_denied_this_term=False,
         nominated_chancellor=None,
         active_power=PresidentialPower.NONE,
+        current_investigation_result=None,
     )
 
 
@@ -402,11 +405,27 @@ def investigate_loyalty(state: GameState, target_uid: int) -> tuple[GameState, P
     new_investigations = frozendict(
         {**state.investigations, target_uid: investigator_uid}
     )
-    new_state = replace(
-        state, investigations=new_investigations, deck_shuffled_last_action=False
+    return replace(
+        state,
+        investigations=new_investigations,
+        deck_shuffled_last_action=False,
+        phase=GamePhase.INVESTIGATION,
+        current_investigation_result=target.party,
     )
 
-    return _advance_to_nomination(new_state), target.party
+
+def acknowledge_investigation(state: GameState) -> GameState:
+    if state.phase != GamePhase.INVESTIGATION:
+        raise InvalidMoveError(
+            f"Cannot acknowledge investigation in phase {state.phase}"
+        )
+
+    new_state = replace(
+        state,
+        current_investigation_result=None,
+        deck_shuffled_last_action=False,
+    )
+    return _advance_to_nomination(new_state)
 
 
 def call_special_election(state: GameState, target_uid: int) -> GameState:
@@ -546,6 +565,12 @@ def scrub_state(state: GameState, viewer_uid: int) -> GameState:
         }
         new_ballot_box = replace(state.ballot_box, votes=frozendict(new_votes))
 
+    new_investigation_result = state.current_investigation_result
+    if state.phase == GamePhase.INVESTIGATION:
+        president = state.players[state.president_index]
+        if viewer_uid != president.uid:
+            new_investigation_result = HIDDEN
+
     return replace(
         state,
         players=tuple(new_players),
@@ -553,4 +578,5 @@ def scrub_state(state: GameState, viewer_uid: int) -> GameState:
         drawn_policies=new_drawn_policies,
         ballot_box=new_ballot_box,
         rng_state=HIDDEN,
+        current_investigation_result=new_investigation_result,
     )
