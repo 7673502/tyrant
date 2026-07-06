@@ -1,8 +1,10 @@
 import unittest
 from dataclasses import replace
+from unittest.mock import patch
 
-from tyrant.engine.router import get_legal_actions
+from tyrant.engine.router import apply_action, get_legal_actions
 from tyrant.exceptions import TyrantError
+from tyrant.models.action import Action
 from tyrant.models.election_tracker import ElectionTracker
 from tyrant.models.enums import GamePhase, PolicyTile, PresidentialPower, Vote
 from tyrant.models.game_state import cast_vote, create_game, nominate_chancellor
@@ -638,6 +640,127 @@ class TestGetLegalActionsGameOver(unittest.TestCase):
         for p in state.players:
             actions = get_legal_actions(state, p.uid)
             self.assertEqual(actions, tuple())
+
+
+class TestApplyAction(unittest.TestCase):
+    @patch("tyrant.engine.router.nominate_chancellor")
+    def test_apply_action_nominate(self, mock_nominate):
+        """Ensure nominate calls nominate_chancellor with the correct uid."""
+        state = create_game(tuple(range(5)))
+        action = Action(id="nominate_3", description="")
+        apply_action(state, action, 0)
+        mock_nominate.assert_called_once_with(state, 3)
+
+    @patch("tyrant.engine.router.cast_vote")
+    def test_apply_action_vote_ja(self, mock_vote):
+        """Ensure vote_ja calls cast_vote with Vote.JA."""
+        state = create_game(tuple(range(5)))
+        action = Action(id="vote_ja", description="")
+        apply_action(state, action, 0)
+        mock_vote.assert_called_once_with(state, 0, Vote.JA)
+
+    @patch("tyrant.engine.router.cast_vote")
+    def test_apply_action_vote_nein(self, mock_vote):
+        """Ensure vote_nein calls cast_vote with Vote.NEIN."""
+        state = create_game(tuple(range(5)))
+        action = Action(id="vote_nein", description="")
+        apply_action(state, action, 0)
+        mock_vote.assert_called_once_with(state, 0, Vote.NEIN)
+
+    @patch("tyrant.engine.router.president_discard")
+    def test_apply_action_discard(self, mock_discard):
+        """Ensure discard calls president_discard with the correct index."""
+        state = create_game(tuple(range(5)))
+        action = Action(id="discard_1", description="")
+        apply_action(state, action, 0)
+        mock_discard.assert_called_once_with(state, 1)
+
+    @patch("tyrant.engine.router.chancellor_enact")
+    def test_apply_action_enact(self, mock_enact):
+        """Ensure enact calls chancellor_enact with the correct index."""
+        state = create_game(tuple(range(5)))
+        action = Action(id="enact_0", description="")
+        apply_action(state, action, 0)
+        mock_enact.assert_called_once_with(state, 0)
+
+    @patch("tyrant.engine.router.chancellor_veto")
+    def test_apply_action_veto(self, mock_veto):
+        """Ensure veto calls chancellor_veto."""
+        state = create_game(tuple(range(5)))
+        action = Action(id="veto", description="")
+        apply_action(state, action, 0)
+        mock_veto.assert_called_once_with(state)
+
+    @patch("tyrant.engine.router.investigate_loyalty")
+    def test_apply_action_investigate(self, mock_investigate):
+        """Ensure investigate calls investigate_loyalty with the correct uid."""
+        state = create_game(tuple(range(5)))
+        action = Action(id="investigate_2", description="")
+        apply_action(state, action, 0)
+        mock_investigate.assert_called_once_with(state, 2)
+
+    @patch("tyrant.engine.router.call_special_election")
+    def test_apply_action_special(self, mock_special):
+        """Ensure special calls call_special_election with the correct uid."""
+        state = create_game(tuple(range(5)))
+        action = Action(id="special_4", description="")
+        apply_action(state, action, 0)
+        mock_special.assert_called_once_with(state, 4)
+
+    @patch("tyrant.engine.router.execute_player")
+    def test_apply_action_execute(self, mock_execute):
+        """Ensure execute calls execute_player with the correct uid."""
+        state = create_game(tuple(range(5)))
+        action = Action(id="execute_1", description="")
+        apply_action(state, action, 0)
+        mock_execute.assert_called_once_with(state, 1)
+
+    @patch("tyrant.engine.router.policy_peek")
+    def test_apply_action_peek(self, mock_peek):
+        """Ensure peek calls policy_peek."""
+        state = create_game(tuple(range(5)))
+        action = Action(id="peek", description="")
+        apply_action(state, action, 0)
+        mock_peek.assert_called_once_with(state)
+
+    @patch("tyrant.engine.router.acknowledge_peek")
+    def test_apply_action_acknowledge_peek(self, mock_ack):
+        """Ensure acknowledge_peek calls acknowledge_peek."""
+        state = create_game(tuple(range(5)))
+        action = Action(id="acknowledge_peek", description="")
+        apply_action(state, action, 0)
+        mock_ack.assert_called_once_with(state)
+
+    @patch("tyrant.engine.router.acknowledge_investigation")
+    def test_apply_action_acknowledge_investigation(self, mock_ack):
+        """Ensure acknowledge_investigation calls acknowledge_investigation."""
+        state = create_game(tuple(range(5)))
+        action = Action(id="acknowledge_investigation", description="")
+        apply_action(state, action, 0)
+        mock_ack.assert_called_once_with(state)
+
+    @patch("tyrant.engine.router.president_veto_response")
+    def test_apply_action_accept_veto(self, mock_veto_response):
+        """Ensure accept_veto calls president_veto_response with True."""
+        state = create_game(tuple(range(5)))
+        action = Action(id="accept_veto", description="")
+        apply_action(state, action, 0)
+        mock_veto_response.assert_called_once_with(state, True)
+
+    @patch("tyrant.engine.router.president_veto_response")
+    def test_apply_action_decline_veto(self, mock_veto_response):
+        """Ensure decline_veto calls president_veto_response with False."""
+        state = create_game(tuple(range(5)))
+        action = Action(id="decline_veto", description="")
+        apply_action(state, action, 0)
+        mock_veto_response.assert_called_once_with(state, False)
+
+    def test_apply_action_invalid(self):
+        """Ensure an invalid action ID raises a TyrantError."""
+        state = create_game(tuple(range(5)))
+        action = Action(id="fake_action_99", description="")
+        with self.assertRaises(TyrantError):
+            apply_action(state, action, 0)
 
 
 if __name__ == "__main__":
