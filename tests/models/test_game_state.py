@@ -21,6 +21,7 @@ from tyrant.models.game_state import (
     _advance_to_nomination,
     _ensure_deck_ready,
     _resolve_election,
+    acknowledge_investigation,
     acknowledge_peek,
     call_special_election,
     cast_vote,
@@ -29,7 +30,6 @@ from tyrant.models.game_state import (
     create_game,
     execute_player,
     investigate_loyalty,
-    acknowledge_investigation,
     nominate_chancellor,
     policy_peek,
     president_discard,
@@ -66,7 +66,7 @@ class TestGameState(BaseGameStateTest):
             election_tracker=ElectionTracker(),
             phase=GamePhase.NOMINATION,
             president_index=0,
-            nominated_chancellor=None,
+            chancellor=None,
             ballot_box=BallotBox(),
             drawn_policies=(),
             previous_president=None,
@@ -139,7 +139,7 @@ class TestAdvanceToNomination(BaseGameStateTest):
             election_tracker=ElectionTracker(),
             phase=GamePhase.VOTING,
             president_index=0,
-            nominated_chancellor=2,
+            chancellor=2,
             ballot_box=BallotBox(),
             drawn_policies=(),
             previous_president=1,
@@ -159,7 +159,7 @@ class TestAdvanceToNomination(BaseGameStateTest):
 
         self.assertEqual(new_state.president_index, 1)
         self.assertEqual(new_state.phase, GamePhase.NOMINATION)
-        self.assertIsNone(new_state.nominated_chancellor)
+        self.assertIsNone(new_state.chancellor)
         self.assertFalse(new_state.veto_denied_this_term)
 
     def test_advance_wrap_around(self):
@@ -176,7 +176,7 @@ class TestAdvanceToNomination(BaseGameStateTest):
             election_tracker=ElectionTracker(),
             phase=GamePhase.VOTING,
             president_index=0,
-            nominated_chancellor=2,
+            chancellor=2,
             ballot_box=BallotBox(),
             drawn_policies=(),
             previous_president=1,
@@ -209,7 +209,7 @@ class TestAdvanceToNomination(BaseGameStateTest):
             election_tracker=ElectionTracker(),
             phase=GamePhase.VOTING,
             president_index=0,
-            nominated_chancellor=None,
+            chancellor=None,
             ballot_box=BallotBox(),
             drawn_policies=(),
             previous_president=None,
@@ -238,7 +238,7 @@ class TestAdvanceToNomination(BaseGameStateTest):
             election_tracker=ElectionTracker(),
             phase=GamePhase.PRESIDENTIAL_POWER,
             president_index=0,
-            nominated_chancellor=None,
+            chancellor=None,
             ballot_box=BallotBox(),
             drawn_policies=(),
             previous_president=1,
@@ -268,7 +268,7 @@ class TestAdvanceToNomination(BaseGameStateTest):
             election_tracker=ElectionTracker(),
             phase=GamePhase.CHANCELLOR_ENACT,
             president_index=0,
-            nominated_chancellor=None,
+            chancellor=None,
             ballot_box=BallotBox(),
             drawn_policies=(),
             previous_president=3,
@@ -303,7 +303,7 @@ class TestNominateChancellor(BaseGameStateTest):
         target_uid = state.players[1].uid
         new_state = nominate_chancellor(state, target_uid)
 
-        self.assertEqual(new_state.nominated_chancellor, target_uid)
+        self.assertEqual(new_state.chancellor, target_uid)
         self.assertEqual(new_state.phase, GamePhase.VOTING)
 
     def test_nominate_chancellor_wrong_game_phase(self):
@@ -336,7 +336,7 @@ class TestNominateChancellor(BaseGameStateTest):
                     nominate_chancellor(state, prev_chanc)
 
                 new_state = nominate_chancellor(state, prev_pres)
-                self.assertEqual(new_state.nominated_chancellor, prev_pres)
+                self.assertEqual(new_state.chancellor, prev_pres)
 
     def test_nominate_chancellor_geq_6(self):
         """Verifies that the target chancellor cannot be the previous chancellor or president."""
@@ -392,7 +392,7 @@ class TestNominateChancellor(BaseGameStateTest):
                     nominate_chancellor(state, prev_chanc)
 
                 new_state = nominate_chancellor(state, prev_pres)
-                self.assertEqual(new_state.nominated_chancellor, prev_pres)
+                self.assertEqual(new_state.chancellor, prev_pres)
 
     def test_nominate_chancellor_dead(self):
         """Verifies that the passed chancellor is alive."""
@@ -534,7 +534,7 @@ class TestResolveElection(BaseGameStateTest):
         self.assertEqual(
             new_state.previous_president, state.players[state.president_index].uid
         )
-        self.assertEqual(new_state.previous_chancellor, state.nominated_chancellor)
+        self.assertEqual(new_state.previous_chancellor, state.chancellor)
 
     def test__resolve_election_successful_vote_after_failure(self):
         """Verifies that a successful election resets the failed elections tracker."""
@@ -1719,7 +1719,7 @@ class TestScrubState(BaseGameStateTest):
         state = replace(
             state,
             phase=GamePhase.PRESIDENT_DISCARD,
-            nominated_chancellor=chancellor_uid,
+            chancellor=chancellor_uid,
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
         )
 
@@ -1850,7 +1850,7 @@ class TestScrubState(BaseGameStateTest):
         state_pd = replace(
             state,
             phase=GamePhase.PRESIDENT_DISCARD,
-            nominated_chancellor=chancellor_uid,
+            chancellor=chancellor_uid,
             drawn_policies=policies_3,
         )
         self.assertEqual(
@@ -1863,7 +1863,7 @@ class TestScrubState(BaseGameStateTest):
         state_pp = replace(
             state,
             phase=GamePhase.POLICY_PEEK,
-            nominated_chancellor=chancellor_uid,
+            chancellor=chancellor_uid,
             drawn_policies=policies_3,
         )
         self.assertEqual(
@@ -1876,7 +1876,7 @@ class TestScrubState(BaseGameStateTest):
         state_ce = replace(
             state,
             phase=GamePhase.CHANCELLOR_ENACT,
-            nominated_chancellor=chancellor_uid,
+            chancellor=chancellor_uid,
             drawn_policies=policies_2,
         )
         self.assertEqual(
