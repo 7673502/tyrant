@@ -83,7 +83,7 @@ def _get_legal_actions_chancellor_enact(
             Action(id=f"enact_{i}", description=f"Enact {policy.name.title()}")
         )
 
-    if state.board.veto_power_unlocked:
+    if state.board.veto_power_unlocked and not state.veto_denied_this_term:
         actions.append(Action(id="veto", description="Veto Policies"))
 
     return tuple(actions)
