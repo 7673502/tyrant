@@ -19,7 +19,7 @@ Compose the core models into a single top-level state container and implement th
 - **GameState Dataclass:** A single container for the entire state of the game, including phase tracking, term limits, and `rng_state`.
 - **State Transitions:** Pure-functional helpers that accept a `GameState` and return a new `GameState` (e.g., `nominate_chancellor`, `cast_vote`, `execute_player`).
 - **Just-In-Time Shuffling:** Safely shuffle the deck only exactly when necessary to maintain deterministic reproducibility.
-- **View Localization (`scrub_state`):** Redact hidden information from the state based on the requesting player's role, using a unified Python 3.15 `sentinel("HIDDEN")` type.
+- **View Localization (`scrub_state`):** Redact hidden information from the state based on the requesting player's role, using a unified custom `HIDDEN` sentinel class.
 - **Immutability Testing:** Base test classes that enforce zero-mutation state transitions across all test cases.
 
 ## Phase 3: Custom Exception Hierarchy
