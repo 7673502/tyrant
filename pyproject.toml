@@ -6,12 +6,10 @@ readme = "README.md"
 authors = [
     { name = "Pramod Anandarao" }
 ]
-requires-python = ">=3.15"
-dependencies = []
-
-[project.optional-dependencies]
-mcp = [
-    "fastmcp>=3.4.0",
+requires-python = ">=3.13"
+dependencies = [
+    "frozendict>=2.4.7",
+    "litellm>=1.91.0",
 ]
 
 [build-system]
