@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+
+from frozendict import frozendict
 from tyrant.models.enums import Vote, HIDDEN
 
 

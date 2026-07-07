@@ -1,4 +1,6 @@
 import unittest
+
+from frozendict import frozendict
 from dataclasses import fields, is_dataclass, replace
 from random import Random
 

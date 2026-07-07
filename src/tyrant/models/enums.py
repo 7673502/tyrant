@@ -1,6 +1,13 @@
 from enum import StrEnum, auto
 
-HIDDEN = sentinel("HIDDEN")
+
+class _HiddenMeta(type):
+    def __repr__(cls):
+        return "HIDDEN"
+
+
+class HIDDEN(metaclass=_HiddenMeta):
+    pass
 
 
 class Party(StrEnum):
