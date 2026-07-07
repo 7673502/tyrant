@@ -209,7 +209,7 @@ Produces a localized view of the GameState with hidden information removed based
 - **RNG State:** Replaced with `HIDDEN` to prevent clients from predicting future deck draws.
 
 > [!NOTE]
-> We decided to use Python 3.15's built-in `sentinel` type (`HIDDEN = sentinel("HIDDEN")`) over `None` or an overloaded Enum value. This provides the strongest type safety and creates a unified semantic convention where `None` means "absent" and `HIDDEN` means "redacted".
+> We decided to use a custom sentinel class over `None` or an overloaded Enum value. This provides the strongest type safety and creates a unified semantic convention where `None` means "absent" and `HIDDEN` means "redacted".
 
 **Verify:** Scrubbing correctly respects team-knowledge rules, investigations, player counts, and current active phases.
 
