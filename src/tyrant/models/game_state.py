@@ -1,4 +1,6 @@
 from dataclasses import dataclass, replace
+
+from frozendict import frozendict
 from random import Random
 from typing import Final
 

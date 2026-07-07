@@ -1,4 +1,6 @@
 from dataclasses import dataclass, replace
+
+from frozendict import frozendict
 from typing import Final
 
 from tyrant.models.enums import Party, PolicyTile, PresidentialPower
