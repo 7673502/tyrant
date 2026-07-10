@@ -1,8 +1,8 @@
 import unittest
-
-from frozendict import frozendict
 from dataclasses import fields, is_dataclass, replace
 from random import Random
+
+from frozendict import frozendict
 
 from tyrant.exceptions import InvalidMoveError, TyrantError
 from tyrant.models.ballot_box import BallotBox, submit_vote
@@ -1047,7 +1047,7 @@ class TestInvestigateLoyalty(BaseGameStateTest):
 
         self.assertEqual(new_state.current_investigation_result, Party.LIBERAL)
         self.assertEqual(new_state.investigations[liberal.uid], president_uid)
-        self.assertEqual(new_state.phase, GamePhase.INVESTIGATION)
+        self.assertEqual(new_state.phase, GamePhase.CLAIM_INVESTIGATION)
 
     def test_investigate_loyalty_fascists(self):
         """Verifies that investigating a fascist (non-Hitler) reveals their party and updates map and phase."""
@@ -1078,7 +1078,7 @@ class TestInvestigateLoyalty(BaseGameStateTest):
 
         self.assertEqual(new_state.current_investigation_result, Party.FASCIST)
         self.assertEqual(new_state.investigations[fascist.uid], president_uid)
-        self.assertEqual(new_state.phase, GamePhase.INVESTIGATION)
+        self.assertEqual(new_state.phase, GamePhase.CLAIM_INVESTIGATION)
 
     def test_investigate_loyalty_hitler(self):
         """Verifies that investigating Hitler reveals fascist party and updates map and phase."""
@@ -1096,7 +1096,7 @@ class TestInvestigateLoyalty(BaseGameStateTest):
 
         self.assertEqual(new_state.current_investigation_result, Party.FASCIST)
         self.assertEqual(new_state.investigations[hitler.uid], president_uid)
-        self.assertEqual(new_state.phase, GamePhase.INVESTIGATION)
+        self.assertEqual(new_state.phase, GamePhase.CLAIM_INVESTIGATION)
 
     def test_investigate_loyalty_self_investigation(self):
         """Verifies that the president cannot investigate themselves."""
@@ -1145,7 +1145,7 @@ class TestAcknowledgeInvestigation(BaseGameStateTest):
         state = create_game((1, 2, 3, 4, 5), 42)
         state = replace(
             state,
-            phase=GamePhase.INVESTIGATION,
+            phase=GamePhase.CLAIM_INVESTIGATION,
             current_investigation_result=Party.LIBERAL,
         )
         new_state = acknowledge_investigation(state)
@@ -1156,7 +1156,7 @@ class TestAcknowledgeInvestigation(BaseGameStateTest):
         state = create_game((1, 2, 3, 4, 5), 42)
         state = replace(
             state,
-            phase=GamePhase.INVESTIGATION,
+            phase=GamePhase.CLAIM_INVESTIGATION,
             current_investigation_result=Party.LIBERAL,
         )
 
@@ -1301,7 +1301,7 @@ class TestPolicyPeek(BaseGameStateTest):
         state = create_game((1, 2, 3, 4, 5), 42)
         state = replace(
             state,
-            phase=GamePhase.POLICY_PEEK,
+            phase=GamePhase.CLAIM_POLICY_PEEK,
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
         )
         new_state = acknowledge_peek(state)
@@ -1323,7 +1323,7 @@ class TestPolicyPeek(BaseGameStateTest):
 
         self.assertEqual(new_state.drawn_policies, expected_cards)
         self.assertEqual(new_state.deck, original_deck)
-        self.assertEqual(new_state.phase, GamePhase.POLICY_PEEK)
+        self.assertEqual(new_state.phase, GamePhase.CLAIM_POLICY_PEEK)
 
     def test_policy_peek_wrong_phase(self):
         """Verifies that an error is raised if policy_peek is called in the wrong phase."""
@@ -1338,7 +1338,7 @@ class TestPolicyPeek(BaseGameStateTest):
         state = create_game((1, 2, 3, 4, 5), 42)
         state = replace(
             state,
-            phase=GamePhase.POLICY_PEEK,
+            phase=GamePhase.CLAIM_POLICY_PEEK,
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
             president_index=0,
         )
@@ -1356,7 +1356,7 @@ class TestPolicyPeek(BaseGameStateTest):
         new_players[1] = replace(new_players[1], is_alive=False)
         state = replace(
             state,
-            phase=GamePhase.POLICY_PEEK,
+            phase=GamePhase.CLAIM_POLICY_PEEK,
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
             president_index=0,
             players=tuple(new_players),
@@ -1818,7 +1818,9 @@ class TestScrubState(BaseGameStateTest):
         state = create_game(tuple(range(1, 8)), seed=42)
         president = state.players[state.president_index]
         policies = (PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST)
-        state = replace(state, phase=GamePhase.POLICY_PEEK, drawn_policies=policies)
+        state = replace(
+            state, phase=GamePhase.CLAIM_POLICY_PEEK, drawn_policies=policies
+        )
 
         scrubbed = scrub_state(state, president.uid)
 
@@ -1829,7 +1831,9 @@ class TestScrubState(BaseGameStateTest):
         state = create_game(tuple(range(1, 8)), seed=42)
         not_president = state.players[(state.president_index + 1) % len(state.players)]
         policies = (PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST)
-        state = replace(state, phase=GamePhase.POLICY_PEEK, drawn_policies=policies)
+        state = replace(
+            state, phase=GamePhase.CLAIM_POLICY_PEEK, drawn_policies=policies
+        )
 
         scrubbed = scrub_state(state, not_president.uid)
 
@@ -1864,7 +1868,7 @@ class TestScrubState(BaseGameStateTest):
         # POLICY_PEEK
         state_pp = replace(
             state,
-            phase=GamePhase.POLICY_PEEK,
+            phase=GamePhase.CLAIM_POLICY_PEEK,
             chancellor=chancellor_uid,
             drawn_policies=policies_3,
         )
@@ -1903,7 +1907,7 @@ class TestPowerCleanup(BaseGameStateTest):
         state = create_game(tuple(range(1, 8)), seed=42)
         state = replace(
             state,
-            phase=GamePhase.INVESTIGATION,
+            phase=GamePhase.CLAIM_INVESTIGATION,
             active_power=PresidentialPower.INVESTIGATE_LOYALTY,
         )
         new_state = acknowledge_investigation(state)
@@ -1926,7 +1930,7 @@ class TestPowerCleanup(BaseGameStateTest):
         state = create_game(tuple(range(1, 8)), seed=42)
         state = replace(
             state,
-            phase=GamePhase.POLICY_PEEK,
+            phase=GamePhase.CLAIM_POLICY_PEEK,
             active_power=PresidentialPower.POLICY_PEEK,
         )
         new_state = acknowledge_peek(state)
