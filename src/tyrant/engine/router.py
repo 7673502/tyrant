@@ -205,9 +205,9 @@ def get_legal_actions(state: GameState, player_uid: int) -> tuple[Action, ...]:
             return _get_legal_actions_chancellor_enact(state, player_uid)
         case GamePhase.PRESIDENTIAL_POWER:
             return _get_legal_actions_presidential_power(state, player_uid)
-        case GamePhase.INVESTIGATION:
+        case GamePhase.CLAIM_INVESTIGATION:
             return _get_legal_actions_acknowledge_investigation(state, player_uid)
-        case GamePhase.POLICY_PEEK:
+        case GamePhase.CLAIM_POLICY_PEEK:
             return _get_legal_actions_acknowledge_peek(state, player_uid)
         case GamePhase.PRESIDENT_VETO_RESPONSE:
             return _get_legal_actions_president_veto_response(state, player_uid)

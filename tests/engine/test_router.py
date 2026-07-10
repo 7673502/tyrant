@@ -540,14 +540,14 @@ class TestGetLegalActionsInvestigation(unittest.TestCase):
     def test__get_legal_actions_investigation_immutability(self):
         """Ensure the output of _get_legal_actions_acknowledge_investigation is an immutable tuple."""
         state = create_game(tuple(range(5)))
-        state = replace(state, phase=GamePhase.INVESTIGATION)
+        state = replace(state, phase=GamePhase.CLAIM_INVESTIGATION)
         actions = get_legal_actions(state, state.players[state.president_index].uid)
         self.assertIsInstance(actions, tuple)
 
     def test__get_legal_actions_investigation_non_president(self):
         """Ensure every non-president player receives an empty tuple."""
         state = create_game(tuple(range(5)))
-        state = replace(state, phase=GamePhase.INVESTIGATION)
+        state = replace(state, phase=GamePhase.CLAIM_INVESTIGATION)
         president_uid = state.players[state.president_index].uid
         for p in state.players:
             if p.uid != president_uid:
@@ -557,7 +557,7 @@ class TestGetLegalActionsInvestigation(unittest.TestCase):
     def test__get_legal_actions_investigation_president(self):
         """Ensure the president receives the acknowledge investigation action."""
         state = create_game(tuple(range(5)))
-        state = replace(state, phase=GamePhase.INVESTIGATION)
+        state = replace(state, phase=GamePhase.CLAIM_INVESTIGATION)
         president_uid = state.players[state.president_index].uid
         actions = get_legal_actions(state, president_uid)
         self.assertEqual(len(actions), 1)
@@ -568,14 +568,14 @@ class TestGetLegalActionsPolicyPeek(unittest.TestCase):
     def test__get_legal_actions_policy_peek_immutability(self):
         """Ensure the output of _get_legal_actions_acknowledge_peek is an immutable tuple."""
         state = create_game(tuple(range(5)))
-        state = replace(state, phase=GamePhase.POLICY_PEEK)
+        state = replace(state, phase=GamePhase.CLAIM_POLICY_PEEK)
         actions = get_legal_actions(state, state.players[state.president_index].uid)
         self.assertIsInstance(actions, tuple)
 
     def test__get_legal_actions_policy_peek_non_president(self):
         """Ensure every non-president player receives an empty tuple."""
         state = create_game(tuple(range(5)))
-        state = replace(state, phase=GamePhase.POLICY_PEEK)
+        state = replace(state, phase=GamePhase.CLAIM_POLICY_PEEK)
         president_uid = state.players[state.president_index].uid
         for p in state.players:
             if p.uid != president_uid:
@@ -585,7 +585,7 @@ class TestGetLegalActionsPolicyPeek(unittest.TestCase):
     def test__get_legal_actions_policy_peek_president(self):
         """Ensure the president receives the acknowledge peek action."""
         state = create_game(tuple(range(5)))
-        state = replace(state, phase=GamePhase.POLICY_PEEK)
+        state = replace(state, phase=GamePhase.CLAIM_POLICY_PEEK)
         president_uid = state.players[state.president_index].uid
         actions = get_legal_actions(state, president_uid)
         self.assertEqual(len(actions), 1)

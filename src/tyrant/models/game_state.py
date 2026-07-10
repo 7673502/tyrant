@@ -1,8 +1,8 @@
 from dataclasses import dataclass, replace
-
-from frozendict import frozendict
 from random import Random
 from typing import Final
+
+from frozendict import frozendict
 
 from tyrant.exceptions import InvalidMoveError, TyrantError
 from tyrant.models.ballot_box import BallotBox, submit_vote
@@ -411,13 +411,13 @@ def investigate_loyalty(state: GameState, target_uid: int) -> GameState:
         state,
         investigations=new_investigations,
         deck_shuffled_last_action=False,
-        phase=GamePhase.INVESTIGATION,
+        phase=GamePhase.CLAIM_INVESTIGATION,
         current_investigation_result=target.party,
     )
 
 
 def acknowledge_investigation(state: GameState) -> GameState:
-    if state.phase != GamePhase.INVESTIGATION:
+    if state.phase != GamePhase.CLAIM_INVESTIGATION:
         raise InvalidMoveError(
             f"Cannot acknowledge investigation in phase {state.phase}"
         )
@@ -460,12 +460,12 @@ def policy_peek(state: GameState) -> GameState:
     return replace(
         state,
         drawn_policies=state.deck.peek,
-        phase=GamePhase.POLICY_PEEK,
+        phase=GamePhase.CLAIM_POLICY_PEEK,
     )
 
 
 def acknowledge_peek(state: GameState) -> GameState:
-    if state.phase != GamePhase.POLICY_PEEK:
+    if state.phase != GamePhase.CLAIM_POLICY_PEEK:
         raise InvalidMoveError(f"Cannot acknowledge peek in phase {state.phase}")
 
     new_state = replace(state, drawn_policies=(), deck_shuffled_last_action=False)
@@ -551,7 +551,7 @@ def scrub_state(state: GameState, viewer_uid: int) -> GameState:
     )
 
     new_drawn_policies = ()
-    if state.phase in (GamePhase.PRESIDENT_DISCARD, GamePhase.POLICY_PEEK):
+    if state.phase in (GamePhase.PRESIDENT_DISCARD, GamePhase.CLAIM_POLICY_PEEK):
         president = state.players[state.president_index]
         if viewer_uid == president.uid:
             new_drawn_policies = state.drawn_policies
@@ -568,7 +568,7 @@ def scrub_state(state: GameState, viewer_uid: int) -> GameState:
         new_ballot_box = replace(state.ballot_box, votes=frozendict(new_votes))
 
     new_investigation_result = state.current_investigation_result
-    if state.phase == GamePhase.INVESTIGATION:
+    if state.phase == GamePhase.CLAIM_INVESTIGATION:
         president = state.players[state.president_index]
         if viewer_uid != president.uid:
             new_investigation_result = HIDDEN
