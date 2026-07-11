@@ -7,6 +7,7 @@ from frozendict import frozendict
 from tyrant.exceptions import InvalidMoveError, TyrantError
 from tyrant.models.ballot_box import BallotBox, submit_vote
 from tyrant.models.board import Board
+from tyrant.models.claim import PeekClaim
 from tyrant.models.deck import create_deck
 from tyrant.models.election_tracker import ElectionTracker
 from tyrant.models.enums import (
@@ -24,11 +25,11 @@ from tyrant.models.game_state import (
     _ensure_deck_ready,
     _resolve_election,
     acknowledge_investigation,
-    acknowledge_peek,
     call_special_election,
     cast_vote,
     chancellor_enact,
     chancellor_veto,
+    claim_peek,
     create_game,
     execute_player,
     investigate_loyalty,
@@ -1296,15 +1297,19 @@ class TestPolicyPeek(BaseGameStateTest):
         new_state = policy_peek(state)
         self.assert_pure_transition(state, new_state)
 
-    def test_acknowledge_peek_immutability(self):
-        """Verifies that acknowledge_peek returns a new instance without mutating the input state."""
+    def test_claim_peek_immutability(self):
+        """Verifies that claim_peek returns a new instance without mutating the input state."""
         state = create_game((1, 2, 3, 4, 5), 42)
         state = replace(
             state,
             phase=GamePhase.CLAIM_POLICY_PEEK,
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
         )
-        new_state = acknowledge_peek(state)
+        claim = PeekClaim(
+            uid=state.players[state.president_index].uid,
+            policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+        )
+        new_state = claim_peek(state, claim)
         self.assert_pure_transition(state, new_state)
 
     def test_policy_peek(self):
@@ -1333,8 +1338,8 @@ class TestPolicyPeek(BaseGameStateTest):
         with self.assertRaises(InvalidMoveError):
             _ = policy_peek(state)
 
-    def test_acknowledge_peek(self):
-        """Verifies that acknowledge_peek clears drawn_policies and advances rotation."""
+    def test_claim_peek(self):
+        """Verifies that claim_peek clears drawn_policies and advances rotation."""
         state = create_game((1, 2, 3, 4, 5), 42)
         state = replace(
             state,
@@ -1343,13 +1348,17 @@ class TestPolicyPeek(BaseGameStateTest):
             president_index=0,
         )
 
-        new_state = acknowledge_peek(state)
+        claim = PeekClaim(
+            uid=state.players[state.president_index].uid,
+            policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+        )
+        new_state = claim_peek(state, claim)
 
         self.assertEqual(new_state.drawn_policies, ())
         self.assertEqual(new_state.phase, GamePhase.NOMINATION)
         self.assertEqual(new_state.president_index, 1)
 
-    def test_acknowledge_peek_next_president_dead(self):
+    def test_claim_peek_next_president_dead(self):
         """Ensures that rotation skips a dead player and resumes correctly at the next alive player when the peek ends."""
         state = create_game((1, 2, 3, 4, 5), 42)
         new_players = list(state.players)
@@ -1362,17 +1371,25 @@ class TestPolicyPeek(BaseGameStateTest):
             players=tuple(new_players),
         )
 
-        new_state = acknowledge_peek(state)
+        claim = PeekClaim(
+            uid=state.players[state.president_index].uid,
+            policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+        )
+        new_state = claim_peek(state, claim)
         self.assertEqual(new_state.president_index, 2)
         self.assertEqual(new_state.phase, GamePhase.NOMINATION)
 
-    def test_acknowledge_peek_wrong_phase(self):
-        """Verifies that an error is raised if acknowledge_peek is called in the wrong phase."""
+    def test_claim_peek_wrong_phase(self):
+        """Verifies that an error is raised if claim_peek is called in the wrong phase."""
         state = create_game((1, 2, 3, 4, 5), 42)
         state = replace(state, phase=GamePhase.NOMINATION)
+        claim = PeekClaim(
+            uid=state.players[state.president_index].uid,
+            policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+        )
 
         with self.assertRaises(InvalidMoveError):
-            _ = acknowledge_peek(state)
+            _ = claim_peek(state, claim)
 
 
 class TestExecutePlayer(BaseGameStateTest):
@@ -1925,15 +1942,19 @@ class TestPowerCleanup(BaseGameStateTest):
         new_state = call_special_election(state, target_uid)
         self.assertEqual(new_state.active_power, PresidentialPower.NONE)
 
-    def test_acknowledge_peek_power_cleanup(self):
-        """Verifies that acknowledge_peek resets active_power to NONE."""
+    def test_claim_peek_power_cleanup(self):
+        """Verifies that claim_peek resets active_power to NONE."""
         state = create_game(tuple(range(1, 8)), seed=42)
         state = replace(
             state,
             phase=GamePhase.CLAIM_POLICY_PEEK,
             active_power=PresidentialPower.POLICY_PEEK,
         )
-        new_state = acknowledge_peek(state)
+        claim = PeekClaim(
+            uid=state.players[state.president_index].uid,
+            policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+        )
+        new_state = claim_peek(state, claim)
         self.assertEqual(new_state.active_power, PresidentialPower.NONE)
 
     def test_execute_player_power_cleanup(self):

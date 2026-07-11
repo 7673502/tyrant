@@ -1,14 +1,18 @@
+import itertools
+from typing import Final
+
 from tyrant.exceptions import TyrantError
 from tyrant.models.action import Action
-from tyrant.models.enums import GamePhase, PresidentialPower, Vote
+from tyrant.models.claim import PeekClaim
+from tyrant.models.enums import GamePhase, PolicyTile, PresidentialPower, Vote
 from tyrant.models.game_state import (
     GameState,
     acknowledge_investigation,
-    acknowledge_peek,
     call_special_election,
     cast_vote,
     chancellor_enact,
     chancellor_veto,
+    claim_peek,
     execute_player,
     investigate_loyalty,
     nominate_chancellor,
@@ -16,6 +20,8 @@ from tyrant.models.game_state import (
     president_discard,
     president_veto_response,
 )
+
+TILE_MAP: Final = {"L": PolicyTile.LIBERAL, "F": PolicyTile.FASCIST}
 
 
 def _get_legal_actions_nomination(
@@ -152,7 +158,7 @@ def _get_legal_actions_presidential_power(
             )
 
 
-def _get_legal_actions_acknowledge_investigation(
+def _get_legal_actions_claim_investigation(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
     if player_uid != state.players[state.president_index].uid:
@@ -165,12 +171,21 @@ def _get_legal_actions_acknowledge_investigation(
     )
 
 
-def _get_legal_actions_acknowledge_peek(
+def _get_legal_actions_claim_peek(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
     if player_uid != state.players[state.president_index].uid:
         return tuple()
-    return (Action(id="acknowledge_peek", description="Done Reading Top 3 Cards"),)
+
+    actions: list[Action] = []
+    for claim in itertools.product(("Liberal", "Fascist"), repeat=3):
+        action = Action(
+            id=f"claim_peek_{claim[0][0] + claim[1][0] + claim[2][0]}",
+            description=f"For the peeked top 3 policies, claim that the top is {claim[0]}, middle is {claim[1]}, bottom is {claim[2]}",
+        )
+        actions.append(action)
+
+    return tuple(actions)
 
 
 def _get_legal_actions_president_veto_response(
@@ -206,9 +221,9 @@ def get_legal_actions(state: GameState, player_uid: int) -> tuple[Action, ...]:
         case GamePhase.PRESIDENTIAL_POWER:
             return _get_legal_actions_presidential_power(state, player_uid)
         case GamePhase.CLAIM_INVESTIGATION:
-            return _get_legal_actions_acknowledge_investigation(state, player_uid)
+            return _get_legal_actions_claim_investigation(state, player_uid)
         case GamePhase.CLAIM_POLICY_PEEK:
-            return _get_legal_actions_acknowledge_peek(state, player_uid)
+            return _get_legal_actions_claim_peek(state, player_uid)
         case GamePhase.PRESIDENT_VETO_RESPONSE:
             return _get_legal_actions_president_veto_response(state, player_uid)
         case _:  # no actions available during SETUP and GAME_OVER
@@ -244,8 +259,10 @@ def apply_action(state: GameState, action: Action, player_uid: int) -> GameState
             return execute_player(state, target_uid)
         case ["peek"]:
             return policy_peek(state)
-        case ["acknowledge", "peek"]:
-            return acknowledge_peek(state)
+        case ["claim", "peek", policies]:
+            policies = tuple(TILE_MAP[char] for char in policies)
+            claim = PeekClaim(uid=player_uid, policies=policies)
+            return claim_peek(state, claim)
         case ["acknowledge", "investigation"]:
             return acknowledge_investigation(state)
         case [veto_str, "veto"]:

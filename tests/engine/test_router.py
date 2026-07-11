@@ -566,7 +566,7 @@ class TestGetLegalActionsInvestigation(unittest.TestCase):
 
 class TestGetLegalActionsPolicyPeek(unittest.TestCase):
     def test__get_legal_actions_policy_peek_immutability(self):
-        """Ensure the output of _get_legal_actions_acknowledge_peek is an immutable tuple."""
+        """Ensure the output of _get_legal_actions_claim_peek is an immutable tuple."""
         state = create_game(tuple(range(5)))
         state = replace(state, phase=GamePhase.CLAIM_POLICY_PEEK)
         actions = get_legal_actions(state, state.players[state.president_index].uid)
@@ -588,8 +588,8 @@ class TestGetLegalActionsPolicyPeek(unittest.TestCase):
         state = replace(state, phase=GamePhase.CLAIM_POLICY_PEEK)
         president_uid = state.players[state.president_index].uid
         actions = get_legal_actions(state, president_uid)
-        self.assertEqual(len(actions), 1)
-        self.assertEqual(actions[0].id, "acknowledge_peek")
+        self.assertEqual(len(actions), 8)
+        self.assertEqual(actions[0].id, "claim_peek_LLL")
 
 
 class TestGetLegalActionsPresidentVetoResponse(unittest.TestCase):
@@ -723,13 +723,18 @@ class TestApplyAction(unittest.TestCase):
         apply_action(state, action, 0)
         mock_peek.assert_called_once_with(state)
 
-    @patch("tyrant.engine.router.acknowledge_peek")
-    def test_apply_action_acknowledge_peek(self, mock_ack):
-        """Ensure acknowledge_peek calls acknowledge_peek."""
+    @patch("tyrant.engine.router.claim_peek")
+    def test_apply_action_claim_peek(self, mock_ack):
+        """Ensure claim_peek calls claim_peek."""
         state = create_game(tuple(range(5)))
-        action = Action(id="acknowledge_peek", description="")
+        action = Action(id="claim_peek_FFF", description="")
         apply_action(state, action, 0)
-        mock_ack.assert_called_once_with(state)
+        from tyrant.models.claim import PeekClaim
+
+        expected_claim = PeekClaim(
+            uid=0, policies=(PolicyTile.FASCIST, PolicyTile.FASCIST, PolicyTile.FASCIST)
+        )
+        mock_ack.assert_called_once_with(state, expected_claim)
 
     @patch("tyrant.engine.router.acknowledge_investigation")
     def test_apply_action_acknowledge_investigation(self, mock_ack):

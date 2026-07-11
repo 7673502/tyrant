@@ -7,6 +7,7 @@ from frozendict import frozendict
 from tyrant.exceptions import InvalidMoveError, TyrantError
 from tyrant.models.ballot_box import BallotBox, submit_vote
 from tyrant.models.board import Board, play_tile
+from tyrant.models.claim import Claim, PeekClaim
 from tyrant.models.deck import (
     Deck,
     create_deck,
@@ -53,6 +54,10 @@ class GameState:
     deck_shuffled_last_action: bool = False
     active_power: PresidentialPower = PresidentialPower.NONE
     current_investigation_result: Party | HIDDEN | None = None
+    claims: tuple[Claim, ...] = ()
+    pending_president_enact_claim: bool = False
+    pending_chancellor_enact_claim: bool = False
+    pending_power: PresidentialPower = PresidentialPower.NONE
 
 
 def create_game(uids: tuple[int, ...], seed: int | None = 42) -> GameState:
@@ -464,11 +469,17 @@ def policy_peek(state: GameState) -> GameState:
     )
 
 
-def acknowledge_peek(state: GameState) -> GameState:
+def claim_peek(state: GameState, claim: PeekClaim) -> GameState:
     if state.phase != GamePhase.CLAIM_POLICY_PEEK:
         raise InvalidMoveError(f"Cannot acknowledge peek in phase {state.phase}")
 
-    new_state = replace(state, drawn_policies=(), deck_shuffled_last_action=False)
+    new_state = replace(
+        state,
+        drawn_policies=(),
+        deck_shuffled_last_action=False,
+        claims=state.claims + (claim,),
+    )
+
     return _advance_to_nomination(new_state)
 
 
