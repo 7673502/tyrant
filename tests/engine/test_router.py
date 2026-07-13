@@ -5,8 +5,9 @@ from unittest.mock import patch
 from tyrant.engine.router import apply_action, get_legal_actions
 from tyrant.exceptions import TyrantError
 from tyrant.models.action import Action
+from tyrant.models.claim import InvestigationClaim
 from tyrant.models.election_tracker import ElectionTracker
-from tyrant.models.enums import GamePhase, PolicyTile, PresidentialPower, Vote
+from tyrant.models.enums import GamePhase, Party, PolicyTile, PresidentialPower, Vote
 from tyrant.models.game_state import cast_vote, create_game, nominate_chancellor
 
 
@@ -538,7 +539,7 @@ class TestGetLegalActionsPresidentialPower(unittest.TestCase):
 
 class TestGetLegalActionsInvestigation(unittest.TestCase):
     def test__get_legal_actions_investigation_immutability(self):
-        """Ensure the output of _get_legal_actions_acknowledge_investigation is an immutable tuple."""
+        """Ensure the output of _get_legal_actions_claim_investigation is an immutable tuple."""
         state = create_game(tuple(range(5)))
         state = replace(state, phase=GamePhase.CLAIM_INVESTIGATION)
         actions = get_legal_actions(state, state.players[state.president_index].uid)
@@ -555,13 +556,13 @@ class TestGetLegalActionsInvestigation(unittest.TestCase):
                 self.assertEqual(actions, tuple())
 
     def test__get_legal_actions_investigation_president(self):
-        """Ensure the president receives the acknowledge investigation action."""
+        """Ensure the president receives the claim investigation action."""
         state = create_game(tuple(range(5)))
         state = replace(state, phase=GamePhase.CLAIM_INVESTIGATION)
         president_uid = state.players[state.president_index].uid
         actions = get_legal_actions(state, president_uid)
-        self.assertEqual(len(actions), 1)
-        self.assertEqual(actions[0].id, "acknowledge_investigation")
+        self.assertEqual(len(actions), 3)
+        self.assertEqual(actions[2].id, "claim_investigation_silence")
 
 
 class TestGetLegalActionsPolicyPeek(unittest.TestCase):
@@ -746,13 +747,15 @@ class TestApplyAction(unittest.TestCase):
         )
         mock_ack.assert_called_once_with(state, expected_claim)
 
-    @patch("tyrant.engine.router.acknowledge_investigation")
-    def test_apply_action_acknowledge_investigation(self, mock_ack):
-        """Ensure acknowledge_investigation calls acknowledge_investigation."""
+    @patch("tyrant.engine.router.claim_investigation")
+    def test_apply_action_claim_investigation(self, mock_ack):
+        """Ensure claim_investigation calls claim_investigation."""
         state = create_game(tuple(range(5)))
-        action = Action(id="acknowledge_investigation", description="")
+        action = Action(id="claim_investigation_fascist", description="")
         apply_action(state, action, 0)
-        mock_ack.assert_called_once_with(state)
+        mock_ack.assert_called_once_with(
+            state, InvestigationClaim(uid=0, party=Party.FASCIST)
+        )
 
     @patch("tyrant.engine.router.president_veto_response")
     def test_apply_action_accept_veto(self, mock_veto_response):

@@ -7,7 +7,7 @@ from frozendict import frozendict
 from tyrant.exceptions import InvalidMoveError, TyrantError
 from tyrant.models.ballot_box import BallotBox, submit_vote
 from tyrant.models.board import Board, play_tile
-from tyrant.models.claim import Claim, PeekClaim
+from tyrant.models.claim import Claim, InvestigationClaim, PeekClaim
 from tyrant.models.deck import (
     Deck,
     create_deck,
@@ -421,7 +421,7 @@ def investigate_loyalty(state: GameState, target_uid: int) -> GameState:
     )
 
 
-def claim_investigation(state: GameState) -> GameState:
+def claim_investigation(state: GameState, claim: InvestigationClaim) -> GameState:
     if state.phase != GamePhase.CLAIM_INVESTIGATION:
         raise InvalidMoveError(f"Cannot claim investigation in phase {state.phase}")
 
@@ -429,6 +429,7 @@ def claim_investigation(state: GameState) -> GameState:
         state,
         current_investigation_result=None,
         deck_shuffled_last_action=False,
+        claims=state.claims + (claim,),
     )
     return _advance_to_nomination(new_state)
 
