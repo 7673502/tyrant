@@ -3,8 +3,8 @@ from typing import Final
 
 from tyrant.exceptions import TyrantError
 from tyrant.models.action import Action
-from tyrant.models.claim import PeekClaim
-from tyrant.models.enums import GamePhase, PolicyTile, PresidentialPower, Vote
+from tyrant.models.claim import InvestigationClaim, PeekClaim
+from tyrant.models.enums import GamePhase, Party, PolicyTile, PresidentialPower, Vote
 from tyrant.models.game_state import (
     GameState,
     call_special_election,
@@ -163,12 +163,22 @@ def _get_legal_actions_claim_investigation(
 ) -> tuple[Action, ...]:
     if player_uid != state.players[state.president_index].uid:
         return tuple()
-    return (
+    actions: list[Action] = []
+    for party in ("Liberal", "Fascist"):
+        actions.append(
+            Action(
+                id=f"claim_investigation_{party.lower()}",
+                description=f"Claim that the investigated player is a {party}",
+            )
+        )
+    actions.append(
         Action(
-            id="acknowledge_investigation",
-            description="Done Reading Party Identity of Investigated Player",
-        ),
+            id="claim_investigation_silence",
+            description="Decline to share the investigated player's party loyalty",
+        )
     )
+
+    return tuple(actions)
 
 
 def _get_legal_actions_claim_peek(
@@ -187,7 +197,7 @@ def _get_legal_actions_claim_peek(
     actions.append(
         Action(
             id="claim_peek_silence",
-            description="For the peeked top 3 policies, make no response",
+            description="Decline to share the contents of the peeked top 3 cards",
         )
     )
 
@@ -272,8 +282,13 @@ def apply_action(state: GameState, action: Action, player_uid: int) -> GameState
             policies = tuple(TILE_MAP[char] for char in policies)
             claim = PeekClaim(uid=player_uid, policies=policies)
             return claim_peek(state, claim)
-        case ["acknowledge", "investigation"]:
-            return claim_investigation(state)
+        case ["claim", "investigation", "silence"]:
+            claim = InvestigationClaim(uid=player_uid, party=None)
+            return claim_investigation(state, claim)
+        case ["claim", "investigation", party]:
+            party = Party.LIBERAL if party == "liberal" else Party.FASCIST
+            claim = InvestigationClaim(uid=player_uid, party=party)
+            return claim_investigation(state, claim)
         case [veto_str, "veto"]:
             approve = veto_str == "accept"
             return president_veto_response(state, approve)

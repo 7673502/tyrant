@@ -7,7 +7,7 @@ from frozendict import frozendict
 from tyrant.exceptions import InvalidMoveError, TyrantError
 from tyrant.models.ballot_box import BallotBox, submit_vote
 from tyrant.models.board import Board
-from tyrant.models.claim import PeekClaim
+from tyrant.models.claim import InvestigationClaim, PeekClaim
 from tyrant.models.deck import create_deck
 from tyrant.models.election_tracker import ElectionTracker
 from tyrant.models.enums import (
@@ -1140,20 +1140,23 @@ class TestInvestigateLoyalty(BaseGameStateTest):
             investigate_loyalty(state, target_uid)
 
 
-class TestAcknowledgeInvestigation(BaseGameStateTest):
-    def test_acknowledge_investigation_immutability(self):
-        """Verifies that acknowledge_investigation returns a new instance without mutating the input state."""
+class TestClaimInvestigation(BaseGameStateTest):
+    def test_claim_investigation_immutability(self):
+        """Verifies that claim_investigation returns a new instance without mutating the input state."""
         state = create_game((1, 2, 3, 4, 5), 42)
         state = replace(
             state,
             phase=GamePhase.CLAIM_INVESTIGATION,
             current_investigation_result=Party.LIBERAL,
         )
-        new_state = claim_investigation(state)
+        claim = InvestigationClaim(
+            uid=state.players[state.president_index].uid, party=Party.LIBERAL
+        )
+        new_state = claim_investigation(state, claim)
         self.assert_pure_transition(state, new_state)
 
-    def test_acknowledge_investigation(self):
-        """Verifies that acknowledging an investigation clears the result and advances the phase."""
+    def test_claim_investigation(self):
+        """Verifies that claiming an investigation clears the result and advances the phase."""
         state = create_game((1, 2, 3, 4, 5), 42)
         state = replace(
             state,
@@ -1161,17 +1164,23 @@ class TestAcknowledgeInvestigation(BaseGameStateTest):
             current_investigation_result=Party.LIBERAL,
         )
 
-        new_state = claim_investigation(state)
+        claim = InvestigationClaim(
+            uid=state.players[state.president_index].uid, party=Party.LIBERAL
+        )
+        new_state = claim_investigation(state, claim)
         self.assertEqual(new_state.phase, GamePhase.NOMINATION)
         self.assertIsNone(new_state.current_investigation_result)
 
-    def test_acknowledge_investigation_wrong_phase(self):
+    def test_claim_investigation_wrong_phase(self):
         """Verifies that an error is raised if the phase is not INVESTIGATION."""
         state = create_game((1, 2, 3, 4, 5), 42)
         state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+        claim = InvestigationClaim(
+            uid=state.players[state.president_index].uid, party=Party.LIBERAL
+        )
 
         with self.assertRaises(InvalidMoveError):
-            claim_investigation(state)
+            claim_investigation(state, claim)
 
 
 class TestCallSpecialElection(BaseGameStateTest):
@@ -1935,15 +1944,18 @@ class TestScrubState(BaseGameStateTest):
 
 
 class TestPowerCleanup(BaseGameStateTest):
-    def test_acknowledge_investigation_power_cleanup(self):
-        """Verifies that acknowledge_investigation resets active_power to NONE."""
+    def test_claim_investigation_power_cleanup(self):
+        """Verifies that claim_investigation resets active_power to NONE."""
         state = create_game(tuple(range(1, 8)), seed=42)
         state = replace(
             state,
             phase=GamePhase.CLAIM_INVESTIGATION,
             active_power=PresidentialPower.INVESTIGATE_LOYALTY,
         )
-        new_state = claim_investigation(state)
+        claim = InvestigationClaim(
+            uid=state.players[state.president_index].uid, party=Party.LIBERAL
+        )
+        new_state = claim_investigation(state, claim)
         self.assertEqual(new_state.active_power, PresidentialPower.NONE)
 
     def test_call_special_election_power_cleanup(self):
