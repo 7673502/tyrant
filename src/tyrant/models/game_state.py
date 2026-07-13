@@ -469,7 +469,7 @@ def policy_peek(state: GameState) -> GameState:
     )
 
 
-def claim_peek(state: GameState, claim: PeekClaim) -> GameState:
+def claim_peek(state: GameState, claim: PeekClaim | None) -> GameState:
     if state.phase != GamePhase.CLAIM_POLICY_PEEK:
         raise InvalidMoveError(f"Cannot acknowledge peek in phase {state.phase}")
 

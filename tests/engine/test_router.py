@@ -583,7 +583,7 @@ class TestGetLegalActionsPolicyPeek(unittest.TestCase):
                 self.assertEqual(actions, tuple())
 
     def test__get_legal_actions_policy_peek_president(self):
-        """Ensure the president receives the acknowledge peek action."""
+        """Ensure the president receives the claim peek action."""
         state = create_game(tuple(range(5)))
         state = replace(state, phase=GamePhase.CLAIM_POLICY_PEEK)
         president_uid = state.players[state.president_index].uid
@@ -592,6 +592,14 @@ class TestGetLegalActionsPolicyPeek(unittest.TestCase):
             len(actions), 9
         )  # 8 possible orderings for 3 cards + no response action
         self.assertEqual(actions[0].id, "claim_peek_LLL")
+
+    def test__get_legal_actions_policy_peek_silence(self):
+        """Ensure that player can choose to be silent when claiming."""
+        state = create_game(tuple(range(5)))
+        state = replace(state, phase=GamePhase.CLAIM_POLICY_PEEK)
+        president_uid = state.players[state.president_index].uid
+        actions = get_legal_actions(state, president_uid)
+        self.assertEqual(actions[-1].id, "claim_peek_silence")
 
 
 class TestGetLegalActionsPresidentVetoResponse(unittest.TestCase):
