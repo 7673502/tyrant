@@ -184,6 +184,12 @@ def _get_legal_actions_claim_peek(
             description=f"For the peeked top 3 policies, claim that the top is {claim[0]}, middle is {claim[1]}, bottom is {claim[2]}",
         )
         actions.append(action)
+    actions.append(
+        Action(
+            id="claim_peek_silence",
+            description="For the peeked top 3 policies, make no response",
+        )
+    )
 
     return tuple(actions)
 

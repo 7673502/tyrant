@@ -588,7 +588,9 @@ class TestGetLegalActionsPolicyPeek(unittest.TestCase):
         state = replace(state, phase=GamePhase.CLAIM_POLICY_PEEK)
         president_uid = state.players[state.president_index].uid
         actions = get_legal_actions(state, president_uid)
-        self.assertEqual(len(actions), 8)
+        self.assertEqual(
+            len(actions), 9
+        )  # 8 possible orderings for 3 cards + no response action
         self.assertEqual(actions[0].id, "claim_peek_LLL")
 
 
