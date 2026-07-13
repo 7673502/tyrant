@@ -1182,6 +1182,20 @@ class TestClaimInvestigation(BaseGameStateTest):
         with self.assertRaises(InvalidMoveError):
             claim_investigation(state, claim)
 
+    def test_claim_investigation_wrong_uid(self):
+        """Verifies that an error is raised if the claim UID does not match the president."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_INVESTIGATION,
+            current_investigation_result=Party.LIBERAL,
+        )
+        wrong_uid = state.players[(state.president_index + 1) % 5].uid
+        claim = InvestigationClaim(uid=wrong_uid, party=Party.LIBERAL)
+
+        with self.assertRaises(InvalidMoveError):
+            claim_investigation(state, claim)
+
 
 class TestCallSpecialElection(BaseGameStateTest):
     def test_special_election_immutability(self):
@@ -1415,6 +1429,23 @@ class TestPolicyPeek(BaseGameStateTest):
 
         with self.assertRaises(InvalidMoveError):
             _ = claim_peek(state, claim)
+
+    def test_claim_peek_wrong_uid(self):
+        """Verifies that an error is raised if the claim UID does not match the president."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_POLICY_PEEK,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+        )
+        wrong_uid = state.players[(state.president_index + 1) % 5].uid
+        claim = PeekClaim(
+            uid=wrong_uid,
+            policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+        )
+
+        with self.assertRaises(InvalidMoveError):
+            claim_peek(state, claim)
 
 
 class TestExecutePlayer(BaseGameStateTest):
