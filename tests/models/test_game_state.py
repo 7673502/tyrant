@@ -24,11 +24,11 @@ from tyrant.models.game_state import (
     _advance_to_nomination,
     _ensure_deck_ready,
     _resolve_election,
-    acknowledge_investigation,
     call_special_election,
     cast_vote,
     chancellor_enact,
     chancellor_veto,
+    claim_investigation,
     claim_peek,
     create_game,
     execute_player,
@@ -1149,7 +1149,7 @@ class TestAcknowledgeInvestigation(BaseGameStateTest):
             phase=GamePhase.CLAIM_INVESTIGATION,
             current_investigation_result=Party.LIBERAL,
         )
-        new_state = acknowledge_investigation(state)
+        new_state = claim_investigation(state)
         self.assert_pure_transition(state, new_state)
 
     def test_acknowledge_investigation(self):
@@ -1161,7 +1161,7 @@ class TestAcknowledgeInvestigation(BaseGameStateTest):
             current_investigation_result=Party.LIBERAL,
         )
 
-        new_state = acknowledge_investigation(state)
+        new_state = claim_investigation(state)
         self.assertEqual(new_state.phase, GamePhase.NOMINATION)
         self.assertIsNone(new_state.current_investigation_result)
 
@@ -1171,7 +1171,7 @@ class TestAcknowledgeInvestigation(BaseGameStateTest):
         state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
 
         with self.assertRaises(InvalidMoveError):
-            acknowledge_investigation(state)
+            claim_investigation(state)
 
 
 class TestCallSpecialElection(BaseGameStateTest):
@@ -1943,7 +1943,7 @@ class TestPowerCleanup(BaseGameStateTest):
             phase=GamePhase.CLAIM_INVESTIGATION,
             active_power=PresidentialPower.INVESTIGATE_LOYALTY,
         )
-        new_state = acknowledge_investigation(state)
+        new_state = claim_investigation(state)
         self.assertEqual(new_state.active_power, PresidentialPower.NONE)
 
     def test_call_special_election_power_cleanup(self):

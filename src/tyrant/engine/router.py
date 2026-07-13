@@ -7,11 +7,11 @@ from tyrant.models.claim import PeekClaim
 from tyrant.models.enums import GamePhase, PolicyTile, PresidentialPower, Vote
 from tyrant.models.game_state import (
     GameState,
-    acknowledge_investigation,
     call_special_election,
     cast_vote,
     chancellor_enact,
     chancellor_veto,
+    claim_investigation,
     claim_peek,
     execute_player,
     investigate_loyalty,
@@ -273,7 +273,7 @@ def apply_action(state: GameState, action: Action, player_uid: int) -> GameState
             claim = PeekClaim(uid=player_uid, policies=policies)
             return claim_peek(state, claim)
         case ["acknowledge", "investigation"]:
-            return acknowledge_investigation(state)
+            return claim_investigation(state)
         case [veto_str, "veto"]:
             approve = veto_str == "accept"
             return president_veto_response(state, approve)
