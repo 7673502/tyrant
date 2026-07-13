@@ -7,7 +7,13 @@ from frozendict import frozendict
 from tyrant.exceptions import InvalidMoveError, TyrantError
 from tyrant.models.ballot_box import BallotBox, submit_vote
 from tyrant.models.board import Board, play_tile
-from tyrant.models.claim import Claim, InvestigationClaim, PeekClaim
+from tyrant.models.claim import (
+    ChancellorEnactClaim,
+    Claim,
+    InvestigationClaim,
+    PeekClaim,
+    PresidentEnactClaim,
+)
 from tyrant.models.deck import (
     Deck,
     create_deck,
@@ -318,12 +324,62 @@ def chancellor_enact(state: GameState, enact_index: int) -> GameState:
     if new_board.winner is not None:
         return replace(new_state, phase=GamePhase.GAME_OVER, winner=new_board.winner)
 
-    if enacted_tile == PolicyTile.LIBERAL or power == PresidentialPower.NONE:
-        return _advance_to_nomination(new_state)
+    return replace(
+        new_state,
+        phase=GamePhase.CLAIM_POLICIES,
+        pending_president_enact_claim=True,
+        pending_chancellor_enact_claim=True,
+        pending_power=power,
+    )
+
+
+def claim_enact(
+    state: GameState, claim: PresidentEnactClaim | ChancellorEnactClaim
+) -> GameState:
+    if state.phase != GamePhase.CLAIM_POLICIES:
+        raise InvalidMoveError(f"Cannot claim enact in phase {state.phase}")
+
+    president_uid = state.players[state.president_index].uid
+    chancellor_uid = state.chancellor
+
+    new_pending_president = state.pending_president_enact_claim
+    new_pending_chancellor = state.pending_chancellor_enact_claim
+
+    if isinstance(claim, PresidentEnactClaim):
+        if claim.uid != president_uid:
+            raise InvalidMoveError("Only the current president can make this claim.")
+        if not new_pending_president:
+            raise InvalidMoveError("President has already claimed")
+        new_pending_president = False
+    elif isinstance(claim, ChancellorEnactClaim):
+        if claim.uid != chancellor_uid:
+            raise InvalidMoveError("Only the current chancellor can make this claim.")
+        if not new_pending_chancellor:
+            raise InvalidMoveError("Chancellor has already claimed")
+        new_pending_chancellor = False
     else:
-        return replace(
-            new_state, phase=GamePhase.PRESIDENTIAL_POWER, active_power=power
-        )
+        raise InvalidMoveError("Invalid claim type")
+
+    new_state = replace(
+        state,
+        claims=state.claims + (claim,),
+        pending_president_enact_claim=new_pending_president,
+        pending_chancellor_enact_claim=new_pending_chancellor,
+        deck_shuffled_last_action=False,
+    )
+
+    if not new_pending_president and not new_pending_chancellor:
+        power = new_state.pending_power
+        new_state = replace(new_state, pending_power=PresidentialPower.NONE)
+
+        if power == PresidentialPower.NONE:
+            return _advance_to_nomination(new_state)
+        else:
+            return replace(
+                new_state, phase=GamePhase.PRESIDENTIAL_POWER, active_power=power
+            )
+
+    return new_state
 
 
 def chancellor_veto(state: GameState) -> GameState:

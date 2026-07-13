@@ -783,3 +783,102 @@ class TestApplyAction(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestGetLegalActionsEnactClaims(unittest.TestCase):
+    def test_enact_claims_immutability(self):
+        state = create_game(tuple(range(5)))
+        president_uid = state.players[state.president_index].uid
+        other_uid = next(p.uid for p in state.players if p.uid != president_uid)
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_POLICIES,
+            chancellor=other_uid,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+        )
+        actions = get_legal_actions(state, president_uid)
+        self.assertIsInstance(actions, tuple)
+
+    def test_enact_claims_president(self):
+        state = create_game(tuple(range(5)))
+        president_uid = state.players[state.president_index].uid
+        other_uid = next(p.uid for p in state.players if p.uid != president_uid)
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_POLICIES,
+            chancellor=other_uid,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+        )
+        actions = get_legal_actions(state, president_uid)
+        self.assertEqual(len(actions), 5)
+        self.assertEqual(actions[-1].id, "claim_president_enact_silence")
+
+    def test_enact_claims_chancellor(self):
+        state = create_game(tuple(range(5)))
+        president_uid = state.players[state.president_index].uid
+        other_uid = next(p.uid for p in state.players if p.uid != president_uid)
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_POLICIES,
+            chancellor=other_uid,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+        )
+        actions = get_legal_actions(state, other_uid)
+        self.assertEqual(len(actions), 4)
+        self.assertEqual(actions[-1].id, "claim_chancellor_enact_silence")
+
+    def test_enact_claims_non_involved(self):
+        state = create_game(tuple(range(5)))
+        president_uid = state.players[state.president_index].uid
+        other_uid = next(p.uid for p in state.players if p.uid != president_uid)
+        unrelated_uid = next(
+            p.uid for p in state.players if p.uid not in (president_uid, other_uid)
+        )
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_POLICIES,
+            chancellor=other_uid,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+        )
+        actions = get_legal_actions(state, unrelated_uid)
+        self.assertEqual(actions, tuple())
+
+    @patch("tyrant.engine.router.claim_enact")
+    def test_apply_action_president_enact_claim(self, mock_claim):
+        state = create_game(tuple(range(5)))
+        president_uid = state.players[state.president_index].uid
+        action = Action(id="claim_president_enact_FFF", description="")
+        apply_action(state, action, president_uid)
+        from tyrant.models.claim import PresidentEnactClaim
+
+        mock_claim.assert_called_once_with(
+            state,
+            PresidentEnactClaim(
+                uid=president_uid,
+                policies=(PolicyTile.FASCIST, PolicyTile.FASCIST, PolicyTile.FASCIST),
+            ),
+        )
+
+    @patch("tyrant.engine.router.claim_enact")
+    def test_apply_action_chancellor_enact_claim(self, mock_claim):
+        state = create_game(tuple(range(5)))
+        president_uid = state.players[state.president_index].uid
+        other_uid = next(p.uid for p in state.players if p.uid != president_uid)
+        action = Action(id="claim_chancellor_enact_FL", description="")
+        apply_action(state, action, other_uid)
+        from tyrant.models.claim import ChancellorEnactClaim
+
+        mock_claim.assert_called_once_with(
+            state,
+            ChancellorEnactClaim(
+                uid=other_uid, policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL)
+            ),
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

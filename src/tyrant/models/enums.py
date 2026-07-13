@@ -45,7 +45,7 @@ class GamePhase(StrEnum):
     VOTING = auto()
     PRESIDENT_DISCARD = auto()
     CHANCELLOR_ENACT = auto()
-    CLAIM_POLICY = auto()
+    CLAIM_POLICIES = auto()
     PRESIDENTIAL_POWER = auto()
     CLAIM_POLICY_PEEK = auto()
     CLAIM_INVESTIGATION = auto()

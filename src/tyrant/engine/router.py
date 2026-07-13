@@ -3,7 +3,12 @@ from typing import Final
 
 from tyrant.exceptions import TyrantError
 from tyrant.models.action import Action
-from tyrant.models.claim import InvestigationClaim, PeekClaim
+from tyrant.models.claim import (
+    ChancellorEnactClaim,
+    InvestigationClaim,
+    PeekClaim,
+    PresidentEnactClaim,
+)
 from tyrant.models.enums import GamePhase, Party, PolicyTile, PresidentialPower, Vote
 from tyrant.models.game_state import (
     GameState,
@@ -11,6 +16,7 @@ from tyrant.models.game_state import (
     cast_vote,
     chancellor_enact,
     chancellor_veto,
+    claim_enact,
     claim_investigation,
     claim_peek,
     execute_player,
@@ -204,6 +210,44 @@ def _get_legal_actions_claim_peek(
     return tuple(actions)
 
 
+def _get_legal_actions_enact_claims(
+    state: GameState, player_uid: int
+) -> tuple[Action, ...]:
+    actions: list[Action] = []
+
+    president_uid = state.players[state.president_index].uid
+    if player_uid == president_uid and state.pending_president_enact_claim:
+        for claim in itertools.combinations_with_replacement(("Liberal", "Fascist"), 3):
+            action = Action(
+                id=f"claim_president_enact_{claim[0][0] + claim[1][0] + claim[2][0]}",
+                description=f"Claim that the 3 drawn policies were: {claim[0]}, {claim[1]}, {claim[2]}",
+            )
+            actions.append(action)
+        actions.append(
+            Action(
+                id="claim_president_enact_silence",
+                description="Decline to share the drawn policies",
+            )
+        )
+
+    chancellor_uid = state.chancellor
+    if player_uid == chancellor_uid and state.pending_chancellor_enact_claim:
+        for claim in itertools.combinations_with_replacement(("Liberal", "Fascist"), 2):
+            action = Action(
+                id=f"claim_chancellor_enact_{claim[0][0] + claim[1][0]}",
+                description=f"Claim that the 2 received policies were: {claim[0]}, {claim[1]}",
+            )
+            actions.append(action)
+        actions.append(
+            Action(
+                id="claim_chancellor_enact_silence",
+                description="Decline to share the received policies",
+            )
+        )
+
+    return tuple(actions)
+
+
 def _get_legal_actions_president_veto_response(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
@@ -240,6 +284,8 @@ def get_legal_actions(state: GameState, player_uid: int) -> tuple[Action, ...]:
             return _get_legal_actions_claim_investigation(state, player_uid)
         case GamePhase.CLAIM_POLICY_PEEK:
             return _get_legal_actions_claim_peek(state, player_uid)
+        case GamePhase.CLAIM_POLICIES:
+            return _get_legal_actions_enact_claims(state, player_uid)
         case GamePhase.PRESIDENT_VETO_RESPONSE:
             return _get_legal_actions_president_veto_response(state, player_uid)
         case _:  # no actions available during SETUP and GAME_OVER
@@ -282,6 +328,20 @@ def apply_action(state: GameState, action: Action, player_uid: int) -> GameState
             policies = tuple(TILE_MAP[char] for char in policies)
             claim = PeekClaim(uid=player_uid, policies=policies)
             return claim_peek(state, claim)
+        case ["claim", "president", "enact", "silence"]:
+            claim = PresidentEnactClaim(uid=player_uid, policies=None)
+            return claim_enact(state, claim)
+        case ["claim", "president", "enact", policies]:
+            policies_tuple = tuple(TILE_MAP[char] for char in policies)
+            claim = PresidentEnactClaim(uid=player_uid, policies=policies_tuple)
+            return claim_enact(state, claim)
+        case ["claim", "chancellor", "enact", "silence"]:
+            claim = ChancellorEnactClaim(uid=player_uid, policies=None)
+            return claim_enact(state, claim)
+        case ["claim", "chancellor", "enact", policies]:
+            policies_tuple = tuple(TILE_MAP[char] for char in policies)
+            claim = ChancellorEnactClaim(uid=player_uid, policies=policies_tuple)
+            return claim_enact(state, claim)
         case ["claim", "investigation", "silence"]:
             claim = InvestigationClaim(uid=player_uid, party=None)
             return claim_investigation(state, claim)

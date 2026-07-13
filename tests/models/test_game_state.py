@@ -7,7 +7,12 @@ from frozendict import frozendict
 from tyrant.exceptions import InvalidMoveError, TyrantError
 from tyrant.models.ballot_box import BallotBox, submit_vote
 from tyrant.models.board import Board
-from tyrant.models.claim import InvestigationClaim, PeekClaim
+from tyrant.models.claim import (
+    ChancellorEnactClaim,
+    InvestigationClaim,
+    PeekClaim,
+    PresidentEnactClaim,
+)
 from tyrant.models.deck import create_deck
 from tyrant.models.election_tracker import ElectionTracker
 from tyrant.models.enums import (
@@ -28,6 +33,7 @@ from tyrant.models.game_state import (
     cast_vote,
     chancellor_enact,
     chancellor_veto,
+    claim_enact,
     claim_investigation,
     claim_peek,
     create_game,
@@ -748,7 +754,7 @@ class TestChancellorEnact(BaseGameStateTest):
         )
         new_state = chancellor_enact(state, 1)
 
-        self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+        self.assertEqual(new_state.phase, GamePhase.CLAIM_POLICIES)
         self.assertEqual(len(new_state.deck.discard_pile), initial_discard + 1)
         self.assertEqual(new_state.deck.discard_pile[-1], PolicyTile.FASCIST)
         self.assertEqual(new_state.board.liberal_played, 1)
@@ -779,7 +785,7 @@ class TestChancellorEnact(BaseGameStateTest):
                 )
                 new_state = chancellor_enact(state, 0)
 
-                self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+                self.assertEqual(new_state.phase, GamePhase.CLAIM_POLICIES)
                 self.assertEqual(new_state.board.fascist_played, 1)
 
     def test_chancellor_enact_fascist_win(self):
@@ -810,7 +816,8 @@ class TestChancellorEnact(BaseGameStateTest):
                         board=replace(state.board, fascist_played=played),
                     )
                     new_state = chancellor_enact(test_state, 0)
-                    self.assertEqual(new_state.phase, GamePhase.PRESIDENTIAL_POWER)
+                    self.assertEqual(new_state.phase, GamePhase.CLAIM_POLICIES)
+                    self.assertNotEqual(new_state.pending_power, PresidentialPower.NONE)
 
     def test_chancellor_enact_wrong_phase(self):
         """Verifies error raised if function is called during wrong phase."""
@@ -1019,6 +1026,24 @@ class TestPresidentVetoResponse(BaseGameStateTest):
         self.assertEqual(new_state.winner, Party.FASCIST)
         self.assertEqual(new_state.board.fascist_played, 6)
         self.assertEqual(new_state.election_tracker.failed_elections, 0)
+
+    def test_president_veto_response_approved_enters_claims_phase(self):
+        """Verifies that an approved veto transitions to the enact claims phase."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.PRESIDENT_VETO_RESPONSE,
+            board=replace(state.board, fascist_played=5),
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.FASCIST, PolicyTile.LIBERAL),
+            election_tracker=ElectionTracker(failed_elections=1),
+            veto_denied_this_term=False,
+        )
+        new_state = president_veto_response(state, approve=True)
+
+        self.assertEqual(new_state.phase, GamePhase.CLAIM_POLICIES)
+        self.assertTrue(new_state.pending_president_enact_claim)
+        self.assertTrue(new_state.pending_chancellor_enact_claim)
+        self.assertEqual(new_state.pending_power, PresidentialPower.NONE)
 
 
 class TestInvestigateLoyalty(BaseGameStateTest):
@@ -2031,3 +2056,150 @@ class TestPowerCleanup(BaseGameStateTest):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestClaimEnact(BaseGameStateTest):
+    def test_claim_enact_immutability(self):
+        """Tests claim_enact returns new instance and doesn't mutate."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        president_uid = state.players[state.president_index].uid
+        other_uid = next(p.uid for p in state.players if p.uid != president_uid)
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_POLICIES,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+            chancellor=other_uid,
+        )
+        claim = PresidentEnactClaim(
+            uid=president_uid,
+            policies=(PolicyTile.FASCIST, PolicyTile.FASCIST, PolicyTile.FASCIST),
+        )
+        new_state = claim_enact(state, claim)
+        self.assert_pure_transition(state, new_state)
+
+    def test_claim_enact_invalid_phase(self):
+        state = create_game((1, 2, 3, 4, 5), 42)
+        president_uid = state.players[state.president_index].uid
+        claim = PresidentEnactClaim(
+            uid=president_uid,
+            policies=(PolicyTile.FASCIST, PolicyTile.FASCIST, PolicyTile.FASCIST),
+        )
+        with self.assertRaises(InvalidMoveError):
+            claim_enact(state, claim)
+
+    def test_claim_enact_president(self):
+        state = create_game((1, 2, 3, 4, 5), 42)
+        president_uid = state.players[state.president_index].uid
+        other_uid = next(p.uid for p in state.players if p.uid != president_uid)
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_POLICIES,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+            chancellor=other_uid,
+        )
+        claim = PresidentEnactClaim(
+            uid=president_uid,
+            policies=(PolicyTile.FASCIST, PolicyTile.FASCIST, PolicyTile.FASCIST),
+        )
+        new_state = claim_enact(state, claim)
+        self.assertFalse(new_state.pending_president_enact_claim)
+        self.assertTrue(new_state.pending_chancellor_enact_claim)
+        self.assertEqual(len(new_state.claims), 1)
+        self.assertEqual(new_state.phase, GamePhase.CLAIM_POLICIES)
+
+    def test_claim_enact_chancellor(self):
+        state = create_game((1, 2, 3, 4, 5), 42)
+        president_uid = state.players[state.president_index].uid
+        other_uid = next(p.uid for p in state.players if p.uid != president_uid)
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_POLICIES,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+            chancellor=other_uid,
+        )
+        claim = ChancellorEnactClaim(
+            uid=other_uid, policies=(PolicyTile.FASCIST, PolicyTile.FASCIST)
+        )
+        new_state = claim_enact(state, claim)
+        self.assertTrue(new_state.pending_president_enact_claim)
+        self.assertFalse(new_state.pending_chancellor_enact_claim)
+        self.assertEqual(len(new_state.claims), 1)
+        self.assertEqual(new_state.phase, GamePhase.CLAIM_POLICIES)
+
+    def test_claim_enact_both_advance(self):
+        state = create_game((1, 2, 3, 4, 5), 42)
+        president_uid = state.players[state.president_index].uid
+        other_uid = next(p.uid for p in state.players if p.uid != president_uid)
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_POLICIES,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+            chancellor=other_uid,
+            pending_power=PresidentialPower.NONE,
+        )
+        claim1 = PresidentEnactClaim(
+            uid=president_uid,
+            policies=(PolicyTile.FASCIST, PolicyTile.FASCIST, PolicyTile.FASCIST),
+        )
+        claim2 = ChancellorEnactClaim(
+            uid=other_uid, policies=(PolicyTile.FASCIST, PolicyTile.FASCIST)
+        )
+        state = claim_enact(state, claim1)
+        new_state = claim_enact(state, claim2)
+        self.assertFalse(new_state.pending_president_enact_claim)
+        self.assertFalse(new_state.pending_chancellor_enact_claim)
+        self.assertEqual(len(new_state.claims), 2)
+        self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+
+    def test_claim_enact_both_power(self):
+        state = create_game((1, 2, 3, 4, 5), 42)
+        president_uid = state.players[state.president_index].uid
+        other_uid = next(p.uid for p in state.players if p.uid != president_uid)
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_POLICIES,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+            chancellor=other_uid,
+            pending_power=PresidentialPower.INVESTIGATE_LOYALTY,
+        )
+        claim1 = PresidentEnactClaim(
+            uid=president_uid,
+            policies=(PolicyTile.FASCIST, PolicyTile.FASCIST, PolicyTile.FASCIST),
+        )
+        claim2 = ChancellorEnactClaim(
+            uid=other_uid, policies=(PolicyTile.FASCIST, PolicyTile.FASCIST)
+        )
+        state = claim_enact(state, claim2)
+        new_state = claim_enact(state, claim1)
+        self.assertEqual(new_state.phase, GamePhase.PRESIDENTIAL_POWER)
+        self.assertEqual(new_state.active_power, PresidentialPower.INVESTIGATE_LOYALTY)
+        self.assertEqual(new_state.pending_power, PresidentialPower.NONE)
+
+    def test_claim_enact_invalid_uid(self):
+        state = create_game((1, 2, 3, 4, 5), 42)
+        president_uid = state.players[state.president_index].uid
+        other_uid = next(p.uid for p in state.players if p.uid != president_uid)
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_POLICIES,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+            chancellor=other_uid,
+        )
+        claim = PresidentEnactClaim(
+            uid=other_uid,
+            policies=(PolicyTile.FASCIST, PolicyTile.FASCIST, PolicyTile.FASCIST),
+        )
+        with self.assertRaises(InvalidMoveError):
+            claim_enact(state, claim)
+
+        claim2 = ChancellorEnactClaim(
+            uid=president_uid, policies=(PolicyTile.FASCIST, PolicyTile.FASCIST)
+        )
+        with self.assertRaises(InvalidMoveError):
+            claim_enact(state, claim2)
