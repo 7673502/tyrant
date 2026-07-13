@@ -421,11 +421,9 @@ def investigate_loyalty(state: GameState, target_uid: int) -> GameState:
     )
 
 
-def acknowledge_investigation(state: GameState) -> GameState:
+def claim_investigation(state: GameState) -> GameState:
     if state.phase != GamePhase.CLAIM_INVESTIGATION:
-        raise InvalidMoveError(
-            f"Cannot acknowledge investigation in phase {state.phase}"
-        )
+        raise InvalidMoveError(f"Cannot claim investigation in phase {state.phase}")
 
     new_state = replace(
         state,
@@ -471,7 +469,7 @@ def policy_peek(state: GameState) -> GameState:
 
 def claim_peek(state: GameState, claim: PeekClaim | None) -> GameState:
     if state.phase != GamePhase.CLAIM_POLICY_PEEK:
-        raise InvalidMoveError(f"Cannot acknowledge peek in phase {state.phase}")
+        raise InvalidMoveError(f"Cannot claim peek in phase {state.phase}")
 
     new_state = replace(
         state,
