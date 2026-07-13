@@ -432,7 +432,6 @@ def president_veto_response(state: GameState, approve: bool) -> GameState:
                     new_state, phase=GamePhase.GAME_OVER, winner=new_board.winner
                 )
 
-            return _advance_to_nomination(new_state)
         else:
             new_state = replace(
                 state,
@@ -440,7 +439,14 @@ def president_veto_response(state: GameState, approve: bool) -> GameState:
                 drawn_policies=(),
                 deck_shuffled_last_action=False,
             )
-            return _advance_to_nomination(new_state)
+
+        return replace(
+            new_state,
+            phase=GamePhase.CLAIM_POLICIES,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+            pending_power=PresidentialPower.NONE,
+        )
     else:
         return replace(
             state,

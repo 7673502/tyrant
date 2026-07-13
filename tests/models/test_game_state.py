@@ -934,7 +934,7 @@ class TestPresidentVetoResponse(BaseGameStateTest):
         initial_discard_count = len(state.deck.discard_pile)
         new_state = president_veto_response(state, approve=True)
 
-        self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+        self.assertEqual(new_state.phase, GamePhase.CLAIM_POLICIES)
         self.assertFalse(new_state.veto_denied_this_term)
         self.assertEqual(new_state.election_tracker.failed_elections, 2)
         self.assertEqual(len(new_state.drawn_policies), 0)
@@ -999,7 +999,7 @@ class TestPresidentVetoResponse(BaseGameStateTest):
         )
         new_state = president_veto_response(state, approve=True)
 
-        self.assertEqual(new_state.phase, GamePhase.NOMINATION)
+        self.assertEqual(new_state.phase, GamePhase.CLAIM_POLICIES)
         self.assertEqual(new_state.election_tracker.failed_elections, 0)
         self.assertEqual(new_state.board.liberal_played, 1)
         self.assertEqual(new_state.board.fascist_played, 5)
