@@ -425,6 +425,10 @@ def claim_investigation(state: GameState, claim: InvestigationClaim) -> GameStat
     if state.phase != GamePhase.CLAIM_INVESTIGATION:
         raise InvalidMoveError(f"Cannot claim investigation in phase {state.phase}")
 
+    president_uid = state.players[state.president_index].uid
+    if claim.uid != president_uid:
+        raise InvalidMoveError("Only the current president can make this claim.")
+
     new_state = replace(
         state,
         current_investigation_result=None,
@@ -468,9 +472,13 @@ def policy_peek(state: GameState) -> GameState:
     )
 
 
-def claim_peek(state: GameState, claim: PeekClaim | None) -> GameState:
+def claim_peek(state: GameState, claim: PeekClaim) -> GameState:
     if state.phase != GamePhase.CLAIM_POLICY_PEEK:
         raise InvalidMoveError(f"Cannot claim peek in phase {state.phase}")
+
+    president_uid = state.players[state.president_index].uid
+    if claim.uid != president_uid:
+        raise InvalidMoveError("Only the current president can make this claim.")
 
     new_state = replace(
         state,
