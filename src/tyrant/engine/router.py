@@ -265,6 +265,9 @@ def apply_action(state: GameState, action: Action, player_uid: int) -> GameState
             return execute_player(state, target_uid)
         case ["peek"]:
             return policy_peek(state)
+        case ["claim", "peek", "silence"]:
+            claim = PeekClaim(uid=player_uid, policies=None)
+            return claim_peek(state, claim)
         case ["claim", "peek", policies]:
             policies = tuple(TILE_MAP[char] for char in policies)
             claim = PeekClaim(uid=player_uid, policies=policies)

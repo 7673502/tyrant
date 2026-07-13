@@ -1357,6 +1357,22 @@ class TestPolicyPeek(BaseGameStateTest):
         self.assertEqual(new_state.drawn_policies, ())
         self.assertEqual(new_state.phase, GamePhase.NOMINATION)
         self.assertEqual(new_state.president_index, 1)
+        self.assertEqual(len(new_state.claims), 1)
+
+    def test_claim_peek_none(self):
+        """Verifies that claim_peek can be called with None (i.e., silence)"""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_POLICY_PEEK,
+            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
+            president_index=0,
+        )
+        claim = PeekClaim(uid=state.players[state.president_index].uid, policies=None)
+        new_state = claim_peek(state, claim)
+        self.assertEqual(len(new_state.claims), 1)
+        self.assertIsInstance(new_state.claims[0], PeekClaim)
+        self.assertIsNone(new_state.claims[0].policies)
 
     def test_claim_peek_next_president_dead(self):
         """Ensures that rotation skips a dead player and resumes correctly at the next alive player when the peek ends."""
