@@ -1,14 +1,24 @@
+import itertools
+from typing import Final
+
 from tyrant.exceptions import TyrantError
 from tyrant.models.action import Action
-from tyrant.models.enums import GamePhase, PresidentialPower, Vote
+from tyrant.models.claim import (
+    ChancellorEnactClaim,
+    InvestigationClaim,
+    PeekClaim,
+    PresidentEnactClaim,
+)
+from tyrant.models.enums import GamePhase, Party, PolicyTile, PresidentialPower, Vote
 from tyrant.models.game_state import (
     GameState,
-    acknowledge_investigation,
-    acknowledge_peek,
     call_special_election,
     cast_vote,
     chancellor_enact,
     chancellor_veto,
+    claim_enact,
+    claim_investigation,
+    claim_peek,
     execute_player,
     investigate_loyalty,
     nominate_chancellor,
@@ -16,6 +26,8 @@ from tyrant.models.game_state import (
     president_discard,
     president_veto_response,
 )
+
+TILE_MAP: Final = {"L": PolicyTile.LIBERAL, "F": PolicyTile.FASCIST}
 
 
 def _get_legal_actions_nomination(
@@ -152,25 +164,88 @@ def _get_legal_actions_presidential_power(
             )
 
 
-def _get_legal_actions_acknowledge_investigation(
+def _get_legal_actions_claim_investigation(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
     if player_uid != state.players[state.president_index].uid:
         return tuple()
-    return (
+    actions: list[Action] = []
+    for party in ("Liberal", "Fascist"):
+        actions.append(
+            Action(
+                id=f"claim_investigation_{party.lower()}",
+                description=f"Claim that the investigated player is a {party}",
+            )
+        )
+    actions.append(
         Action(
-            id="acknowledge_investigation",
-            description="Done Reading Party Identity of Investigated Player",
-        ),
+            id="claim_investigation_silence",
+            description="Decline to share the investigated player's party loyalty",
+        )
     )
 
+    return tuple(actions)
 
-def _get_legal_actions_acknowledge_peek(
+
+def _get_legal_actions_claim_peek(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
     if player_uid != state.players[state.president_index].uid:
         return tuple()
-    return (Action(id="acknowledge_peek", description="Done Reading Top 3 Cards"),)
+
+    actions: list[Action] = []
+    for claim in itertools.product(("Liberal", "Fascist"), repeat=3):
+        action = Action(
+            id=f"claim_peek_{claim[0][0] + claim[1][0] + claim[2][0]}",
+            description=f"For the peeked top 3 policies, claim that the top is {claim[0]}, middle is {claim[1]}, bottom is {claim[2]}",
+        )
+        actions.append(action)
+    actions.append(
+        Action(
+            id="claim_peek_silence",
+            description="Decline to share the contents of the peeked top 3 cards",
+        )
+    )
+
+    return tuple(actions)
+
+
+def _get_legal_actions_enact_claims(
+    state: GameState, player_uid: int
+) -> tuple[Action, ...]:
+    actions: list[Action] = []
+
+    president_uid = state.players[state.president_index].uid
+    if player_uid == president_uid and state.pending_president_enact_claim:
+        for claim in itertools.combinations_with_replacement(("Liberal", "Fascist"), 3):
+            action = Action(
+                id=f"claim_president_enact_{claim[0][0] + claim[1][0] + claim[2][0]}",
+                description=f"Claim that the 3 drawn policies were: {claim[0]}, {claim[1]}, {claim[2]}",
+            )
+            actions.append(action)
+        actions.append(
+            Action(
+                id="claim_president_enact_silence",
+                description="Decline to share the drawn policies",
+            )
+        )
+
+    chancellor_uid = state.chancellor
+    if player_uid == chancellor_uid and state.pending_chancellor_enact_claim:
+        for claim in itertools.combinations_with_replacement(("Liberal", "Fascist"), 2):
+            action = Action(
+                id=f"claim_chancellor_enact_{claim[0][0] + claim[1][0]}",
+                description=f"Claim that the 2 received policies were: {claim[0]}, {claim[1]}",
+            )
+            actions.append(action)
+        actions.append(
+            Action(
+                id="claim_chancellor_enact_silence",
+                description="Decline to share the received policies",
+            )
+        )
+
+    return tuple(actions)
 
 
 def _get_legal_actions_president_veto_response(
@@ -205,10 +280,12 @@ def get_legal_actions(state: GameState, player_uid: int) -> tuple[Action, ...]:
             return _get_legal_actions_chancellor_enact(state, player_uid)
         case GamePhase.PRESIDENTIAL_POWER:
             return _get_legal_actions_presidential_power(state, player_uid)
-        case GamePhase.INVESTIGATION:
-            return _get_legal_actions_acknowledge_investigation(state, player_uid)
-        case GamePhase.POLICY_PEEK:
-            return _get_legal_actions_acknowledge_peek(state, player_uid)
+        case GamePhase.CLAIM_INVESTIGATION:
+            return _get_legal_actions_claim_investigation(state, player_uid)
+        case GamePhase.CLAIM_POLICY_PEEK:
+            return _get_legal_actions_claim_peek(state, player_uid)
+        case GamePhase.CLAIM_POLICIES:
+            return _get_legal_actions_enact_claims(state, player_uid)
         case GamePhase.PRESIDENT_VETO_RESPONSE:
             return _get_legal_actions_president_veto_response(state, player_uid)
         case _:  # no actions available during SETUP and GAME_OVER
@@ -244,10 +321,34 @@ def apply_action(state: GameState, action: Action, player_uid: int) -> GameState
             return execute_player(state, target_uid)
         case ["peek"]:
             return policy_peek(state)
-        case ["acknowledge", "peek"]:
-            return acknowledge_peek(state)
-        case ["acknowledge", "investigation"]:
-            return acknowledge_investigation(state)
+        case ["claim", "peek", "silence"]:
+            claim = PeekClaim(uid=player_uid, policies=None)
+            return claim_peek(state, claim)
+        case ["claim", "peek", policies]:
+            policies = tuple(TILE_MAP[char] for char in policies)
+            claim = PeekClaim(uid=player_uid, policies=policies)
+            return claim_peek(state, claim)
+        case ["claim", "president", "enact", "silence"]:
+            claim = PresidentEnactClaim(uid=player_uid, policies=None)
+            return claim_enact(state, claim)
+        case ["claim", "president", "enact", policies]:
+            policies_tuple = tuple(TILE_MAP[char] for char in policies)
+            claim = PresidentEnactClaim(uid=player_uid, policies=policies_tuple)
+            return claim_enact(state, claim)
+        case ["claim", "chancellor", "enact", "silence"]:
+            claim = ChancellorEnactClaim(uid=player_uid, policies=None)
+            return claim_enact(state, claim)
+        case ["claim", "chancellor", "enact", policies]:
+            policies_tuple = tuple(TILE_MAP[char] for char in policies)
+            claim = ChancellorEnactClaim(uid=player_uid, policies=policies_tuple)
+            return claim_enact(state, claim)
+        case ["claim", "investigation", "silence"]:
+            claim = InvestigationClaim(uid=player_uid, party=None)
+            return claim_investigation(state, claim)
+        case ["claim", "investigation", party]:
+            party = Party.LIBERAL if party == "liberal" else Party.FASCIST
+            claim = InvestigationClaim(uid=player_uid, party=party)
+            return claim_investigation(state, claim)
         case [veto_str, "veto"]:
             approve = veto_str == "accept"
             return president_veto_response(state, approve)

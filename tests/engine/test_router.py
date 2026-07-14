@@ -5,8 +5,9 @@ from unittest.mock import patch
 from tyrant.engine.router import apply_action, get_legal_actions
 from tyrant.exceptions import TyrantError
 from tyrant.models.action import Action
+from tyrant.models.claim import InvestigationClaim
 from tyrant.models.election_tracker import ElectionTracker
-from tyrant.models.enums import GamePhase, PolicyTile, PresidentialPower, Vote
+from tyrant.models.enums import GamePhase, Party, PolicyTile, PresidentialPower, Vote
 from tyrant.models.game_state import cast_vote, create_game, nominate_chancellor
 
 
@@ -538,16 +539,16 @@ class TestGetLegalActionsPresidentialPower(unittest.TestCase):
 
 class TestGetLegalActionsInvestigation(unittest.TestCase):
     def test__get_legal_actions_investigation_immutability(self):
-        """Ensure the output of _get_legal_actions_acknowledge_investigation is an immutable tuple."""
+        """Ensure the output of _get_legal_actions_claim_investigation is an immutable tuple."""
         state = create_game(tuple(range(5)))
-        state = replace(state, phase=GamePhase.INVESTIGATION)
+        state = replace(state, phase=GamePhase.CLAIM_INVESTIGATION)
         actions = get_legal_actions(state, state.players[state.president_index].uid)
         self.assertIsInstance(actions, tuple)
 
     def test__get_legal_actions_investigation_non_president(self):
         """Ensure every non-president player receives an empty tuple."""
         state = create_game(tuple(range(5)))
-        state = replace(state, phase=GamePhase.INVESTIGATION)
+        state = replace(state, phase=GamePhase.CLAIM_INVESTIGATION)
         president_uid = state.players[state.president_index].uid
         for p in state.players:
             if p.uid != president_uid:
@@ -555,27 +556,27 @@ class TestGetLegalActionsInvestigation(unittest.TestCase):
                 self.assertEqual(actions, tuple())
 
     def test__get_legal_actions_investigation_president(self):
-        """Ensure the president receives the acknowledge investigation action."""
+        """Ensure the president receives the claim investigation action."""
         state = create_game(tuple(range(5)))
-        state = replace(state, phase=GamePhase.INVESTIGATION)
+        state = replace(state, phase=GamePhase.CLAIM_INVESTIGATION)
         president_uid = state.players[state.president_index].uid
         actions = get_legal_actions(state, president_uid)
-        self.assertEqual(len(actions), 1)
-        self.assertEqual(actions[0].id, "acknowledge_investigation")
+        self.assertEqual(len(actions), 3)
+        self.assertEqual(actions[2].id, "claim_investigation_silence")
 
 
 class TestGetLegalActionsPolicyPeek(unittest.TestCase):
     def test__get_legal_actions_policy_peek_immutability(self):
-        """Ensure the output of _get_legal_actions_acknowledge_peek is an immutable tuple."""
+        """Ensure the output of _get_legal_actions_claim_peek is an immutable tuple."""
         state = create_game(tuple(range(5)))
-        state = replace(state, phase=GamePhase.POLICY_PEEK)
+        state = replace(state, phase=GamePhase.CLAIM_POLICY_PEEK)
         actions = get_legal_actions(state, state.players[state.president_index].uid)
         self.assertIsInstance(actions, tuple)
 
     def test__get_legal_actions_policy_peek_non_president(self):
         """Ensure every non-president player receives an empty tuple."""
         state = create_game(tuple(range(5)))
-        state = replace(state, phase=GamePhase.POLICY_PEEK)
+        state = replace(state, phase=GamePhase.CLAIM_POLICY_PEEK)
         president_uid = state.players[state.president_index].uid
         for p in state.players:
             if p.uid != president_uid:
@@ -583,13 +584,23 @@ class TestGetLegalActionsPolicyPeek(unittest.TestCase):
                 self.assertEqual(actions, tuple())
 
     def test__get_legal_actions_policy_peek_president(self):
-        """Ensure the president receives the acknowledge peek action."""
+        """Ensure the president receives the claim peek action."""
         state = create_game(tuple(range(5)))
-        state = replace(state, phase=GamePhase.POLICY_PEEK)
+        state = replace(state, phase=GamePhase.CLAIM_POLICY_PEEK)
         president_uid = state.players[state.president_index].uid
         actions = get_legal_actions(state, president_uid)
-        self.assertEqual(len(actions), 1)
-        self.assertEqual(actions[0].id, "acknowledge_peek")
+        self.assertEqual(
+            len(actions), 9
+        )  # 8 possible orderings for 3 cards + no response action
+        self.assertEqual(actions[0].id, "claim_peek_LLL")
+
+    def test__get_legal_actions_policy_peek_silence(self):
+        """Ensure that player can choose to be silent when claiming."""
+        state = create_game(tuple(range(5)))
+        state = replace(state, phase=GamePhase.CLAIM_POLICY_PEEK)
+        president_uid = state.players[state.president_index].uid
+        actions = get_legal_actions(state, president_uid)
+        self.assertEqual(actions[-1].id, "claim_peek_silence")
 
 
 class TestGetLegalActionsPresidentVetoResponse(unittest.TestCase):
@@ -723,21 +734,28 @@ class TestApplyAction(unittest.TestCase):
         apply_action(state, action, 0)
         mock_peek.assert_called_once_with(state)
 
-    @patch("tyrant.engine.router.acknowledge_peek")
-    def test_apply_action_acknowledge_peek(self, mock_ack):
-        """Ensure acknowledge_peek calls acknowledge_peek."""
+    @patch("tyrant.engine.router.claim_peek")
+    def test_apply_action_claim_peek(self, mock_ack):
+        """Ensure claim_peek calls claim_peek."""
         state = create_game(tuple(range(5)))
-        action = Action(id="acknowledge_peek", description="")
+        action = Action(id="claim_peek_FFF", description="")
         apply_action(state, action, 0)
-        mock_ack.assert_called_once_with(state)
+        from tyrant.models.claim import PeekClaim
 
-    @patch("tyrant.engine.router.acknowledge_investigation")
-    def test_apply_action_acknowledge_investigation(self, mock_ack):
-        """Ensure acknowledge_investigation calls acknowledge_investigation."""
+        expected_claim = PeekClaim(
+            uid=0, policies=(PolicyTile.FASCIST, PolicyTile.FASCIST, PolicyTile.FASCIST)
+        )
+        mock_ack.assert_called_once_with(state, expected_claim)
+
+    @patch("tyrant.engine.router.claim_investigation")
+    def test_apply_action_claim_investigation(self, mock_ack):
+        """Ensure claim_investigation calls claim_investigation."""
         state = create_game(tuple(range(5)))
-        action = Action(id="acknowledge_investigation", description="")
+        action = Action(id="claim_investigation_fascist", description="")
         apply_action(state, action, 0)
-        mock_ack.assert_called_once_with(state)
+        mock_ack.assert_called_once_with(
+            state, InvestigationClaim(uid=0, party=Party.FASCIST)
+        )
 
     @patch("tyrant.engine.router.president_veto_response")
     def test_apply_action_accept_veto(self, mock_veto_response):
@@ -761,6 +779,105 @@ class TestApplyAction(unittest.TestCase):
         action = Action(id="fake_action_99", description="")
         with self.assertRaises(TyrantError):
             apply_action(state, action, 0)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class TestGetLegalActionsEnactClaims(unittest.TestCase):
+    def test_enact_claims_immutability(self):
+        state = create_game(tuple(range(5)))
+        president_uid = state.players[state.president_index].uid
+        other_uid = next(p.uid for p in state.players if p.uid != president_uid)
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_POLICIES,
+            chancellor=other_uid,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+        )
+        actions = get_legal_actions(state, president_uid)
+        self.assertIsInstance(actions, tuple)
+
+    def test_enact_claims_president(self):
+        state = create_game(tuple(range(5)))
+        president_uid = state.players[state.president_index].uid
+        other_uid = next(p.uid for p in state.players if p.uid != president_uid)
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_POLICIES,
+            chancellor=other_uid,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+        )
+        actions = get_legal_actions(state, president_uid)
+        self.assertEqual(len(actions), 5)
+        self.assertEqual(actions[-1].id, "claim_president_enact_silence")
+
+    def test_enact_claims_chancellor(self):
+        state = create_game(tuple(range(5)))
+        president_uid = state.players[state.president_index].uid
+        other_uid = next(p.uid for p in state.players if p.uid != president_uid)
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_POLICIES,
+            chancellor=other_uid,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+        )
+        actions = get_legal_actions(state, other_uid)
+        self.assertEqual(len(actions), 4)
+        self.assertEqual(actions[-1].id, "claim_chancellor_enact_silence")
+
+    def test_enact_claims_non_involved(self):
+        state = create_game(tuple(range(5)))
+        president_uid = state.players[state.president_index].uid
+        other_uid = next(p.uid for p in state.players if p.uid != president_uid)
+        unrelated_uid = next(
+            p.uid for p in state.players if p.uid not in (president_uid, other_uid)
+        )
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_POLICIES,
+            chancellor=other_uid,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+        )
+        actions = get_legal_actions(state, unrelated_uid)
+        self.assertEqual(actions, tuple())
+
+    @patch("tyrant.engine.router.claim_enact")
+    def test_apply_action_president_enact_claim(self, mock_claim):
+        state = create_game(tuple(range(5)))
+        president_uid = state.players[state.president_index].uid
+        action = Action(id="claim_president_enact_FFF", description="")
+        apply_action(state, action, president_uid)
+        from tyrant.models.claim import PresidentEnactClaim
+
+        mock_claim.assert_called_once_with(
+            state,
+            PresidentEnactClaim(
+                uid=president_uid,
+                policies=(PolicyTile.FASCIST, PolicyTile.FASCIST, PolicyTile.FASCIST),
+            ),
+        )
+
+    @patch("tyrant.engine.router.claim_enact")
+    def test_apply_action_chancellor_enact_claim(self, mock_claim):
+        state = create_game(tuple(range(5)))
+        president_uid = state.players[state.president_index].uid
+        other_uid = next(p.uid for p in state.players if p.uid != president_uid)
+        action = Action(id="claim_chancellor_enact_FL", description="")
+        apply_action(state, action, other_uid)
+        from tyrant.models.claim import ChancellorEnactClaim
+
+        mock_claim.assert_called_once_with(
+            state,
+            ChancellorEnactClaim(
+                uid=other_uid, policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL)
+            ),
+        )
 
 
 if __name__ == "__main__":

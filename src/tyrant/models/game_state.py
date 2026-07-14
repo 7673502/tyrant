@@ -1,12 +1,19 @@
 from dataclasses import dataclass, replace
-
-from frozendict import frozendict
 from random import Random
 from typing import Final
+
+from frozendict import frozendict
 
 from tyrant.exceptions import InvalidMoveError, TyrantError
 from tyrant.models.ballot_box import BallotBox, submit_vote
 from tyrant.models.board import Board, play_tile
+from tyrant.models.claim import (
+    ChancellorEnactClaim,
+    Claim,
+    InvestigationClaim,
+    PeekClaim,
+    PresidentEnactClaim,
+)
 from tyrant.models.deck import (
     Deck,
     create_deck,
@@ -53,6 +60,10 @@ class GameState:
     deck_shuffled_last_action: bool = False
     active_power: PresidentialPower = PresidentialPower.NONE
     current_investigation_result: Party | HIDDEN | None = None
+    claims: tuple[Claim, ...] = ()
+    pending_president_enact_claim: bool = False
+    pending_chancellor_enact_claim: bool = False
+    pending_power: PresidentialPower = PresidentialPower.NONE
 
 
 def create_game(uids: tuple[int, ...], seed: int | None = 42) -> GameState:
@@ -313,12 +324,62 @@ def chancellor_enact(state: GameState, enact_index: int) -> GameState:
     if new_board.winner is not None:
         return replace(new_state, phase=GamePhase.GAME_OVER, winner=new_board.winner)
 
-    if enacted_tile == PolicyTile.LIBERAL or power == PresidentialPower.NONE:
-        return _advance_to_nomination(new_state)
+    return replace(
+        new_state,
+        phase=GamePhase.CLAIM_POLICIES,
+        pending_president_enact_claim=True,
+        pending_chancellor_enact_claim=True,
+        pending_power=power,
+    )
+
+
+def claim_enact(
+    state: GameState, claim: PresidentEnactClaim | ChancellorEnactClaim
+) -> GameState:
+    if state.phase != GamePhase.CLAIM_POLICIES:
+        raise InvalidMoveError(f"Cannot claim enact in phase {state.phase}")
+
+    president_uid = state.players[state.president_index].uid
+    chancellor_uid = state.chancellor
+
+    new_pending_president = state.pending_president_enact_claim
+    new_pending_chancellor = state.pending_chancellor_enact_claim
+
+    if isinstance(claim, PresidentEnactClaim):
+        if claim.uid != president_uid:
+            raise InvalidMoveError("Only the current president can make this claim.")
+        if not new_pending_president:
+            raise InvalidMoveError("President has already claimed")
+        new_pending_president = False
+    elif isinstance(claim, ChancellorEnactClaim):
+        if claim.uid != chancellor_uid:
+            raise InvalidMoveError("Only the current chancellor can make this claim.")
+        if not new_pending_chancellor:
+            raise InvalidMoveError("Chancellor has already claimed")
+        new_pending_chancellor = False
     else:
-        return replace(
-            new_state, phase=GamePhase.PRESIDENTIAL_POWER, active_power=power
-        )
+        raise InvalidMoveError("Invalid claim type")
+
+    new_state = replace(
+        state,
+        claims=state.claims + (claim,),
+        pending_president_enact_claim=new_pending_president,
+        pending_chancellor_enact_claim=new_pending_chancellor,
+        deck_shuffled_last_action=False,
+    )
+
+    if not new_pending_president and not new_pending_chancellor:
+        power = new_state.pending_power
+        new_state = replace(new_state, pending_power=PresidentialPower.NONE)
+
+        if power == PresidentialPower.NONE:
+            return _advance_to_nomination(new_state)
+        else:
+            return replace(
+                new_state, phase=GamePhase.PRESIDENTIAL_POWER, active_power=power
+            )
+
+    return new_state
 
 
 def chancellor_veto(state: GameState) -> GameState:
@@ -371,7 +432,6 @@ def president_veto_response(state: GameState, approve: bool) -> GameState:
                     new_state, phase=GamePhase.GAME_OVER, winner=new_board.winner
                 )
 
-            return _advance_to_nomination(new_state)
         else:
             new_state = replace(
                 state,
@@ -379,7 +439,14 @@ def president_veto_response(state: GameState, approve: bool) -> GameState:
                 drawn_policies=(),
                 deck_shuffled_last_action=False,
             )
-            return _advance_to_nomination(new_state)
+
+        return replace(
+            new_state,
+            phase=GamePhase.CLAIM_POLICIES,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+            pending_power=PresidentialPower.NONE,
+        )
     else:
         return replace(
             state,
@@ -411,21 +478,24 @@ def investigate_loyalty(state: GameState, target_uid: int) -> GameState:
         state,
         investigations=new_investigations,
         deck_shuffled_last_action=False,
-        phase=GamePhase.INVESTIGATION,
+        phase=GamePhase.CLAIM_INVESTIGATION,
         current_investigation_result=target.party,
     )
 
 
-def acknowledge_investigation(state: GameState) -> GameState:
-    if state.phase != GamePhase.INVESTIGATION:
-        raise InvalidMoveError(
-            f"Cannot acknowledge investigation in phase {state.phase}"
-        )
+def claim_investigation(state: GameState, claim: InvestigationClaim) -> GameState:
+    if state.phase != GamePhase.CLAIM_INVESTIGATION:
+        raise InvalidMoveError(f"Cannot claim investigation in phase {state.phase}")
+
+    president_uid = state.players[state.president_index].uid
+    if claim.uid != president_uid:
+        raise InvalidMoveError("Only the current president can make this claim.")
 
     new_state = replace(
         state,
         current_investigation_result=None,
         deck_shuffled_last_action=False,
+        claims=state.claims + (claim,),
     )
     return _advance_to_nomination(new_state)
 
@@ -460,15 +530,25 @@ def policy_peek(state: GameState) -> GameState:
     return replace(
         state,
         drawn_policies=state.deck.peek,
-        phase=GamePhase.POLICY_PEEK,
+        phase=GamePhase.CLAIM_POLICY_PEEK,
     )
 
 
-def acknowledge_peek(state: GameState) -> GameState:
-    if state.phase != GamePhase.POLICY_PEEK:
-        raise InvalidMoveError(f"Cannot acknowledge peek in phase {state.phase}")
+def claim_peek(state: GameState, claim: PeekClaim) -> GameState:
+    if state.phase != GamePhase.CLAIM_POLICY_PEEK:
+        raise InvalidMoveError(f"Cannot claim peek in phase {state.phase}")
 
-    new_state = replace(state, drawn_policies=(), deck_shuffled_last_action=False)
+    president_uid = state.players[state.president_index].uid
+    if claim.uid != president_uid:
+        raise InvalidMoveError("Only the current president can make this claim.")
+
+    new_state = replace(
+        state,
+        drawn_policies=(),
+        deck_shuffled_last_action=False,
+        claims=state.claims + (claim,),
+    )
+
     return _advance_to_nomination(new_state)
 
 
@@ -551,7 +631,7 @@ def scrub_state(state: GameState, viewer_uid: int) -> GameState:
     )
 
     new_drawn_policies = ()
-    if state.phase in (GamePhase.PRESIDENT_DISCARD, GamePhase.POLICY_PEEK):
+    if state.phase in (GamePhase.PRESIDENT_DISCARD, GamePhase.CLAIM_POLICY_PEEK):
         president = state.players[state.president_index]
         if viewer_uid == president.uid:
             new_drawn_policies = state.drawn_policies
@@ -568,7 +648,7 @@ def scrub_state(state: GameState, viewer_uid: int) -> GameState:
         new_ballot_box = replace(state.ballot_box, votes=frozendict(new_votes))
 
     new_investigation_result = state.current_investigation_result
-    if state.phase == GamePhase.INVESTIGATION:
+    if state.phase == GamePhase.CLAIM_INVESTIGATION:
         president = state.players[state.president_index]
         if viewer_uid != president.uid:
             new_investigation_result = HIDDEN
