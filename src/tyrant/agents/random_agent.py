@@ -4,7 +4,7 @@ from tyrant.models.action import Action
 from tyrant.models.game_state import GameState
 
 
-class RandomBot:
+class RandomAgent:
     def __init__(self, uid: int):
         self.uid = uid
 
