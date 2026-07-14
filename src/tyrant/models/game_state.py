@@ -64,6 +64,7 @@ class GameState:
     pending_president_enact_claim: bool = False
     pending_chancellor_enact_claim: bool = False
     pending_power: PresidentialPower = PresidentialPower.NONE
+    special_election_caller_index: int | None = None
 
 
 def create_game(uids: tuple[int, ...], seed: int | None = 42) -> GameState:
@@ -114,6 +115,7 @@ def create_game(uids: tuple[int, ...], seed: int | None = 42) -> GameState:
 
 def _advance_to_nomination(state: GameState) -> GameState:
     new_special = state.special_election_president
+    new_caller = state.special_election_caller_index
     new_president_index = state.president_index
 
     entering_special_election = (
@@ -122,10 +124,21 @@ def _advance_to_nomination(state: GameState) -> GameState:
     )
 
     if entering_special_election:
-        pass
+        target_uid = state.special_election_president
+        target_index = next(
+            i for i, p in enumerate(state.players) if p.uid == target_uid
+        )
+        new_president_index = target_index
     else:
         new_special = None
-        new_president_index = (state.president_index + 1) % len(state.players)
+        new_caller = None
+
+        if state.special_election_caller_index is not None:
+            new_president_index = (state.special_election_caller_index + 1) % len(
+                state.players
+            )
+        else:
+            new_president_index = (state.president_index + 1) % len(state.players)
 
         while not state.players[new_president_index].is_alive:
             new_president_index = (new_president_index + 1) % len(state.players)
@@ -134,6 +147,7 @@ def _advance_to_nomination(state: GameState) -> GameState:
         state,
         president_index=new_president_index,
         special_election_president=new_special,
+        special_election_caller_index=new_caller,
         phase=GamePhase.NOMINATION,
         ballot_box=BallotBox(),
         veto_denied_this_term=False,
@@ -516,7 +530,10 @@ def call_special_election(state: GameState, target_uid: int) -> GameState:
         raise InvalidMoveError("Dead player cannot be chosen for special election.")
 
     new_state = replace(
-        state, special_election_president=target_uid, deck_shuffled_last_action=False
+        state,
+        special_election_president=target_uid,
+        special_election_caller_index=state.president_index,
+        deck_shuffled_last_action=False,
     )
 
     return _advance_to_nomination(new_state)
