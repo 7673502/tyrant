@@ -38,3 +38,7 @@ class TestElectionTracker(unittest.TestCase):
 
         self.assertEqual(0, self.election_tracker.failed_elections)
         self.assertEqual(1, new_election_tracker.failed_elections)
+
+
+if __name__ == "__main__":
+    unittest.main()

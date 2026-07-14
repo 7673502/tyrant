@@ -13,3 +13,7 @@ class TestAction(unittest.TestCase):
         with self.assertRaises(FrozenInstanceError):
             action.id = "vote_nein"
             action.description = "Vote NEIN"
+
+
+if __name__ == "__main__":
+    unittest.main()

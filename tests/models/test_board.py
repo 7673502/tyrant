@@ -74,3 +74,7 @@ class TestBoard(unittest.TestCase):
 
                 self.assertEqual(0, board.liberal_played)
                 self.assertEqual(1, new_board.liberal_played)
+
+
+if __name__ == "__main__":
+    unittest.main()
