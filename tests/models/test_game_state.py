@@ -132,6 +132,61 @@ class TestCreateGame(BaseGameStateTest):
         with self.assertRaises(TyrantError):
             create_game(uids, 42)
 
+    def test_create_game_with_fixed_roles(self):
+        """Verifies that create_game assigns correct roles and parties when fixed_roles is provided."""
+        uids = (1, 2, 3, 4, 5)
+        fixed_roles = {
+            1: Role.HITLER,
+            2: Role.FASCIST,
+            3: Role.LIBERAL,
+            4: Role.LIBERAL,
+            5: Role.LIBERAL,
+        }
+        state = create_game(uids, seed=42, roles=fixed_roles)
+
+        for p in state.players:
+            expected_role = fixed_roles[p.uid]
+            self.assertEqual(p.role, expected_role)
+            expected_party = (
+                Party.FASCIST
+                if expected_role in (Role.FASCIST, Role.HITLER)
+                else Party.LIBERAL
+            )
+            self.assertEqual(p.party, expected_party)
+
+    def test_create_game_invalid_fixed_roles(self):
+        """Verifies that an error is raised if fixed_roles has an invalid distribution or missing UIDs."""
+        uids = (1, 2, 3, 4, 5)
+        # Missing UID
+        with self.assertRaises(TyrantError):
+            create_game(
+                uids,
+                roles={
+                    1: Role.HITLER,
+                    2: Role.FASCIST,
+                    3: Role.LIBERAL,
+                    4: Role.LIBERAL,
+                },
+            )
+        # Invalid distribution (2 hitlers)
+        with self.assertRaises(TyrantError):
+            create_game(
+                uids,
+                roles={
+                    1: Role.HITLER,
+                    2: Role.HITLER,
+                    3: Role.LIBERAL,
+                    4: Role.LIBERAL,
+                    5: Role.LIBERAL,
+                },
+            )
+
+    def test_create_game_without_shuffle(self):
+        """Verifies that seating order matches the uids input when shuffle_players is False."""
+        uids = (1, 2, 3, 4, 5)
+        state = create_game(uids, shuffle_players=False)
+        self.assertEqual(tuple(p.uid for p in state.players), uids)
+
 
 class TestAdvanceToNomination(BaseGameStateTest):
     def test__advance_to_nomination_immutability(self):

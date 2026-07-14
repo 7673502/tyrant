@@ -1,11 +1,11 @@
 import asyncio
-from collections.abc import Awaitable, Sequence
+from collections.abc import Awaitable, Mapping, Sequence
 
 from tyrant.engine.router import apply_action, get_legal_actions
 from tyrant.exceptions import TyrantError
 from tyrant.models.action import Action
 from tyrant.models.agent import Agent
-from tyrant.models.enums import GamePhase
+from tyrant.models.enums import GamePhase, Role
 from tyrant.models.game_state import GameState, create_game, scrub_state
 
 
@@ -15,10 +15,15 @@ class GameRunner:
         agents: Sequence[Agent],
         initial_state: GameState | None = None,
         seed: int | None = None,
+        roles: Mapping[int, Role] | None = None,
+        shuffle_players: bool = True,
     ):
         if initial_state is None:
             initial_state = create_game(
-                uids=tuple(agent.uid for agent in agents), seed=seed
+                uids=tuple(agent.uid for agent in agents),
+                seed=seed,
+                roles=roles,
+                shuffle_players=shuffle_players,
             )
         self.state = initial_state
         self.agents = {agent.uid: agent for agent in agents}

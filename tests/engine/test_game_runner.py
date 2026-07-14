@@ -53,6 +53,25 @@ class TestGameRunnerInitialization(unittest.TestCase):
         self.assertIsInstance(runner.state, GameState)
         self.assertEqual(len(runner.state.players), 5)
 
+    def test_init_custom_configuration(self):
+        """Verifies that GameRunner passes fixed_roles and shuffle_players to create_game."""
+        from tyrant.models.enums import Role
+
+        agents = [StubAgent(uid=i, actions_to_play=[]) for i in range(1, 6)]
+        fixed_roles = {
+            1: Role.HITLER,
+            2: Role.FASCIST,
+            3: Role.LIBERAL,
+            4: Role.LIBERAL,
+            5: Role.LIBERAL,
+        }
+        runner = GameRunner(
+            agents=agents, seed=42, roles=fixed_roles, shuffle_players=False
+        )
+        self.assertEqual(tuple(p.uid for p in runner.state.players), (1, 2, 3, 4, 5))
+        for p in runner.state.players:
+            self.assertEqual(p.role, fixed_roles[p.uid])
+
 
 class TestGameRunnerQueryAgent(unittest.IsolatedAsyncioTestCase):
     async def test_query_agent_scrubs_state(self):
