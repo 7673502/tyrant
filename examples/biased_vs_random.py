@@ -1,7 +1,7 @@
 import asyncio
 from typing import Callable
 
-from tyrant.agents.biased_random import BiasedRandomAgent
+from tyrant.agents.biased_random_agent import BiasedRandomAgent
 from tyrant.agents.random_agent import RandomAgent
 from tyrant.engine.game_runner import GameRunner
 from tyrant.models.agent import Agent
