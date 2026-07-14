@@ -254,14 +254,16 @@ class TestAdvanceToNomination(BaseGameStateTest):
             previous_chancellor=None,
             winner=None,
             special_election_president=3,
+            special_election_caller_index=0,
             rng_state=Random(0).getstate(),
             veto_denied_this_term=False,
             investigations=frozendict(),
         )
 
         new_state = _advance_to_nomination(state)
-        self.assertEqual(new_state.president_index, 0)
+        self.assertEqual(new_state.president_index, 2)
         self.assertEqual(new_state.special_election_president, 3)
+        self.assertEqual(new_state.special_election_caller_index, 0)
 
     def test_advance_handles_special_election_end(self):
         """Verifies that ending a special election correctly clears it and advances normal rotation."""
@@ -276,7 +278,7 @@ class TestAdvanceToNomination(BaseGameStateTest):
             deck=create_deck(Random(0)),
             election_tracker=ElectionTracker(),
             phase=GamePhase.CHANCELLOR_ENACT,
-            president_index=0,
+            president_index=2,
             chancellor=None,
             ballot_box=BallotBox(),
             drawn_policies=(),
@@ -284,6 +286,7 @@ class TestAdvanceToNomination(BaseGameStateTest):
             previous_chancellor=None,
             winner=None,
             special_election_president=3,
+            special_election_caller_index=0,
             rng_state=Random(0).getstate(),
             veto_denied_this_term=False,
             investigations=frozendict(),
