@@ -2112,10 +2112,6 @@ class TestPowerCleanup(BaseGameStateTest):
         self.assertEqual(new_state.active_power, PresidentialPower.NONE)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestClaimEnact(BaseGameStateTest):
     def test_claim_enact_immutability(self):
         """Tests claim_enact returns new instance and doesn't mutate."""
@@ -2261,3 +2257,7 @@ class TestClaimEnact(BaseGameStateTest):
         )
         with self.assertRaises(InvalidMoveError):
             claim_enact(state, claim2)
+
+
+if __name__ == "__main__":
+    unittest.main()

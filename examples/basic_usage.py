@@ -1,6 +1,6 @@
 import asyncio
 
-from tyrant.agents.random_agent import RandomBot
+from tyrant.agents.random_agent import RandomAgent
 from tyrant.engine.game_runner import GameRunner
 from tyrant.models.enums import Party
 
@@ -10,7 +10,7 @@ async def main():
     fascist_win = 0
 
     for i in range(1000):
-        players = tuple(RandomBot(i) for i in range(10))
+        players = tuple(RandomAgent(i) for i in range(10))
         runner = GameRunner(agents=players)
         end_state = await runner.run()
         if end_state.winner is Party.LIBERAL:

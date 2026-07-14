@@ -68,3 +68,7 @@ class TestBallotBox(unittest.TestCase):
         self.assertEqual(0, self.ballot_box.vote_count)
         self.assertEqual(0, len(self.ballot_box.votes))
         self.assertEqual(1, new_ballot_box.vote_count)
+
+
+if __name__ == "__main__":
+    unittest.main()

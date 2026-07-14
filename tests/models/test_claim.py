@@ -67,3 +67,7 @@ class TestClaim(unittest.TestCase):
                 PolicyTile.FASCIST,
                 PolicyTile.FASCIST,
             )
+
+
+if __name__ == "__main__":
+    unittest.main()

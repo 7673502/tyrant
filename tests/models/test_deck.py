@@ -150,3 +150,7 @@ class TestDeck(unittest.TestCase):
         deck2_shuffled, _ = shuffle_deck(deck2_empty, rng2)
 
         self.assertEqual(deck1_shuffled.draw_pile, deck2_shuffled.draw_pile)
+
+
+if __name__ == "__main__":
+    unittest.main()

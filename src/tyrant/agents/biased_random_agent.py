@@ -14,13 +14,13 @@ class BiasedRandomAgent:
     ) -> Action:
         party = next(p.party for p in state.players if p.uid == self.uid)
 
-        party_str = "liberal" if party is Party.LIBERAL else "fascist"
-        opposite_party_str = "fascist" if party is Party.LIBERAL else "liberal"
+        party_str = "Liberal" if party is Party.LIBERAL else "Fascist"
+        opposite_party_str = "Fascist" if party is Party.LIBERAL else "Liberal"
 
         for action in valid_actions:
-            if action.id == f"discard_{opposite_party_str}":
+            if action.description == f"Discard {opposite_party_str}":
                 return action
-            elif action.id == f"enact_{party_str}":
+            elif action.description == f"Enact {party_str}":
                 return action
             elif action.id == "vote_ja":
                 return action
