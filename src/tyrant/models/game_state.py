@@ -1,6 +1,6 @@
 from dataclasses import dataclass, replace
 from random import Random
-from typing import Final
+from typing import Final, Mapping
 
 from frozendict import frozendict
 
@@ -67,7 +67,12 @@ class GameState:
     special_election_caller_index: int | None = None
 
 
-def create_game(uids: tuple[int, ...], seed: int | None = 42) -> GameState:
+def create_game(
+    uids: tuple[int, ...],
+    seed: int | None = 42,
+    roles: Mapping[int, Role] | None = None,
+    shuffle_players: bool = True,
+) -> GameState:
     player_count = len(uids)
     if not (5 <= player_count <= 10):
         raise TyrantError(f"Player count must be between 5 and 10, got {player_count}")
@@ -76,20 +81,41 @@ def create_game(uids: tuple[int, ...], seed: int | None = 42) -> GameState:
 
     num_liberals, num_fascists = ROLE_DISTRIBUTION[player_count]
 
-    roles_pool = (
-        [Role.HITLER]
-        + [Role.FASCIST] * (num_fascists - 1)
-        + [Role.LIBERAL] * num_liberals
-    )
     rng = Random(seed)
-    rng.shuffle(roles_pool)
+
+    if roles is not None:
+        if set(uids) != set(roles.keys()):
+            raise TyrantError("fixed_roles must contain exactly all player UIDs")
+
+        role_counts = {Role.LIBERAL: 0, Role.FASCIST: 0, Role.HITLER: 0}
+        for r in roles.values():
+            role_counts[r] = role_counts.get(r, 0) + 1
+
+        if (
+            role_counts[Role.HITLER] != 1
+            or role_counts[Role.FASCIST] != num_fascists - 1
+            or role_counts[Role.LIBERAL] != num_liberals
+        ):
+            raise TyrantError(
+                "fixed_roles distribution does not match required roles for this player count"
+            )
+
+        roles_pool = [roles[uid] for uid in uids]
+    else:
+        roles_pool = (
+            [Role.HITLER]
+            + [Role.FASCIST] * (num_fascists - 1)
+            + [Role.LIBERAL] * num_liberals
+        )
+        rng.shuffle(roles_pool)
 
     players_list = []
     for uid, role in zip(uids, roles_pool):
         party = Party.FASCIST if role in (Role.FASCIST, Role.HITLER) else Party.LIBERAL
         players_list.append(Player(uid=uid, party=party, role=role))
 
-    rng.shuffle(players_list)
+    if shuffle_players:
+        rng.shuffle(players_list)
 
     return GameState(
         players=tuple(players_list),
