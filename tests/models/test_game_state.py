@@ -1244,7 +1244,7 @@ class TestCallSpecialElection(BaseGameStateTest):
 
         # Check special election president is set and rotation advances to target
         self.assertEqual(new_state.special_election_president, target_uid)
-        self.assertEqual(new_state.president_index, 0)
+        self.assertEqual(new_state.president_index, 3)
         self.assertEqual(new_state.phase, GamePhase.NOMINATION)
 
         # Now advance to next nomination and ensure rotation returns to normal order
@@ -1264,7 +1264,7 @@ class TestCallSpecialElection(BaseGameStateTest):
         new_state = call_special_election(state, target_uid)
 
         self.assertEqual(new_state.special_election_president, target_uid)
-        self.assertEqual(new_state.president_index, 0)
+        self.assertEqual(new_state.president_index, 1)
         self.assertEqual(new_state.phase, GamePhase.NOMINATION)
 
         new_state_after_special = _advance_to_nomination(new_state)
