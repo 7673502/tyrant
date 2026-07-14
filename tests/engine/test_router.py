@@ -781,10 +781,6 @@ class TestApplyAction(unittest.TestCase):
             apply_action(state, action, 0)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestGetLegalActionsEnactClaims(unittest.TestCase):
     def test_enact_claims_immutability(self):
         state = create_game(tuple(range(5)))

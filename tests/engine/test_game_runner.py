@@ -144,3 +144,7 @@ class TestGameRunnerRun(unittest.IsolatedAsyncioTestCase):
         final_state = await runner.run()
 
         self.assertEqual(final_state.phase, GamePhase.GAME_OVER)
+
+
+if __name__ == "__main__":
+    unittest.main()

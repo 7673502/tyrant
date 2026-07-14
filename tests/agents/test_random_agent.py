@@ -16,3 +16,7 @@ class TestRandomAgent(unittest.IsolatedAsyncioTestCase):
         )
         choice = await agent.choose_action(state, actions)
         self.assertIn(choice, actions)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -14,3 +14,7 @@ class TestPlayer(unittest.TestCase):
             player.party = Party.FASCIST
         with self.assertRaises(FrozenInstanceError):
             player.role = Role.HITLER
+
+
+if __name__ == "__main__":
+    unittest.main()
