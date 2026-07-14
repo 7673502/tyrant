@@ -3,7 +3,7 @@ from dataclasses import replace
 
 from tyrant.engine.game_runner import GameRunner
 from tyrant.exceptions import TyrantError
-from tyrant.models.action import Action
+from tyrant.models.action import Action, NominateAction, ChancellorEnactAction
 from tyrant.models.enums import HIDDEN, GamePhase
 from tyrant.models.game_state import GameState, create_game
 
@@ -36,7 +36,7 @@ class CapturingAgent:
         self, state: GameState, valid_actions: tuple[Action, ...]
     ) -> Action:
         self.captured_state = state
-        return Action(id="test", description="Test")
+        return Action(description="Test")
 
 
 class TestGameRunnerInitialization(unittest.TestCase):
@@ -93,7 +93,7 @@ class TestGameRunnerIteration(unittest.IsolatedAsyncioTestCase):
         president_uid = state.players[state.president_index].uid
         target_uid = state.players[(state.president_index + 1) % 5].uid
 
-        action = Action(id=f"nominate_{target_uid}", description="Nominate")
+        action = NominateAction(description="Nominate", target_uid=target_uid)
         agents = [
             StubAgent(
                 uid=p.uid, actions_to_play=[action] if p.uid == president_uid else []
@@ -132,7 +132,7 @@ class TestGameRunnerRun(unittest.IsolatedAsyncioTestCase):
         )
 
         chancellor_uid = state.players[1].uid
-        action = Action(id="enact_0", description="Enact")
+        action = ChancellorEnactAction(description="Enact", target_index=0)
         agents = [
             StubAgent(
                 uid=p.uid, actions_to_play=[action] if p.uid == chancellor_uid else []

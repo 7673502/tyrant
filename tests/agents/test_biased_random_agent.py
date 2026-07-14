@@ -2,8 +2,12 @@ import unittest
 from dataclasses import replace
 
 from tyrant.agents.biased_random_agent import BiasedRandomAgent
-from tyrant.models.action import Action
-from tyrant.models.enums import Party, Role
+from tyrant.models.action import (
+    ChancellorEnactAction,
+    PresidentDiscardAction,
+    VoteAction,
+)
+from tyrant.models.enums import Party, PolicyTile, Role, Vote
 from tyrant.models.game_state import create_game
 from tyrant.models.player import Player
 
@@ -22,13 +26,23 @@ class TestBiasedRandomAgent(unittest.IsolatedAsyncioTestCase):
                     Player(uid=4, party=Party.FASCIST, role=Role.HITLER),
                 )
                 state = create_game(uids=(0, 1, 2, 3, 4))
-                state = replace(state, players=players)
+                state = replace(
+                    state,
+                    players=players,
+                    drawn_policies=(
+                        PolicyTile.LIBERAL,
+                        PolicyTile.FASCIST,
+                        PolicyTile.LIBERAL,
+                    ),
+                )
                 actions = (
-                    Action(id="vote_nein", description="Vote NEIN"),
-                    Action(id="vote_ja", description="Vote JA"),
+                    VoteAction(description="Vote NEIN", vote=Vote.NEIN),
+                    VoteAction(description="Vote JA", vote=Vote.JA),
                 )
                 choice = await agent.choose_action(state, actions)
-                self.assertEqual(choice.id, "vote_ja")
+                self.assertTrue(
+                    isinstance(choice, VoteAction) and choice.vote == Vote.JA
+                )
 
     async def test_biased_agent_discard_bias(self):
         """Verify that BiasedRandomAgent prioritizes discarding opposite policies."""
@@ -43,10 +57,25 @@ class TestBiasedRandomAgent(unittest.IsolatedAsyncioTestCase):
                     Player(uid=4, party=Party.FASCIST, role=Role.HITLER),
                 )
                 state = create_game(uids=(0, 1, 2, 3, 4))
-                state = replace(state, players=players)
+                state = replace(
+                    state,
+                    players=players,
+                    drawn_policies=(
+                        PolicyTile.LIBERAL,
+                        PolicyTile.FASCIST,
+                        PolicyTile.LIBERAL,
+                    ),
+                )
                 actions = (
-                    Action(id="discard_0", description="Discard Liberal"),
-                    Action(id="discard_1", description="Discard Fascist"),
+                    PresidentDiscardAction(
+                        description="Discard Liberal", target_index=0
+                    ),
+                    PresidentDiscardAction(
+                        description="Discard Fascist", target_index=1
+                    ),
+                    PresidentDiscardAction(
+                        description="Discard Liberal", target_index=2
+                    ),
                 )
                 choice = await agent.choose_action(state, actions)
                 self.assertEqual(choice.description, "Discard Fascist")
@@ -64,10 +93,14 @@ class TestBiasedRandomAgent(unittest.IsolatedAsyncioTestCase):
                     Player(uid=4, party=Party.FASCIST, role=Role.HITLER),
                 )
                 state = create_game(uids=(0, 1, 2, 3, 4))
-                state = replace(state, players=players)
+                state = replace(
+                    state,
+                    players=players,
+                    drawn_policies=(PolicyTile.LIBERAL, PolicyTile.FASCIST),
+                )
                 actions = (
-                    Action(id="enact_0", description="Enact Liberal"),
-                    Action(id="enact_1", description="Enact Fascist"),
+                    ChancellorEnactAction(description="Enact Liberal", target_index=0),
+                    ChancellorEnactAction(description="Enact Fascist", target_index=1),
                 )
                 choice = await agent.choose_action(state, actions)
                 self.assertEqual(choice.description, "Enact Liberal")

@@ -11,8 +11,8 @@ class TestRandomAgent(unittest.IsolatedAsyncioTestCase):
         agent = RandomAgent(uid=0)
         state = create_game(uids=(0, 1, 2, 3, 4))
         actions = (
-            Action(id="action_a", description="Action A"),
-            Action(id="action_b", description="Action B"),
+            Action(description="Action A"),
+            Action(description="Action B"),
         )
         choice = await agent.choose_action(state, actions)
         self.assertIn(choice, actions)

@@ -4,7 +4,23 @@ from unittest.mock import patch
 
 from tyrant.engine.router import apply_action, get_legal_actions
 from tyrant.exceptions import TyrantError
-from tyrant.models.action import Action
+from tyrant.models.action import (
+    Action,
+    NominateAction,
+    VoteAction,
+    PresidentDiscardAction,
+    ChancellorEnactAction,
+    ChancellorVetoAction,
+    InvestigateLoyaltyAction,
+    CallSpecialElectionAction,
+    ExecutionAction,
+    PolicyPeekAction,
+    ClaimPolicyPeekAction,
+    ClaimPresidentEnactAction,
+    ClaimChancellorEnactAction,
+    ClaimInvestigationAction,
+    PresidentVetoResponseAction,
+)
 from tyrant.models.claim import InvestigationClaim
 from tyrant.models.election_tracker import ElectionTracker
 from tyrant.models.enums import GamePhase, Party, PolicyTile, PresidentialPower, Vote
@@ -39,7 +55,7 @@ class TestGetLegalActionsNomination(unittest.TestCase):
                 actions = get_legal_actions(state, president_uid)
                 self.assertEqual(len(actions), player_count - 1)
                 for action in actions:
-                    self.assertTrue(action.id.startswith("nominate_"))
+                    self.assertTrue(isinstance(action, NominateAction))
 
     def test__get_legal_actions_nomination_president_5_player(self):
         """Ensure that in 5 player, the previous chancellor cannot be elected but previous president can."""
@@ -55,10 +71,20 @@ class TestGetLegalActionsNomination(unittest.TestCase):
             previous_president=prev_president,
         )
         actions = get_legal_actions(state, president_uid)
-        action_ids = [a.id for a in actions]
+        [type(a).__name__ for a in actions]
 
-        self.assertNotIn(f"nominate_{prev_chancellor}", action_ids)
-        self.assertIn(f"nominate_{prev_president}", action_ids)
+        self.assertFalse(
+            any(
+                isinstance(a, NominateAction) and a.target_uid == prev_chancellor
+                for a in actions
+            )
+        )
+        self.assertTrue(
+            any(
+                isinstance(a, NominateAction) and a.target_uid == prev_president
+                for a in actions
+            )
+        )
         self.assertEqual(len(actions), 3)
 
     def test__get_legal_actions_nomination_president_5_alive(self):
@@ -89,10 +115,21 @@ class TestGetLegalActionsNomination(unittest.TestCase):
                     previous_president=prev_president,
                 )
                 actions = get_legal_actions(state, president_uid)
-                action_ids = [a.id for a in actions]
+                [type(a).__name__ for a in actions]
 
-                self.assertNotIn(f"nominate_{prev_chancellor}", action_ids)
-                self.assertIn(f"nominate_{prev_president}", action_ids)
+                self.assertFalse(
+                    any(
+                        isinstance(a, NominateAction)
+                        and a.target_uid == prev_chancellor
+                        for a in actions
+                    )
+                )
+                self.assertTrue(
+                    any(
+                        isinstance(a, NominateAction) and a.target_uid == prev_president
+                        for a in actions
+                    )
+                )
                 self.assertEqual(len(actions), 3)
 
     def test__get_legal_actions_nomination_president_6_10(self):
@@ -111,10 +148,21 @@ class TestGetLegalActionsNomination(unittest.TestCase):
                     previous_president=prev_president,
                 )
                 actions = get_legal_actions(state, president_uid)
-                action_ids = [a.id for a in actions]
+                [type(a).__name__ for a in actions]
 
-                self.assertNotIn(f"nominate_{prev_chancellor}", action_ids)
-                self.assertNotIn(f"nominate_{prev_president}", action_ids)
+                self.assertFalse(
+                    any(
+                        isinstance(a, NominateAction)
+                        and a.target_uid == prev_chancellor
+                        for a in actions
+                    )
+                )
+                self.assertFalse(
+                    any(
+                        isinstance(a, NominateAction) and a.target_uid == prev_president
+                        for a in actions
+                    )
+                )
                 self.assertEqual(len(actions), player_count - 3)
 
     def test__get_legal_actions_invalid_uid(self):
@@ -138,9 +186,14 @@ class TestGetLegalActionsNomination(unittest.TestCase):
         state = replace(state, players=tuple(new_players))
 
         actions = get_legal_actions(state, president_uid)
-        action_ids = [a.id for a in actions]
+        [type(a).__name__ for a in actions]
 
-        self.assertNotIn(f"nominate_{dead_player_uid}", action_ids)
+        self.assertFalse(
+            any(
+                isinstance(a, NominateAction) and a.target_uid == dead_player_uid
+                for a in actions
+            )
+        )
 
     def test__get_legal_actions_nomination_excludes_self(self):
         """Ensure the active president is not included in the legal actions for nomination."""
@@ -148,9 +201,14 @@ class TestGetLegalActionsNomination(unittest.TestCase):
         president_uid = state.players[state.president_index].uid
 
         actions = get_legal_actions(state, president_uid)
-        action_ids = [a.id for a in actions]
+        [type(a).__name__ for a in actions]
 
-        self.assertNotIn(f"nominate_{president_uid}", action_ids)
+        self.assertFalse(
+            any(
+                isinstance(a, NominateAction) and a.target_uid == president_uid
+                for a in actions
+            )
+        )
 
     def test__get_legal_actions_nomination_after_top_deck(self):
         """Ensure all alive players are eligible if term limits are cleared after a top deck."""
@@ -191,9 +249,13 @@ class TestGetLegalActionsVoting(unittest.TestCase):
         state = create_game(tuple(range(5)))
         state = replace(state, phase=GamePhase.VOTING)
         actions = get_legal_actions(state, state.players[0].uid)
-        action_ids = [a.id for a in actions]
-        self.assertIn("vote_ja", action_ids)
-        self.assertIn("vote_nein", action_ids)
+        [type(a).__name__ for a in actions]
+        self.assertTrue(
+            any(isinstance(a, VoteAction) and a.vote == Vote.JA for a in actions)
+        )
+        self.assertTrue(
+            any(isinstance(a, VoteAction) and a.vote == Vote.NEIN for a in actions)
+        )
         self.assertEqual(len(actions), 2)
 
     def test__get_legal_actions_voting_dead_player(self):
@@ -256,11 +318,20 @@ class TestGetLegalActionsPresidentDiscard(unittest.TestCase):
         actions = get_legal_actions(state, president_uid)
 
         self.assertEqual(len(actions), 3)
-        self.assertEqual(actions[0].id, "discard_0")
+        self.assertTrue(
+            isinstance(actions[0], PresidentDiscardAction)
+            and actions[0].target_index == 0
+        )
         self.assertEqual(actions[0].description, "Discard Fascist")
-        self.assertEqual(actions[1].id, "discard_1")
+        self.assertTrue(
+            isinstance(actions[1], PresidentDiscardAction)
+            and actions[1].target_index == 1
+        )
         self.assertEqual(actions[1].description, "Discard Liberal")
-        self.assertEqual(actions[2].id, "discard_2")
+        self.assertTrue(
+            isinstance(actions[2], PresidentDiscardAction)
+            and actions[2].target_index == 2
+        )
         self.assertEqual(actions[2].description, "Discard Fascist")
 
     def test__get_legal_actions_president_discard_non_president(self):
@@ -333,9 +404,15 @@ class TestGetLegalActionsChancellorEnact(unittest.TestCase):
         )
         actions = get_legal_actions(state, chancellor_uid)
         self.assertEqual(len(actions), 2)
-        self.assertEqual(actions[0].id, "enact_0")
+        self.assertTrue(
+            isinstance(actions[0], ChancellorEnactAction)
+            and actions[0].target_index == 0
+        )
         self.assertEqual(actions[0].description, "Enact Fascist")
-        self.assertEqual(actions[1].id, "enact_1")
+        self.assertTrue(
+            isinstance(actions[1], ChancellorEnactAction)
+            and actions[1].target_index == 1
+        )
         self.assertEqual(actions[1].description, "Enact Liberal")
 
     def test__get_legal_actions_chancellor_enact_non_chancellor(self):
@@ -394,8 +471,8 @@ class TestGetLegalActionsChancellorEnact(unittest.TestCase):
         )
         self.assertFalse(state.board.veto_power_unlocked)
         actions = get_legal_actions(state, chancellor_uid)
-        action_ids = [a.id for a in actions]
-        self.assertNotIn("veto", action_ids)
+        [type(a).__name__ for a in actions]
+        self.assertFalse(any(isinstance(a, ChancellorVetoAction) for a in actions))
         self.assertEqual(len(actions), 2)
 
     def test__get_legal_actions_chancellor_enact_veto_unlocked(self):
@@ -411,10 +488,10 @@ class TestGetLegalActionsChancellorEnact(unittest.TestCase):
             drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
         )
         actions = get_legal_actions(state, chancellor_uid)
-        action_ids = [a.id for a in actions]
-        self.assertIn("veto", action_ids)
+        [type(a).__name__ for a in actions]
+        self.assertTrue(any(isinstance(a, ChancellorVetoAction) for a in actions))
         self.assertEqual(len(actions), 3)
-        self.assertEqual(actions[-1].id, "veto")
+        self.assertTrue(isinstance(actions[-1], ChancellorVetoAction))
         self.assertEqual(actions[-1].description, "Veto Policies")
 
 
@@ -455,7 +532,7 @@ class TestGetLegalActionsPresidentialPower(unittest.TestCase):
         president_uid = state.players[state.president_index].uid
         actions = get_legal_actions(state, president_uid)
         self.assertEqual(len(actions), 1)
-        self.assertEqual(actions[0].id, "peek")
+        self.assertTrue(isinstance(actions[0], PolicyPeekAction))
 
     def test__get_legal_actions_presidential_power_investigate_loyalty(self):
         """Ensure the president receives investigate actions for all other alive players."""
@@ -469,9 +546,8 @@ class TestGetLegalActionsPresidentialPower(unittest.TestCase):
         actions = get_legal_actions(state, president_uid)
         self.assertEqual(len(actions), 4)
         for action in actions:
-            parts = action.id.split("_")
-            self.assertTrue(parts[0] == "investigate")
-            self.assertTrue(int(parts[1]) != president_uid)
+            self.assertTrue(isinstance(action, InvestigateLoyaltyAction))
+            self.assertTrue(action.target_uid != president_uid)
 
     def test__get_legal_actions_presidential_power_investigate_loyalty_excludes_already_investigated(
         self,
@@ -488,8 +564,14 @@ class TestGetLegalActionsPresidentialPower(unittest.TestCase):
         )
         actions = get_legal_actions(state, president_uid)
         self.assertEqual(len(actions), 3)
-        action_ids = [a.id for a in actions]
-        self.assertNotIn(f"investigate_{other_uids[0]}", action_ids)
+        [type(a).__name__ for a in actions]
+        self.assertFalse(
+            any(
+                isinstance(a, InvestigateLoyaltyAction)
+                and a.target_uid == other_uids[0]
+                for a in actions
+            )
+        )
 
     def test__get_legal_actions_presidential_power_call_special_election(self):
         """Ensure the president receives special election actions for all other alive players."""
@@ -503,9 +585,8 @@ class TestGetLegalActionsPresidentialPower(unittest.TestCase):
         actions = get_legal_actions(state, president_uid)
         self.assertEqual(len(actions), 4)
         for action in actions:
-            parts = action.id.split("_")
-            self.assertTrue(parts[0] == "special")
-            self.assertTrue(int(parts[1]) != president_uid)
+            self.assertTrue(isinstance(action, CallSpecialElectionAction))
+            self.assertTrue(action.target_uid != president_uid)
 
     def test__get_legal_actions_presidential_power_execution(self):
         """Ensure the president receives execute actions for all other alive players."""
@@ -519,10 +600,8 @@ class TestGetLegalActionsPresidentialPower(unittest.TestCase):
         actions = get_legal_actions(state, president_uid)
         self.assertEqual(len(actions), 4)
         for action in actions:
-            self.assertTrue(action.id.startswith("execute_"))
-            parts = action.id.split("_")
-            self.assertTrue(parts[0] == "execute")
-            self.assertTrue(int(parts[1]) != president_uid)
+            self.assertTrue(isinstance(action, ExecutionAction))
+            self.assertTrue(action.target_uid != president_uid)
 
     def test__get_legal_actions_presidential_power_none_raises_error(self):
         """Ensure TyrantError is raised if the active power is NONE."""
@@ -562,7 +641,10 @@ class TestGetLegalActionsInvestigation(unittest.TestCase):
         president_uid = state.players[state.president_index].uid
         actions = get_legal_actions(state, president_uid)
         self.assertEqual(len(actions), 3)
-        self.assertEqual(actions[2].id, "claim_investigation_silence")
+        self.assertTrue(
+            isinstance(actions[2], ClaimInvestigationAction)
+            and actions[2].claim_party is None
+        )
 
 
 class TestGetLegalActionsPolicyPeek(unittest.TestCase):
@@ -592,7 +674,11 @@ class TestGetLegalActionsPolicyPeek(unittest.TestCase):
         self.assertEqual(
             len(actions), 9
         )  # 8 possible orderings for 3 cards + no response action
-        self.assertEqual(actions[0].id, "claim_peek_LLL")
+        self.assertTrue(
+            isinstance(actions[0], ClaimPolicyPeekAction)
+            and actions[0].claim_policies
+            == (PolicyTile.LIBERAL, PolicyTile.LIBERAL, PolicyTile.LIBERAL)
+        )
 
     def test__get_legal_actions_policy_peek_silence(self):
         """Ensure that player can choose to be silent when claiming."""
@@ -600,7 +686,10 @@ class TestGetLegalActionsPolicyPeek(unittest.TestCase):
         state = replace(state, phase=GamePhase.CLAIM_POLICY_PEEK)
         president_uid = state.players[state.president_index].uid
         actions = get_legal_actions(state, president_uid)
-        self.assertEqual(actions[-1].id, "claim_peek_silence")
+        self.assertTrue(
+            isinstance(actions[-1], ClaimPolicyPeekAction)
+            and actions[-1].claim_policies is None
+        )
 
 
 class TestGetLegalActionsPresidentVetoResponse(unittest.TestCase):
@@ -628,9 +717,19 @@ class TestGetLegalActionsPresidentVetoResponse(unittest.TestCase):
         president_uid = state.players[state.president_index].uid
         actions = get_legal_actions(state, president_uid)
         self.assertEqual(len(actions), 2)
-        action_ids = [a.id for a in actions]
-        self.assertIn("accept_veto", action_ids)
-        self.assertIn("decline_veto", action_ids)
+        [type(a).__name__ for a in actions]
+        self.assertTrue(
+            any(
+                isinstance(a, PresidentVetoResponseAction) and a.approve
+                for a in actions
+            )
+        )
+        self.assertTrue(
+            any(
+                isinstance(a, PresidentVetoResponseAction) and not a.approve
+                for a in actions
+            )
+        )
 
 
 class TestGetLegalActionsSetup(unittest.TestCase):
@@ -658,7 +757,7 @@ class TestApplyAction(unittest.TestCase):
     def test_apply_action_nominate(self, mock_nominate):
         """Ensure nominate calls nominate_chancellor with the correct uid."""
         state = create_game(tuple(range(5)))
-        action = Action(id="nominate_3", description="")
+        action = NominateAction(description="", target_uid=3)
         apply_action(state, action, 0)
         mock_nominate.assert_called_once_with(state, 3)
 
@@ -666,7 +765,7 @@ class TestApplyAction(unittest.TestCase):
     def test_apply_action_vote_ja(self, mock_vote):
         """Ensure vote_ja calls cast_vote with Vote.JA."""
         state = create_game(tuple(range(5)))
-        action = Action(id="vote_ja", description="")
+        action = VoteAction(description="", vote=Vote.JA)
         apply_action(state, action, 0)
         mock_vote.assert_called_once_with(state, 0, Vote.JA)
 
@@ -674,7 +773,7 @@ class TestApplyAction(unittest.TestCase):
     def test_apply_action_vote_nein(self, mock_vote):
         """Ensure vote_nein calls cast_vote with Vote.NEIN."""
         state = create_game(tuple(range(5)))
-        action = Action(id="vote_nein", description="")
+        action = VoteAction(description="", vote=Vote.NEIN)
         apply_action(state, action, 0)
         mock_vote.assert_called_once_with(state, 0, Vote.NEIN)
 
@@ -682,7 +781,7 @@ class TestApplyAction(unittest.TestCase):
     def test_apply_action_discard(self, mock_discard):
         """Ensure discard calls president_discard with the correct index."""
         state = create_game(tuple(range(5)))
-        action = Action(id="discard_1", description="")
+        action = PresidentDiscardAction(description="", target_index=1)
         apply_action(state, action, 0)
         mock_discard.assert_called_once_with(state, 1)
 
@@ -690,7 +789,7 @@ class TestApplyAction(unittest.TestCase):
     def test_apply_action_enact(self, mock_enact):
         """Ensure enact calls chancellor_enact with the correct index."""
         state = create_game(tuple(range(5)))
-        action = Action(id="enact_0", description="")
+        action = ChancellorEnactAction(description="", target_index=0)
         apply_action(state, action, 0)
         mock_enact.assert_called_once_with(state, 0)
 
@@ -698,7 +797,7 @@ class TestApplyAction(unittest.TestCase):
     def test_apply_action_veto(self, mock_veto):
         """Ensure veto calls chancellor_veto."""
         state = create_game(tuple(range(5)))
-        action = Action(id="veto", description="")
+        action = ChancellorVetoAction(description="")
         apply_action(state, action, 0)
         mock_veto.assert_called_once_with(state)
 
@@ -706,7 +805,7 @@ class TestApplyAction(unittest.TestCase):
     def test_apply_action_investigate(self, mock_investigate):
         """Ensure investigate calls investigate_loyalty with the correct uid."""
         state = create_game(tuple(range(5)))
-        action = Action(id="investigate_2", description="")
+        action = InvestigateLoyaltyAction(description="", target_uid=2)
         apply_action(state, action, 0)
         mock_investigate.assert_called_once_with(state, 2)
 
@@ -714,7 +813,7 @@ class TestApplyAction(unittest.TestCase):
     def test_apply_action_special(self, mock_special):
         """Ensure special calls call_special_election with the correct uid."""
         state = create_game(tuple(range(5)))
-        action = Action(id="special_4", description="")
+        action = CallSpecialElectionAction(description="", target_uid=4)
         apply_action(state, action, 0)
         mock_special.assert_called_once_with(state, 4)
 
@@ -722,7 +821,7 @@ class TestApplyAction(unittest.TestCase):
     def test_apply_action_execute(self, mock_execute):
         """Ensure execute calls execute_player with the correct uid."""
         state = create_game(tuple(range(5)))
-        action = Action(id="execute_1", description="")
+        action = ExecutionAction(description="", target_uid=1)
         apply_action(state, action, 0)
         mock_execute.assert_called_once_with(state, 1)
 
@@ -730,7 +829,7 @@ class TestApplyAction(unittest.TestCase):
     def test_apply_action_peek(self, mock_peek):
         """Ensure peek calls policy_peek."""
         state = create_game(tuple(range(5)))
-        action = Action(id="peek", description="")
+        action = PolicyPeekAction(description="")
         apply_action(state, action, 0)
         mock_peek.assert_called_once_with(state)
 
@@ -738,7 +837,10 @@ class TestApplyAction(unittest.TestCase):
     def test_apply_action_claim_peek(self, mock_ack):
         """Ensure claim_peek calls claim_peek."""
         state = create_game(tuple(range(5)))
-        action = Action(id="claim_peek_FFF", description="")
+        action = ClaimPolicyPeekAction(
+            description="",
+            claim_policies=(PolicyTile.FASCIST, PolicyTile.FASCIST, PolicyTile.FASCIST),
+        )
         apply_action(state, action, 0)
         from tyrant.models.claim import PeekClaim
 
@@ -751,7 +853,7 @@ class TestApplyAction(unittest.TestCase):
     def test_apply_action_claim_investigation(self, mock_ack):
         """Ensure claim_investigation calls claim_investigation."""
         state = create_game(tuple(range(5)))
-        action = Action(id="claim_investigation_fascist", description="")
+        action = ClaimInvestigationAction(description="", claim_party=Party.FASCIST)
         apply_action(state, action, 0)
         mock_ack.assert_called_once_with(
             state, InvestigationClaim(uid=0, party=Party.FASCIST)
@@ -761,7 +863,7 @@ class TestApplyAction(unittest.TestCase):
     def test_apply_action_accept_veto(self, mock_veto_response):
         """Ensure accept_veto calls president_veto_response with True."""
         state = create_game(tuple(range(5)))
-        action = Action(id="accept_veto", description="")
+        action = PresidentVetoResponseAction(description="", approve=True)
         apply_action(state, action, 0)
         mock_veto_response.assert_called_once_with(state, True)
 
@@ -769,14 +871,14 @@ class TestApplyAction(unittest.TestCase):
     def test_apply_action_decline_veto(self, mock_veto_response):
         """Ensure decline_veto calls president_veto_response with False."""
         state = create_game(tuple(range(5)))
-        action = Action(id="decline_veto", description="")
+        action = PresidentVetoResponseAction(description="", approve=False)
         apply_action(state, action, 0)
         mock_veto_response.assert_called_once_with(state, False)
 
     def test_apply_action_invalid(self):
         """Ensure an invalid action ID raises a TyrantError."""
         state = create_game(tuple(range(5)))
-        action = Action(id="fake_action_99", description="")
+        action = Action(description="fake")
         with self.assertRaises(TyrantError):
             apply_action(state, action, 0)
 
@@ -809,7 +911,10 @@ class TestGetLegalActionsEnactClaims(unittest.TestCase):
         )
         actions = get_legal_actions(state, president_uid)
         self.assertEqual(len(actions), 5)
-        self.assertEqual(actions[-1].id, "claim_president_enact_silence")
+        self.assertTrue(
+            isinstance(actions[-1], ClaimPresidentEnactAction)
+            and actions[-1].claim_policies is None
+        )
 
     def test_enact_claims_chancellor(self):
         state = create_game(tuple(range(5)))
@@ -824,7 +929,10 @@ class TestGetLegalActionsEnactClaims(unittest.TestCase):
         )
         actions = get_legal_actions(state, other_uid)
         self.assertEqual(len(actions), 4)
-        self.assertEqual(actions[-1].id, "claim_chancellor_enact_silence")
+        self.assertTrue(
+            isinstance(actions[-1], ClaimChancellorEnactAction)
+            and actions[-1].claim_policies is None
+        )
 
     def test_enact_claims_non_involved(self):
         state = create_game(tuple(range(5)))
@@ -847,7 +955,10 @@ class TestGetLegalActionsEnactClaims(unittest.TestCase):
     def test_apply_action_president_enact_claim(self, mock_claim):
         state = create_game(tuple(range(5)))
         president_uid = state.players[state.president_index].uid
-        action = Action(id="claim_president_enact_FFF", description="")
+        action = ClaimPresidentEnactAction(
+            description="",
+            claim_policies=(PolicyTile.FASCIST, PolicyTile.FASCIST, PolicyTile.FASCIST),
+        )
         apply_action(state, action, president_uid)
         from tyrant.models.claim import PresidentEnactClaim
 
@@ -864,7 +975,9 @@ class TestGetLegalActionsEnactClaims(unittest.TestCase):
         state = create_game(tuple(range(5)))
         president_uid = state.players[state.president_index].uid
         other_uid = next(p.uid for p in state.players if p.uid != president_uid)
-        action = Action(id="claim_chancellor_enact_FL", description="")
+        action = ClaimChancellorEnactAction(
+            description="", claim_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL)
+        )
         apply_action(state, action, other_uid)
         from tyrant.models.claim import ChancellorEnactClaim
 
