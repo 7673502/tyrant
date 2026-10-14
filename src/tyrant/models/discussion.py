@@ -7,13 +7,6 @@ MAX_SPEECH_LENGTH: Final = 500
 
 
 @dataclass(frozen=True)
-class Message:
-    uid: int
-    text: str | None
-    context: DiscussionContext
-
-
-@dataclass(frozen=True)
 class Discussion:
     context: DiscussionContext
     resume_phase: GamePhase
