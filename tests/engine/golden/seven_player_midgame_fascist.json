@@ -97,7 +97,8 @@
     ],
     "active_power": "none",
     "hand": [],
-    "winner": null
+    "winner": null,
+    "discussion": null
   },
   "timeline": [
     {

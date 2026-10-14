@@ -42,6 +42,7 @@ class GameRunner:
         roles: Mapping[int, Role] | None = None,
         shuffle_players: bool = True,
         discussion_enabled: bool = False,
+        discussion_rounds: int = 3,
         max_retries: int = 2,
         timeout: float | None = None,
     ):
@@ -52,6 +53,7 @@ class GameRunner:
                 roles=roles,
                 shuffle_players=shuffle_players,
                 discussion_enabled=discussion_enabled,
+                discussion_rounds=discussion_rounds,
             )
         self.state = initial_state
         self.agents = {agent.uid: agent for agent in agents}

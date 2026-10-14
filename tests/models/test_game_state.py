@@ -2274,13 +2274,16 @@ class TestDiscussionPhase(BaseGameStateTest):
         }
     )
 
-    def _state(self, discussion_enabled: bool = True) -> GameState:
+    def _state(
+        self, discussion_enabled: bool = True, discussion_rounds: int = 3
+    ) -> GameState:
         return create_game(
             (1, 2, 3, 4, 5),
             42,
             roles=self.ROLES,
             shuffle_players=False,
             discussion_enabled=discussion_enabled,
+            discussion_rounds=discussion_rounds,
         )
 
     def _discussing_state(self) -> GameState:
@@ -2410,6 +2413,18 @@ class TestDiscussionPhase(BaseGameStateTest):
         self.assertIsNone(state.discussion)
         self.assertEqual(state.messages, ())
 
+    def test_create_game_discussion_rounds_default(self):
+        """Verifies that create_game defaults to three discussion rounds."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        self.assertEqual(state.discussion_rounds, 3)
+
+    def test_create_game_invalid_discussion_rounds(self):
+        """Verifies that an error is raised when discussion rounds is less than one."""
+        for rounds in (0, -1):
+            with self.subTest(rounds=rounds):
+                with self.assertRaises(TyrantError):
+                    create_game((1, 2, 3, 4, 5), 42, discussion_rounds=rounds)
+
     def test_hooks_enter_discussion_when_enabled(self):
         """Verifies that every hook point enters discussion with the right context, resume phase and speakers."""
         for name, transition, context, resume_phase, first in self._hook_cases(True):
@@ -2422,6 +2437,7 @@ class TestDiscussionPhase(BaseGameStateTest):
                 self.assertEqual(new_state.discussion.speaker_order[0], first)
                 self.assertEqual(set(new_state.discussion.speaker_order), alive)
                 self.assertEqual(len(new_state.discussion.speaker_order), len(alive))
+                self.assertEqual(new_state.discussion.rounds, 3)
 
     def test_hooks_unchanged_when_disabled(self):
         """Verifies that every hook point skips discussion when it is disabled."""
@@ -2484,13 +2500,30 @@ class TestDiscussionPhase(BaseGameStateTest):
         self.assertIsNone(state.messages[0].text)
 
     def test_speak_resumes_phase_after_last_speaker(self):
-        """Verifies that the resume phase is restored after every speaker has had a turn."""
+        """Verifies that the resume phase is restored after every speaker has had a turn in every round."""
         state = self._discussing_state()
+        for _ in range(2):
+            for uid in (1, 2, 3, 4, 5):
+                state = speak(state, uid, None)
+        self.assertEqual(state.phase, GamePhase.DISCUSSION)
+        self.assertEqual(state.discussion.current_speaker, 1)
         for uid in (1, 2, 3, 4, 5):
             state = speak(state, uid, None)
         self.assertEqual(state.phase, GamePhase.VOTING)
         self.assertIsNone(state.discussion)
-        self.assertEqual(len(state.messages), 5)
+        self.assertEqual(len(state.messages), 15)
+
+    def test_speak_honors_custom_discussion_rounds(self):
+        """Verifies that discussion ends after the configured number of rounds."""
+        for rounds in (1, 2, 4):
+            with self.subTest(rounds=rounds):
+                state = nominate_chancellor(self._state(discussion_rounds=rounds), 2)
+                for _ in range(rounds):
+                    for uid in (1, 2, 3, 4, 5):
+                        self.assertEqual(state.phase, GamePhase.DISCUSSION)
+                        state = speak(state, uid, None)
+                self.assertEqual(state.phase, GamePhase.VOTING)
+                self.assertEqual(len(state.messages), 5 * rounds)
 
     def test_speak_wrong_speaker(self):
         """Verifies that an error is raised if a player speaks out of turn."""
