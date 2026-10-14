@@ -208,6 +208,19 @@ class TestRenderDict(unittest.TestCase):
         with self.assertRaises(TyrantError):
             render_dict(self.state, 99)
 
+    def test_render_dict_scrubs_raw_state(self):
+        """Verifies that rendering a raw state equals rendering it scrubbed for the viewer."""
+        for state in (self.state, *self.states):
+            for uid in UIDS:
+                with self.subTest(phase=state.phase, uid=uid):
+                    scrubbed = scrub_state(state, uid)
+                    self.assertEqual(
+                        render_dict(state, uid), render_dict(scrubbed, uid)
+                    )
+                    self.assertEqual(
+                        render_text(state, uid), render_text(scrubbed, uid)
+                    )
+
 
 class TestRenderText(unittest.TestCase):
     def setUp(self):
@@ -454,6 +467,23 @@ class TestRenderText(unittest.TestCase):
         for line in expected:
             self.assertIn(line + "\n", text)
         self.assertNotIn("fascist, fascist, fascist", text)
+
+    def test_render_text_liberal_raw_state_hides_others(self):
+        """Verifies that a liberal viewer's raw-state text shows no other role or knowledge."""
+        viewer = _uid_with_role(self.state, Role.LIBERAL)
+        other = next(p.uid for p in self.state.players if p.uid != viewer)
+        state = replace(
+            self.state,
+            knowledge=(PeekKnowledge(uid=other, policies=(F, F, F)),),
+        )
+        text = render_text(state, viewer)
+        for p in state.players:
+            if p.uid != viewer:
+                self.assertIn(
+                    f"- Player {p.uid}: party unknown, role unknown, alive\n", text
+                )
+        self.assertNotIn("fascist, fascist, fascist", text)
+        self.assertIn("## Private Knowledge\n- None.\n", text)
 
 
 if __name__ == "__main__":
