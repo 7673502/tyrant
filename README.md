@@ -117,6 +117,21 @@ payload = render_dict(state, uid)
 
 `render_dict` returns plain `dict`, `list`, `str`, `int`, `bool` and `None` values, so it can be passed straight to `json.dumps`. `render_text` builds Markdown from the same dict, with sections for the viewer's role and known teammates, the players, the board and election tracker, the government, the current phase, who must act and the discussion topic and round, a numbered timeline of public events and discussion, and the viewer's private knowledge. Hidden values always render as `unknown`.
 
+## Prompting LLM agents
+
+`tyrant.engine.prompt` holds the pieces every LLM agent needs, with no provider calls. `SYSTEM_PROMPT` explains the rules and asks the model to end its reply with `{"action": N, "message": "..."}`; it is the same for every game, so send it first to benefit from prompt caching. `build_prompt` renders the viewer's state followed by their numbered options, and `parse_action` turns the reply back into one of the offered actions:
+
+```python
+from tyrant.engine.prompt import SYSTEM_PROMPT, build_prompt, parse_action
+
+async def choose_action(self, state, valid_actions):
+    prompt = build_prompt(state, self.uid, valid_actions)
+    reply = await call_llm(system=SYSTEM_PROMPT, user=prompt)
+    return parse_action(reply, valid_actions)
+```
+
+`parse_action` reads the last JSON object in the reply, so the model may reason before it. It raises `InvalidMoveError` when the reply has no usable choice, which `GameRunner` treats like any other agent failure.
+
 ## Agent Resilience
 
 `GameRunner` only applies actions that were offered to the agent. An action matches an offered one when it has the same type and the same identifying fields; `description` and `SpeakAction.message` are ignored, since the agent may fill them in.
