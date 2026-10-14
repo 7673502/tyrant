@@ -128,3 +128,193 @@ def render_dict(state: GameState, viewer_uid: int) -> dict:
         "timeline": [_to_json(e, "Event") for e in state.events],
         "knowledge": [_to_json(k, "Knowledge") for k in state.knowledge],
     }
+
+
+def _player(uid: int | None) -> str:
+    return "none" if uid is None else f"Player {uid}"
+
+
+def _player_list(uids: list[int]) -> str:
+    return ", ".join(_player(uid) for uid in uids) or "none"
+
+
+def _yes_no(value: bool) -> str:
+    return "yes" if value else "no"
+
+
+def _claim_line(entry: dict) -> str:
+    claim = entry["claim"]
+    who = _player(claim["uid"])
+    match claim["type"]:
+        case "president_enact":
+            if claim["policies"] is None:
+                return f"President {who} declined to share the 3 drawn policies."
+            return f"President {who} claimed drawing {', '.join(claim['policies'])}."
+        case "chancellor_enact":
+            if claim["policies"] is None:
+                return f"Chancellor {who} declined to share the 2 received policies."
+            return f"Chancellor {who} claimed receiving {', '.join(claim['policies'])}."
+        case "peek":
+            if claim["policies"] is None:
+                return f"President {who} declined to share the peeked policies."
+            return (
+                f"President {who} claimed the top 3 policies are, from the top, "
+                f"{', '.join(claim['policies'])}."
+            )
+        case _:
+            target = _player(entry["target_uid"])
+            if claim["party"] is None:
+                return f"President {who} declined to share {target}'s party."
+            return f"President {who} claimed {target} is {claim['party']}."
+
+
+def _timeline_line(entry: dict) -> str:
+    match entry["type"]:
+        case "nomination":
+            return (
+                f"President {_player(entry['president_uid'])} nominated "
+                f"{_player(entry['chancellor_uid'])} for chancellor."
+            )
+        case "election":
+            votes = entry["votes"]
+            ja = [int(uid) for uid, vote in votes.items() if vote == "ja"]
+            nein = [int(uid) for uid, vote in votes.items() if vote == "nein"]
+            outcome = "passed" if entry["result"] == "ja" else "failed"
+            return (
+                f"Election of President {_player(entry['president_uid'])} and "
+                f"Chancellor {_player(entry['chancellor_uid'])} {outcome} "
+                f"(ja: {_player_list(ja)}; nein: {_player_list(nein)})."
+            )
+        case "policy_enacted":
+            if entry["president_uid"] is None:
+                return f"A {entry['policy']} policy was top-decked."
+            return (
+                f"President {_player(entry['president_uid'])} and Chancellor "
+                f"{_player(entry['chancellor_uid'])} enacted a {entry['policy']} policy."
+            )
+        case "veto":
+            response = "approved" if entry["approved"] else "denied"
+            return (
+                f"Chancellor {_player(entry['chancellor_uid'])} proposed a veto and "
+                f"President {_player(entry['president_uid'])} {response} it."
+            )
+        case "claim":
+            return _claim_line(entry)
+        case "investigation":
+            return (
+                f"President {_player(entry['president_uid'])} investigated "
+                f"{_player(entry['target_uid'])}."
+            )
+        case "special_election":
+            return (
+                f"President {_player(entry['president_uid'])} called a special "
+                f"election for {_player(entry['target_uid'])}."
+            )
+        case "execution":
+            return (
+                f"President {_player(entry['president_uid'])} executed "
+                f"{_player(entry['target_uid'])}."
+            )
+        case "speech":
+            if entry["text"] is None:
+                return f"{_player(entry['uid'])} passed."
+            return f'{_player(entry["uid"])} said: "{entry["text"]}"'
+        case _:
+            return f"Game over: {entry['winner']} win by {entry['condition']}."
+
+
+def _knowledge_line(entry: dict) -> str:
+    match entry["type"]:
+        case "president_draw":
+            return (
+                f"As president with Chancellor {_player(entry['chancellor_uid'])}, "
+                f"you drew {', '.join(entry['policies'])}."
+            )
+        case "chancellor_receive":
+            return (
+                f"As chancellor under President {_player(entry['president_uid'])}, "
+                f"you received {', '.join(entry['policies'])}."
+            )
+        case "peek":
+            return (
+                "You peeked at the top 3 policies, from the top: "
+                f"{', '.join(entry['policies'])}."
+            )
+        case _:
+            return (
+                f"You investigated {_player(entry['target_uid'])}: "
+                f"{entry['party']} party."
+            )
+
+
+def render_text(state: GameState, viewer_uid: int) -> str:
+    """Returns a prompt-ready Markdown view of a scrubbed state for the given viewer."""
+    view = render_dict(state, viewer_uid)
+    viewer, board, government, turn = (
+        view["viewer"],
+        view["board"],
+        view["government"],
+        view["turn"],
+    )
+
+    teammates = ", ".join(
+        f"{_player(t['uid'])} ({t['role']})" for t in viewer["teammates"]
+    )
+    lines = [
+        f"# Secret Hitler: {_player(viewer['uid'])}'s view",
+        "",
+        "## You",
+        f"- {_player(viewer['uid'])}",
+        f"- Role: {viewer['role']}",
+        f"- Party: {viewer['party']}",
+        f"- Status: {'alive' if viewer['alive'] else 'dead'}",
+        f"- Known teammates: {teammates or 'none'}",
+        "",
+        "## Players",
+        "In seat order:",
+    ]
+    lines += [
+        f"- {_player(p['uid'])}{' (you)' if p['uid'] == viewer['uid'] else ''}: "
+        f"party {p['party']}, role {p['role']}, {'alive' if p['alive'] else 'dead'}"
+        for p in view["players"]
+    ]
+    lines += [
+        "",
+        "## Board",
+        f"- Liberal policies: {board['liberal_policies']}/{board['liberal_policies_to_win']}",
+        f"- Fascist policies: {board['fascist_policies']}/{board['fascist_policies_to_win']}",
+        f"- Fascist track: {', '.join(board['fascist_track'])}",
+        f"- Election tracker: {board['election_tracker']}/{board['failures_until_top_deck']}",
+        f"- Hitler zone: {_yes_no(board['hitler_zone'])}",
+        f"- Veto unlocked: {_yes_no(board['veto_unlocked'])}",
+        f"- Draw pile: {board['draw_pile']}, discard pile: {board['discard_pile']}",
+        "",
+        "## Government",
+        f"- President: {_player(government['president'])}",
+        f"- Chancellor: {_player(government['chancellor'])}",
+        f"- Previous president: {_player(government['previous_president'])}",
+        f"- Previous chancellor: {_player(government['previous_chancellor'])}",
+        "",
+        "## Current Turn",
+        f"- Phase: {turn['phase']}",
+        f"- Waiting on: {_player_list(turn['awaiting'])}",
+    ]
+    if turn["active_power"] != "none":
+        lines.append(f"- Active power: {turn['active_power']}")
+    if turn["hand"]:
+        lines.append(f"- Your hand: {', '.join(turn['hand'])}")
+    if turn["winner"] is not None:
+        lines.append(f"- Winner: {turn['winner']}")
+
+    lines += ["", "## Timeline"]
+    lines += [
+        f"{i}. {_timeline_line(entry)}"
+        for i, entry in enumerate(view["timeline"], start=1)
+    ] or ["No events yet."]
+
+    lines += ["", "## Private Knowledge"]
+    lines += [f"- {_knowledge_line(entry)}" for entry in view["knowledge"]] or [
+        "- None."
+    ]
+
+    return "\n".join(lines) + "\n"

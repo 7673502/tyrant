@@ -3,10 +3,38 @@ import json
 import unittest
 from dataclasses import replace
 
+from frozendict import frozendict
+
 from tests.scripted_game import play_first_legal_actions
-from tyrant.engine.renderer import render_dict
+from tyrant.engine.renderer import render_dict, render_text
 from tyrant.exceptions import TyrantError
-from tyrant.models.enums import GamePhase, Role, Vote
+from tyrant.models.claim import (
+    ChancellorEnactClaim,
+    InvestigationClaim,
+    PeekClaim,
+    PresidentEnactClaim,
+)
+from tyrant.models.enums import (
+    DiscussionContext,
+    GamePhase,
+    Party,
+    PolicyTile,
+    Role,
+    Vote,
+    WinCondition,
+)
+from tyrant.models.event import (
+    ClaimEvent,
+    ElectionEvent,
+    ExecutionEvent,
+    GameOverEvent,
+    InvestigationEvent,
+    NominationEvent,
+    PolicyEnactedEvent,
+    SpecialElectionEvent,
+    SpeechEvent,
+    VetoEvent,
+)
 from tyrant.models.game_state import (
     GameState,
     cast_vote,
@@ -14,6 +42,14 @@ from tyrant.models.game_state import (
     nominate_chancellor,
     scrub_state,
 )
+from tyrant.models.knowledge import (
+    ChancellorReceiveKnowledge,
+    InvestigationKnowledge,
+    PeekKnowledge,
+    PresidentDrawKnowledge,
+)
+
+L, F = PolicyTile.LIBERAL, PolicyTile.FASCIST
 
 UIDS = (1, 2, 3, 4, 5, 6, 7)
 
@@ -154,6 +190,178 @@ class TestRenderDict(unittest.TestCase):
         """Verifies that rendering for a viewer not in the game raises TyrantError."""
         with self.assertRaises(TyrantError):
             render_dict(self.state, 99)
+
+
+class TestRenderText(unittest.TestCase):
+    def setUp(self):
+        self.state = create_game(UIDS, 42, shuffle_players=False)
+
+    def render_events(self, *events) -> str:
+        return render_text(scrub_state(replace(self.state, events=events), 1), 1)
+
+    def test_render_text_immutability(self):
+        """Verifies that render_text returns equal text without mutating the input state."""
+        state = scrub_state(self.state, 1)
+        before = copy.deepcopy(state)
+        self.assertEqual(render_text(state, 1), render_text(state, 1))
+        self.assertEqual(state, before)
+
+    def test_render_text_sections(self):
+        """Verifies that the text contains every Markdown section in order."""
+        text = render_text(scrub_state(self.state, 1), 1)
+        headings = [line for line in text.splitlines() if line.startswith("#")]
+        self.assertEqual(
+            headings,
+            [
+                "# Secret Hitler: Player 1's view",
+                "## You",
+                "## Players",
+                "## Board",
+                "## Government",
+                "## Current Turn",
+                "## Timeline",
+                "## Private Knowledge",
+            ],
+        )
+
+    def test_render_text_empty_logs(self):
+        """Verifies that empty timelines and knowledge render placeholder lines."""
+        text = render_text(scrub_state(self.state, 1), 1)
+        self.assertIn("## Timeline\nNo events yet.\n", text)
+        self.assertIn("## Private Knowledge\n- None.\n", text)
+
+    def test_render_text_hidden_renders_as_unknown(self):
+        """Verifies that other players' hidden roles render as unknown for a liberal."""
+        liberal = _uid_with_role(self.state, Role.LIBERAL)
+        text = render_text(scrub_state(self.state, liberal), liberal)
+        self.assertNotIn("HIDDEN", text)
+        self.assertIn("party unknown, role unknown, alive", text)
+        self.assertIn("- Known teammates: none", text)
+
+    def test_render_text_fascist_teammates(self):
+        """Verifies that a fascist viewer's teammates are listed with their roles."""
+        fascist = _uid_with_role(self.state, Role.FASCIST)
+        hitler = _uid_with_role(self.state, Role.HITLER)
+        text = render_text(scrub_state(self.state, fascist), fascist)
+        self.assertIn(f"Player {hitler} (hitler)", text)
+
+    def test_render_text_hand_for_president(self):
+        """Verifies that a president sees their hand while discarding."""
+        state = replace(
+            self.state, phase=GamePhase.PRESIDENT_DISCARD, drawn_policies=(L, F, F)
+        )
+        president = state.players[state.president_index].uid
+        text = render_text(scrub_state(state, president), president)
+        self.assertIn("- Your hand: liberal, fascist, fascist", text)
+        other = render_text(scrub_state(state, 2), 2)
+        self.assertNotIn("Your hand", other)
+
+    def test_render_text_public_events(self):
+        """Verifies that each public event renders as a numbered one-line entry."""
+        text = self.render_events(
+            NominationEvent(president_uid=1, chancellor_uid=2),
+            ElectionEvent(
+                president_uid=1,
+                chancellor_uid=2,
+                votes=frozendict({1: Vote.JA, 2: Vote.JA, 3: Vote.NEIN}),
+                result=Vote.JA,
+            ),
+            PolicyEnactedEvent(policy=F, president_uid=1, chancellor_uid=2),
+            PolicyEnactedEvent(policy=L, president_uid=None, chancellor_uid=None),
+            VetoEvent(president_uid=1, chancellor_uid=2, approved=False),
+            InvestigationEvent(president_uid=1, target_uid=3),
+            SpecialElectionEvent(president_uid=1, target_uid=4),
+            ExecutionEvent(president_uid=1, target_uid=5),
+            SpeechEvent(
+                uid=2, text="Trust me.", context=DiscussionContext.AFTER_NOMINATION
+            ),
+            SpeechEvent(uid=3, text=None, context=DiscussionContext.AFTER_NOMINATION),
+            GameOverEvent(winner=Party.LIBERAL, condition=WinCondition.HITLER_EXECUTED),
+        )
+        expected = [
+            "1. President Player 1 nominated Player 2 for chancellor.",
+            "2. Election of President Player 1 and Chancellor Player 2 passed "
+            "(ja: Player 1, Player 2; nein: Player 3).",
+            "3. President Player 1 and Chancellor Player 2 enacted a fascist policy.",
+            "4. A liberal policy was top-decked.",
+            "5. Chancellor Player 2 proposed a veto and President Player 1 denied it.",
+            "6. President Player 1 investigated Player 3.",
+            "7. President Player 1 called a special election for Player 4.",
+            "8. President Player 1 executed Player 5.",
+            '9. Player 2 said: "Trust me."',
+            "10. Player 3 passed.",
+            "11. Game over: liberal win by hitler_executed.",
+        ]
+        for line in expected:
+            self.assertIn(line + "\n", text)
+
+    def test_render_text_claims(self):
+        """Verifies that every claim type renders with its government or target."""
+        text = self.render_events(
+            ClaimEvent(
+                claim=PresidentEnactClaim(uid=1, policies=(L, F, F)),
+                president_uid=1,
+                chancellor_uid=2,
+                target_uid=None,
+            ),
+            ClaimEvent(
+                claim=ChancellorEnactClaim(uid=2, policies=None),
+                president_uid=1,
+                chancellor_uid=2,
+                target_uid=None,
+            ),
+            ClaimEvent(
+                claim=PeekClaim(uid=1, policies=(F, F, L)),
+                president_uid=1,
+                chancellor_uid=None,
+                target_uid=None,
+            ),
+            ClaimEvent(
+                claim=InvestigationClaim(uid=1, party=Party.FASCIST),
+                president_uid=1,
+                chancellor_uid=None,
+                target_uid=3,
+            ),
+            ClaimEvent(
+                claim=InvestigationClaim(uid=1, party=None),
+                president_uid=1,
+                chancellor_uid=None,
+                target_uid=4,
+            ),
+        )
+        expected = [
+            "1. President Player 1 claimed drawing liberal, fascist, fascist.",
+            "2. Chancellor Player 2 declined to share the 2 received policies.",
+            "3. President Player 1 claimed the top 3 policies are, from the top, "
+            "fascist, fascist, liberal.",
+            "4. President Player 1 claimed Player 3 is fascist.",
+            "5. President Player 1 declined to share Player 4's party.",
+        ]
+        for line in expected:
+            self.assertIn(line + "\n", text)
+
+    def test_render_text_private_knowledge(self):
+        """Verifies that each kind of private knowledge renders for its owner only."""
+        state = replace(
+            self.state,
+            knowledge=(
+                PresidentDrawKnowledge(uid=1, chancellor_uid=2, policies=(L, F, F)),
+                ChancellorReceiveKnowledge(uid=1, president_uid=3, policies=(F, F)),
+                PeekKnowledge(uid=1, policies=(L, L, F)),
+                InvestigationKnowledge(uid=1, target_uid=4, party=Party.LIBERAL),
+                PeekKnowledge(uid=2, policies=(F, F, F)),
+            ),
+        )
+        text = render_text(scrub_state(state, 1), 1)
+        expected = [
+            "- As president with Chancellor Player 2, you drew liberal, fascist, fascist.",
+            "- As chancellor under President Player 3, you received fascist, fascist.",
+            "- You peeked at the top 3 policies, from the top: liberal, liberal, fascist.",
+            "- You investigated Player 4: liberal party.",
+        ]
+        for line in expected:
+            self.assertIn(line + "\n", text)
+        self.assertNotIn("fascist, fascist, fascist", text)
 
 
 if __name__ == "__main__":
