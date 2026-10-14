@@ -33,18 +33,18 @@ def _type_name(value: Any, suffix: str) -> str:
     return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
 
-def _to_json(value: Any, suffix: str = "") -> Any:
+def to_json(value: Any, suffix: str = "") -> Any:
     if value is HIDDEN:
         return UNKNOWN
     if isinstance(value, Enum):
         return value.value
     if isinstance(value, tuple):
-        return [_to_json(v) for v in value]
+        return [to_json(v) for v in value]
     if isinstance(value, frozendict):
-        return {str(k): _to_json(v) for k, v in value.items()}
+        return {str(k): to_json(v) for k, v in value.items()}
     if is_dataclass(value):
         return {"type": _type_name(value, suffix)} | {
-            f.name: _to_json(getattr(value, f.name), "Claim") for f in fields(value)
+            f.name: to_json(getattr(value, f.name), "Claim") for f in fields(value)
         }
     return value
 
@@ -83,11 +83,11 @@ def render_dict(state: GameState, viewer_uid: int) -> dict:
     return {
         "viewer": {
             "uid": viewer.uid,
-            "role": _to_json(viewer.role),
-            "party": _to_json(viewer.party),
+            "role": to_json(viewer.role),
+            "party": to_json(viewer.party),
             "alive": viewer.is_alive,
             "teammates": [
-                {"uid": p.uid, "role": _to_json(p.role)}
+                {"uid": p.uid, "role": to_json(p.role)}
                 for p in state.players
                 if p.uid != viewer_uid and p.role is not HIDDEN
             ],
@@ -95,8 +95,8 @@ def render_dict(state: GameState, viewer_uid: int) -> dict:
         "players": [
             {
                 "uid": p.uid,
-                "party": _to_json(p.party),
-                "role": _to_json(p.role),
+                "party": to_json(p.party),
+                "role": to_json(p.role),
                 "alive": p.is_alive,
             }
             for p in state.players
@@ -106,7 +106,7 @@ def render_dict(state: GameState, viewer_uid: int) -> dict:
             "liberal_policies_to_win": LIBERAL_TILES_TO_WIN,
             "fascist_policies": state.board.fascist_played,
             "fascist_policies_to_win": FASCIST_TILES_TO_WIN,
-            "fascist_track": _to_json(FASCIST_TRACKS[state.board.player_count]),
+            "fascist_track": to_json(FASCIST_TRACKS[state.board.player_count]),
             "election_tracker": state.election_tracker.failed_elections,
             "failures_until_top_deck": FAILURES_UNTIL_TOP_DECK,
             "hitler_zone": state.board.hitler_zone,
@@ -121,21 +121,21 @@ def render_dict(state: GameState, viewer_uid: int) -> dict:
             "previous_chancellor": state.previous_chancellor,
         },
         "turn": {
-            "phase": _to_json(state.phase),
+            "phase": to_json(state.phase),
             "awaiting": _awaiting(state),
-            "active_power": _to_json(state.active_power),
-            "hand": _to_json(state.drawn_policies),
-            "winner": _to_json(state.winner),
+            "active_power": to_json(state.active_power),
+            "hand": to_json(state.drawn_policies),
+            "winner": to_json(state.winner),
             "discussion": None
             if state.discussion is None
             else {
-                "context": _to_json(state.discussion.context),
+                "context": to_json(state.discussion.context),
                 "round": state.discussion.current_round,
                 "rounds": state.discussion.rounds,
             },
         },
-        "timeline": [_to_json(e, "Event") for e in state.events],
-        "knowledge": [_to_json(k, "Knowledge") for k in state.knowledge],
+        "timeline": [to_json(e, "Event") for e in state.events],
+        "knowledge": [to_json(k, "Knowledge") for k in state.knowledge],
     }
 
 
