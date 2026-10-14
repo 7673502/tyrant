@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 from dataclasses import replace
 
@@ -45,6 +46,31 @@ class CapturingAgent:
         self, state: GameState, valid_actions: tuple[Action, ...]
     ) -> Action:
         self.captured_state = state
+        return valid_actions[0]
+
+
+class RaisingAgent:
+    def __init__(self, uid: int):
+        self.uid = uid
+        self.calls = 0
+
+    async def choose_action(
+        self, state: GameState, valid_actions: tuple[Action, ...]
+    ) -> Action:
+        self.calls += 1
+        raise RuntimeError("Agent failure")
+
+
+class SlowAgent:
+    def __init__(self, uid: int):
+        self.uid = uid
+        self.calls = 0
+
+    async def choose_action(
+        self, state: GameState, valid_actions: tuple[Action, ...]
+    ) -> Action:
+        self.calls += 1
+        await asyncio.sleep(1)
         return valid_actions[0]
 
 
@@ -117,7 +143,7 @@ class TestGameRunnerQueryAgent(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(agent.captured_state)
         self.assertEqual(agent.captured_state.rng_state, HIDDEN)
 
-    async def test_query_agent_rejects_unoffered_action(self):
+    async def test_attempt_rejects_unoffered_action(self):
         """Verifies that an action outside valid_actions raises an InvalidMoveError."""
         state = create_game((1, 2, 3, 4, 5), 42)
         president_uid = state.players[state.president_index].uid
@@ -126,7 +152,122 @@ class TestGameRunnerQueryAgent(unittest.IsolatedAsyncioTestCase):
         runner = GameRunner(agents=[agent], initial_state=state)
 
         with self.assertRaises(InvalidMoveError):
-            await runner._query_agent(agent, get_legal_actions(state, president_uid))
+            await runner._attempt(agent, state, get_legal_actions(state, president_uid))
+
+
+class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.state = create_game((1, 2, 3, 4, 5), 42)
+        self.president_uid = self.state.players[self.state.president_index].uid
+        self.valid_actions = get_legal_actions(self.state, self.president_uid)
+        self.bad_action = NominateAction(
+            description="Nominate", target_uid=self.president_uid
+        )
+
+    def test_init_resilience_defaults(self):
+        """Verifies that GameRunner defaults to two retries and no timeout."""
+        runner = GameRunner(agents=[], initial_state=self.state)
+        self.assertEqual(runner.max_retries, 2)
+        self.assertIsNone(runner.timeout)
+
+    async def test_query_agent_well_behaved_called_once(self):
+        """Verifies that a well-behaved agent is queried once and its action is used."""
+        good_action = self.valid_actions[1]
+        agent = StubAgent(uid=self.president_uid, actions_to_play=[good_action])
+        runner = GameRunner(agents=[agent], initial_state=self.state)
+
+        _, action = await runner._query_agent(agent, self.valid_actions)
+
+        self.assertEqual(action, good_action)
+        self.assertEqual(agent._actions_to_play, [])
+
+    async def test_query_agent_keeps_speak_message(self):
+        """Verifies that the agent's SpeakAction message survives validation."""
+        speak_action = SpeakAction(description="Speak", message="Trust me.")
+        agent = StubAgent(uid=self.president_uid, actions_to_play=[speak_action])
+        runner = GameRunner(agents=[agent], initial_state=self.state)
+
+        _, action = await runner._query_agent(
+            agent, (SpeakAction(description="Speak"), PassAction(description="Pass"))
+        )
+
+        self.assertEqual(action, speak_action)
+
+    async def test_query_agent_retries_after_illegal_action(self):
+        """Verifies that an illegal action is retried and a later legal action is used."""
+        good_action = self.valid_actions[0]
+        agent = StubAgent(
+            uid=self.president_uid, actions_to_play=[self.bad_action, good_action]
+        )
+        runner = GameRunner(agents=[agent], initial_state=self.state)
+
+        _, action = await runner._query_agent(agent, self.valid_actions)
+
+        self.assertEqual(action, good_action)
+
+    async def test_query_agent_falls_back_after_illegal_actions(self):
+        """Verifies that repeated illegal actions fall back to a legal action after all retries."""
+        agent = StubAgent(uid=self.president_uid, actions_to_play=[self.bad_action] * 3)
+        runner = GameRunner(agents=[agent], initial_state=self.state)
+
+        _, action = await runner._query_agent(agent, self.valid_actions)
+
+        self.assertIn(action, self.valid_actions)
+        self.assertEqual(agent._actions_to_play, [])
+
+    async def test_query_agent_falls_back_after_exceptions(self):
+        """Verifies that an agent that always raises is retried and then falls back."""
+        agent = RaisingAgent(uid=self.president_uid)
+        runner = GameRunner(agents=[agent], initial_state=self.state, max_retries=4)
+
+        _, action = await runner._query_agent(agent, self.valid_actions)
+
+        self.assertIn(action, self.valid_actions)
+        self.assertEqual(agent.calls, 5)
+
+    async def test_query_agent_falls_back_after_timeouts(self):
+        """Verifies that an agent that exceeds the timeout is retried and then falls back."""
+        agent = SlowAgent(uid=self.president_uid)
+        runner = GameRunner(
+            agents=[agent], initial_state=self.state, max_retries=1, timeout=0.01
+        )
+
+        _, action = await runner._query_agent(agent, self.valid_actions)
+
+        self.assertIn(action, self.valid_actions)
+        self.assertEqual(agent.calls, 2)
+
+    async def test_query_agent_zero_retries(self):
+        """Verifies that max_retries of zero falls back after a single failed attempt."""
+        agent = RaisingAgent(uid=self.president_uid)
+        runner = GameRunner(agents=[agent], initial_state=self.state, max_retries=0)
+
+        await runner._query_agent(agent, self.valid_actions)
+
+        self.assertEqual(agent.calls, 1)
+
+    async def test_query_agent_seeded_fallback_is_deterministic(self):
+        """Verifies that fallback choices are reproducible for the same seed."""
+        chosen = []
+        for _ in range(2):
+            agent = RaisingAgent(uid=self.president_uid)
+            runner = GameRunner(agents=[agent], initial_state=self.state, seed=7)
+            picks = [
+                (await runner._query_agent(agent, self.valid_actions))[1]
+                for _ in range(5)
+            ]
+            chosen.append(picks)
+
+        self.assertEqual(chosen[0], chosen[1])
+
+    async def test_run_completes_game_with_failing_agents(self):
+        """Verifies that a game finishes when every agent always raises."""
+        agents = [RaisingAgent(uid=i) for i in range(1, 6)]
+        runner = GameRunner(agents=agents, seed=42, max_retries=0)
+
+        final_state = await runner.run()
+
+        self.assertEqual(final_state.phase, GamePhase.GAME_OVER)
 
 
 class TestIsOffered(unittest.TestCase):
