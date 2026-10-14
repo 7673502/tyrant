@@ -95,6 +95,7 @@ class GameState:
     pending_power: PresidentialPower = PresidentialPower.NONE
     special_election_caller_index: int | None = None
     discussion_enabled: bool = False
+    discussion_rounds: int = 3
     discussion: Discussion | None = None
     messages: tuple[Message, ...] = ()
     events: tuple[Event, ...] = ()
@@ -107,12 +108,17 @@ def create_game(
     roles: Mapping[int, Role] | None = None,
     shuffle_players: bool = True,
     discussion_enabled: bool = False,
+    discussion_rounds: int = 3,
 ) -> GameState:
     player_count = len(uids)
     if not (5 <= player_count <= 10):
         raise TyrantError(f"Player count must be between 5 and 10, got {player_count}")
     if len(uids) != len(set(uids)):
         raise TyrantError("Player UIDs must be unique")
+    if discussion_rounds < 1:
+        raise TyrantError(
+            f"Discussion rounds must be at least 1, got {discussion_rounds}"
+        )
 
     num_liberals, num_fascists = ROLE_DISTRIBUTION[player_count]
 
@@ -172,6 +178,7 @@ def create_game(
         deck_shuffled_last_action=False,
         current_investigation_result=None,
         discussion_enabled=discussion_enabled,
+        discussion_rounds=discussion_rounds,
     )
 
 
@@ -243,6 +250,7 @@ def _begin_discussion(state: GameState, context: DiscussionContext) -> GameState
             context=context,
             resume_phase=state.phase,
             speaker_order=tuple(p.uid for p in seats if p.is_alive),
+            rounds=state.discussion_rounds,
         ),
     )
 
@@ -264,11 +272,11 @@ def speak(state: GameState, uid: int, text: str | None) -> GameState:
         deck_shuffled_last_action=False,
     )
 
-    next_turn = discussion.turn + 1
-    if next_turn == len(discussion.speaker_order):
+    next_discussion = replace(discussion, turn=discussion.turn + 1)
+    if next_discussion.is_complete:
         return replace(new_state, phase=discussion.resume_phase, discussion=None)
 
-    return replace(new_state, discussion=replace(discussion, turn=next_turn))
+    return replace(new_state, discussion=next_discussion)
 
 
 def nominate_chancellor(state: GameState, chancellor_uid: int) -> GameState:
