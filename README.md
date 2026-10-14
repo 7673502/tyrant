@@ -106,14 +106,13 @@ What each player learned in secret is kept in `GameState.knowledge`, so it survi
 
 ## Rendering state for prompts
 
-`tyrant.engine.renderer` turns a scrubbed `GameState` into something an LLM can read. Both functions take the scrubbed state and the viewer's uid:
+`tyrant.engine.renderer` turns a `GameState` into something an LLM can read. Both functions take the state and the viewer's uid, and scrub the state for that viewer before rendering, so the full state can be passed directly:
 
 ```python
 from tyrant.engine.renderer import render_dict, render_text
 
-scrubbed = scrub_state(state, uid)
-prompt = render_text(scrubbed, uid)
-payload = render_dict(scrubbed, uid)
+prompt = render_text(state, uid)
+payload = render_dict(state, uid)
 ```
 
 `render_dict` returns plain `dict`, `list`, `str`, `int`, `bool` and `None` values, so it can be passed straight to `json.dumps`. `render_text` builds Markdown from the same dict, with sections for the viewer's role and known teammates, the players, the board and election tracker, the government, the current phase, who must act and the discussion topic and round, a numbered timeline of public events and discussion, and the viewer's private knowledge. Hidden values always render as `unknown`.

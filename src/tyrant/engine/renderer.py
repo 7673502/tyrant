@@ -14,7 +14,7 @@ from tyrant.models.board import (
 )
 from tyrant.models.election_tracker import FAILURES_UNTIL_TOP_DECK
 from tyrant.models.enums import HIDDEN, GamePhase
-from tyrant.models.game_state import GameState
+from tyrant.models.game_state import GameState, scrub_state
 
 UNKNOWN = "unknown"
 DISCUSSIONS_SHOWN = 2
@@ -75,7 +75,8 @@ def _awaiting(state: GameState) -> list[int]:
 
 
 def render_dict(state: GameState, viewer_uid: int) -> dict:
-    """Returns a JSON-serializable view of a scrubbed state for the given viewer."""
+    """Returns a JSON-serializable view of the state, scrubbed for the given viewer."""
+    state = scrub_state(state, viewer_uid)
     viewer = next((p for p in state.players if p.uid == viewer_uid), None)
     if viewer is None:
         raise TyrantError(f"Viewer with UID {viewer_uid} not found")
@@ -273,7 +274,7 @@ def _knowledge_line(entry: dict) -> str:
 
 
 def render_text(state: GameState, viewer_uid: int) -> str:
-    """Returns a prompt-ready Markdown view of a scrubbed state for the given viewer."""
+    """Returns a prompt-ready Markdown view of the state, scrubbed for the given viewer."""
     view = render_dict(state, viewer_uid)
     viewer, board, government, turn = (
         view["viewer"],
