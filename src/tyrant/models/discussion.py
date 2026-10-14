@@ -1,6 +1,9 @@
 from dataclasses import dataclass
+from typing import Final
 
 from tyrant.models.enums import DiscussionContext, GamePhase
+
+MAX_SPEECH_LENGTH: Final = 500
 
 
 @dataclass(frozen=True)

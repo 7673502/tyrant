@@ -22,7 +22,7 @@ from tyrant.models.deck import (
     shuffle_deck,
     top_deck,
 )
-from tyrant.models.discussion import Discussion, Message
+from tyrant.models.discussion import MAX_SPEECH_LENGTH, Discussion, Message
 from tyrant.models.election_tracker import ElectionTracker, increment_election_tracker
 from tyrant.models.enums import (
     HIDDEN,
@@ -281,6 +281,9 @@ def speak(state: GameState, uid: int, text: str | None) -> GameState:
     discussion = state.discussion
     if uid != discussion.current_speaker:
         raise InvalidMoveError(f"It is not Player {uid}'s turn to speak")
+
+    if text is not None:
+        text = " ".join(text.split())[:MAX_SPEECH_LENGTH]
 
     new_state = replace(
         state,
