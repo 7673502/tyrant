@@ -77,6 +77,13 @@ POLICY_CLAIMS_DISCUSSION_CONTEXTS: Final[
         PresidentialPower.EXECUTION: DiscussionContext.BEFORE_EXECUTION,
     }
 )
+PRESIDENT_SPEAKS_LAST_CONTEXTS: Final[frozenset[DiscussionContext]] = frozenset(
+    {
+        DiscussionContext.BEFORE_INVESTIGATION,
+        DiscussionContext.BEFORE_SPECIAL_ELECTION,
+        DiscussionContext.BEFORE_EXECUTION,
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -250,8 +257,9 @@ def _begin_discussion(state: GameState, context: DiscussionContext) -> GameState
         return state
 
     player_count = len(state.players)
+    offset = 1 if context in PRESIDENT_SPEAKS_LAST_CONTEXTS else 0
     seats = (
-        state.players[(state.president_index + i) % player_count]
+        state.players[(state.president_index + offset + i) % player_count]
         for i in range(player_count)
     )
     return replace(
