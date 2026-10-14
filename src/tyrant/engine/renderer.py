@@ -127,6 +127,7 @@ def render_dict(state: GameState, viewer_uid: int) -> dict:
             "discussion": None
             if state.discussion is None
             else {
+                "context": _to_json(state.discussion.context),
                 "round": state.discussion.current_round,
                 "rounds": state.discussion.rounds,
             },
@@ -306,6 +307,7 @@ def render_text(state: GameState, viewer_uid: int) -> str:
         f"- Waiting on: {_player_list(turn['awaiting'])}",
     ]
     if turn["discussion"] is not None:
+        lines.append(f"- Discussion topic: {turn['discussion']['context']}")
         lines.append(
             f"- Discussion round: {turn['discussion']['round']} of {turn['discussion']['rounds']}"
         )

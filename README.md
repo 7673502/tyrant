@@ -78,7 +78,7 @@ prompt = render_text(scrubbed, uid)
 payload = render_dict(scrubbed, uid)
 ```
 
-`render_dict` returns plain `dict`, `list`, `str`, `int`, `bool` and `None` values, so it can be passed straight to `json.dumps`. `render_text` builds Markdown from the same dict, with sections for the viewer's role and known teammates, the players, the board and election tracker, the government, the current phase, who must act and the discussion round, a numbered timeline of public events and discussion, and the viewer's private knowledge. Hidden values always render as `unknown`.
+`render_dict` returns plain `dict`, `list`, `str`, `int`, `bool` and `None` values, so it can be passed straight to `json.dumps`. `render_text` builds Markdown from the same dict, with sections for the viewer's role and known teammates, the players, the board and election tracker, the government, the current phase, who must act and the discussion topic and round, a numbered timeline of public events and discussion, and the viewer's private knowledge. Hidden values always render as `unknown`.
 
 ## Agent Resilience
 
