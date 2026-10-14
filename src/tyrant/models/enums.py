@@ -42,6 +42,7 @@ class Vote(StrEnum):
 class GamePhase(StrEnum):
     SETUP = auto()
     NOMINATION = auto()
+    DISCUSSION = auto()
     VOTING = auto()
     PRESIDENT_DISCARD = auto()
     CHANCELLOR_ENACT = auto()
@@ -51,3 +52,13 @@ class GamePhase(StrEnum):
     CLAIM_INVESTIGATION = auto()
     PRESIDENT_VETO_RESPONSE = auto()
     GAME_OVER = auto()
+
+
+class DiscussionContext(StrEnum):
+    AFTER_NOMINATION = auto()
+    AFTER_FAILED_ELECTION = auto()
+    AFTER_POLICY_CLAIMS = auto()
+    AFTER_INVESTIGATION_CLAIM = auto()
+    AFTER_PEEK_CLAIM = auto()
+    AFTER_SPECIAL_ELECTION = auto()
+    AFTER_EXECUTION = auto()

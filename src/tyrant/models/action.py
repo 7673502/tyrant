@@ -75,3 +75,13 @@ class ClaimChancellorEnactAction(Action):
 @dataclass(frozen=True)
 class ClaimInvestigationAction(Action):
     claim_party: Party | None
+
+
+@dataclass(frozen=True)
+class SpeakAction(Action):
+    message: str = ""
+
+
+@dataclass(frozen=True)
+class PassAction(Action):
+    pass

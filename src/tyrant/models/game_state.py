@@ -22,9 +22,11 @@ from tyrant.models.deck import (
     shuffle_deck,
     top_deck,
 )
+from tyrant.models.discussion import Discussion, Message
 from tyrant.models.election_tracker import ElectionTracker, increment_election_tracker
 from tyrant.models.enums import (
     HIDDEN,
+    DiscussionContext,
     GamePhase,
     Party,
     PolicyTile,
@@ -65,6 +67,9 @@ class GameState:
     pending_chancellor_enact_claim: bool = False
     pending_power: PresidentialPower = PresidentialPower.NONE
     special_election_caller_index: int | None = None
+    discussion_enabled: bool = False
+    discussion: Discussion | None = None
+    messages: tuple[Message, ...] = ()
 
 
 def create_game(
@@ -72,6 +77,7 @@ def create_game(
     seed: int | None = 42,
     roles: Mapping[int, Role] | None = None,
     shuffle_players: bool = True,
+    discussion_enabled: bool = False,
 ) -> GameState:
     player_count = len(uids)
     if not (5 <= player_count <= 10):
@@ -136,6 +142,7 @@ def create_game(
         investigations=frozendict(),
         deck_shuffled_last_action=False,
         current_investigation_result=None,
+        discussion_enabled=discussion_enabled,
     )
 
 
@@ -175,12 +182,53 @@ def _advance_to_nomination(state: GameState) -> GameState:
         special_election_president=new_special,
         special_election_caller_index=new_caller,
         phase=GamePhase.NOMINATION,
-        ballot_box=BallotBox(),
         veto_denied_this_term=False,
         chancellor=None,
         active_power=PresidentialPower.NONE,
         current_investigation_result=None,
     )
+
+
+def _begin_discussion(state: GameState, context: DiscussionContext) -> GameState:
+    if not state.discussion_enabled or state.phase == GamePhase.GAME_OVER:
+        return state
+
+    player_count = len(state.players)
+    seats = (
+        state.players[(state.president_index + i) % player_count]
+        for i in range(player_count)
+    )
+    return replace(
+        state,
+        phase=GamePhase.DISCUSSION,
+        discussion=Discussion(
+            context=context,
+            resume_phase=state.phase,
+            speaker_order=tuple(p.uid for p in seats if p.is_alive),
+        ),
+    )
+
+
+def speak(state: GameState, uid: int, text: str | None) -> GameState:
+    if state.phase != GamePhase.DISCUSSION or state.discussion is None:
+        raise InvalidMoveError(f"Cannot speak in phase {state.phase}")
+
+    discussion = state.discussion
+    if uid != discussion.current_speaker:
+        raise InvalidMoveError(f"It is not Player {uid}'s turn to speak")
+
+    new_state = replace(
+        state,
+        messages=state.messages
+        + (Message(uid=uid, text=text, context=discussion.context),),
+        deck_shuffled_last_action=False,
+    )
+
+    next_turn = discussion.turn + 1
+    if next_turn == len(discussion.speaker_order):
+        return replace(new_state, phase=discussion.resume_phase, discussion=None)
+
+    return replace(new_state, discussion=replace(discussion, turn=next_turn))
 
 
 def nominate_chancellor(state: GameState, chancellor_uid: int) -> GameState:
@@ -210,12 +258,14 @@ def nominate_chancellor(state: GameState, chancellor_uid: int) -> GameState:
                 "Target cannot be previous chancellor when <= 5 players are alive"
             )
 
-    return replace(
+    new_state = replace(
         state,
         chancellor=chancellor_uid,
         phase=GamePhase.VOTING,
+        ballot_box=BallotBox(),
         deck_shuffled_last_action=False,
     )
+    return _begin_discussion(new_state, DiscussionContext.AFTER_NOMINATION)
 
 
 def _ensure_deck_ready(state: GameState) -> GameState:
@@ -285,12 +335,18 @@ def _resolve_election(state: GameState) -> GameState:
                     new_state, winner=new_board.winner, phase=GamePhase.GAME_OVER
                 )
 
-            return _advance_to_nomination(new_state)
+            return _begin_discussion(
+                _advance_to_nomination(new_state),
+                DiscussionContext.AFTER_FAILED_ELECTION,
+            )
         else:
             new_state = replace(
                 state, election_tracker=new_tracker, deck_shuffled_last_action=False
             )
-            return _advance_to_nomination(new_state)
+            return _begin_discussion(
+                _advance_to_nomination(new_state),
+                DiscussionContext.AFTER_FAILED_ELECTION,
+            )
 
 
 def cast_vote(state: GameState, uid: int, vote: Vote) -> GameState:
@@ -413,11 +469,12 @@ def claim_enact(
         new_state = replace(new_state, pending_power=PresidentialPower.NONE)
 
         if power == PresidentialPower.NONE:
-            return _advance_to_nomination(new_state)
+            new_state = _advance_to_nomination(new_state)
         else:
-            return replace(
+            new_state = replace(
                 new_state, phase=GamePhase.PRESIDENTIAL_POWER, active_power=power
             )
+        return _begin_discussion(new_state, DiscussionContext.AFTER_POLICY_CLAIMS)
 
     return new_state
 
@@ -537,7 +594,9 @@ def claim_investigation(state: GameState, claim: InvestigationClaim) -> GameStat
         deck_shuffled_last_action=False,
         claims=state.claims + (claim,),
     )
-    return _advance_to_nomination(new_state)
+    return _begin_discussion(
+        _advance_to_nomination(new_state), DiscussionContext.AFTER_INVESTIGATION_CLAIM
+    )
 
 
 def call_special_election(state: GameState, target_uid: int) -> GameState:
@@ -562,7 +621,9 @@ def call_special_election(state: GameState, target_uid: int) -> GameState:
         deck_shuffled_last_action=False,
     )
 
-    return _advance_to_nomination(new_state)
+    return _begin_discussion(
+        _advance_to_nomination(new_state), DiscussionContext.AFTER_SPECIAL_ELECTION
+    )
 
 
 def policy_peek(state: GameState) -> GameState:
@@ -592,7 +653,9 @@ def claim_peek(state: GameState, claim: PeekClaim) -> GameState:
         claims=state.claims + (claim,),
     )
 
-    return _advance_to_nomination(new_state)
+    return _begin_discussion(
+        _advance_to_nomination(new_state), DiscussionContext.AFTER_PEEK_CLAIM
+    )
 
 
 def execute_player(state: GameState, target_uid: int) -> GameState:
@@ -627,7 +690,9 @@ def execute_player(state: GameState, target_uid: int) -> GameState:
             active_power=PresidentialPower.NONE,
         )
 
-    return _advance_to_nomination(new_state)
+    return _begin_discussion(
+        _advance_to_nomination(new_state), DiscussionContext.AFTER_EXECUTION
+    )
 
 
 def scrub_state(state: GameState, viewer_uid: int) -> GameState:

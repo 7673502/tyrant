@@ -14,9 +14,11 @@ from tyrant.models.action import (
     ExecutionAction,
     InvestigateLoyaltyAction,
     NominateAction,
+    PassAction,
     PolicyPeekAction,
     PresidentDiscardAction,
     PresidentVetoResponseAction,
+    SpeakAction,
     VoteAction,
 )
 from tyrant.models.claim import (
@@ -41,6 +43,7 @@ from tyrant.models.game_state import (
     policy_peek,
     president_discard,
     president_veto_response,
+    speak,
 )
 
 TILE_MAP: Final = {"L": PolicyTile.LIBERAL, "F": PolicyTile.FASCIST}
@@ -71,6 +74,18 @@ def _get_legal_actions_nomination(
         )
 
     return tuple(actions)
+
+
+def _get_legal_actions_discussion(
+    state: GameState, player_uid: int
+) -> tuple[Action, ...]:
+    if state.discussion is None or player_uid != state.discussion.current_speaker:
+        return tuple()
+
+    return (
+        SpeakAction(description="Say something to the table"),
+        PassAction(description="Stay silent"),
+    )
 
 
 def _get_legal_actions_voting(state: GameState, player_uid: int) -> tuple[Action, ...]:
@@ -296,6 +311,8 @@ def get_legal_actions(state: GameState, player_uid: int) -> tuple[Action, ...]:
     match state.phase:
         case GamePhase.NOMINATION:
             return _get_legal_actions_nomination(state, player_uid)
+        case GamePhase.DISCUSSION:
+            return _get_legal_actions_discussion(state, player_uid)
         case GamePhase.VOTING:
             return _get_legal_actions_voting(state, player_uid)
         case GamePhase.PRESIDENT_DISCARD:
@@ -350,5 +367,9 @@ def apply_action(state: GameState, action: Action, player_uid: int) -> GameState
             return claim_investigation(state, claim)
         case PresidentVetoResponseAction(approve=approve):
             return president_veto_response(state, approve)
+        case SpeakAction(message=message):
+            return speak(state, player_uid, message)
+        case PassAction():
+            return speak(state, player_uid, None)
         case _:
             raise TyrantError(f"Unrecognized action type: {type(action).__name__}")

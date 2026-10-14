@@ -17,6 +17,7 @@ class GameRunner:
         seed: int | None = None,
         roles: Mapping[int, Role] | None = None,
         shuffle_players: bool = True,
+        discussion_enabled: bool = False,
     ):
         if initial_state is None:
             initial_state = create_game(
@@ -24,6 +25,7 @@ class GameRunner:
                 seed=seed,
                 roles=roles,
                 shuffle_players=shuffle_players,
+                discussion_enabled=discussion_enabled,
             )
         self.state = initial_state
         self.agents = {agent.uid: agent for agent in agents}
