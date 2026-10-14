@@ -1,3 +1,4 @@
+import json
 import re
 from dataclasses import fields, is_dataclass
 from enum import Enum
@@ -225,7 +226,7 @@ def _timeline_line(entry: dict) -> str:
         case "speech":
             if entry["text"] is None:
                 return f"{_player(entry['uid'])} passed."
-            return f'{_player(entry["uid"])} said: "{entry["text"]}"'
+            return f"{_player(entry['uid'])} said: {json.dumps(entry['text'], ensure_ascii=False)}"
         case _:
             return f"Game over: {entry['winner']} win by {entry['condition']}."
 
