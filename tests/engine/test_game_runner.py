@@ -122,6 +122,18 @@ class TestGameRunnerDiscussion(unittest.IsolatedAsyncioTestCase):
         runner = GameRunner(agents=agents, seed=42, discussion_enabled=True)
         self.assertTrue(runner.state.discussion_enabled)
 
+    def test_init_discussion_rounds_default(self):
+        """Verifies that GameRunner defaults to three discussion rounds."""
+        agents = [StubAgent(uid=i, actions_to_play=[]) for i in range(1, 6)]
+        runner = GameRunner(agents=agents, seed=42)
+        self.assertEqual(runner.state.discussion_rounds, 3)
+
+    def test_init_forwards_discussion_rounds(self):
+        """Verifies that GameRunner passes discussion_rounds to create_game."""
+        agents = [StubAgent(uid=i, actions_to_play=[]) for i in range(1, 6)]
+        runner = GameRunner(agents=agents, seed=42, discussion_rounds=5)
+        self.assertEqual(runner.state.discussion_rounds, 5)
+
     async def test_run_completes_game_with_discussion(self):
         """Verifies that random agents finish a game with discussion enabled and leave a transcript."""
         agents = [RandomAgent(uid=i) for i in range(1, 8)]
