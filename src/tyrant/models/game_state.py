@@ -283,7 +283,7 @@ def speak(state: GameState, uid: int, text: str | None) -> GameState:
         raise InvalidMoveError(f"It is not Player {uid}'s turn to speak")
 
     if text is not None:
-        text = " ".join(text.split())[:MAX_SPEECH_LENGTH]
+        text = " ".join(text.split())[:MAX_SPEECH_LENGTH] or None
 
     new_state = replace(
         state,

@@ -2582,6 +2582,14 @@ class TestDiscussionPhase(BaseGameStateTest):
         self.assertEqual(state.messages[0].text, "a" * MAX_SPEECH_LENGTH)
         self.assertEqual(state.events[-1].text, "a" * MAX_SPEECH_LENGTH)
 
+    def test_speak_empty_text_records_pass(self):
+        """Verifies that an empty or whitespace-only speech is recorded as a pass."""
+        for text in ("", " \n\t "):
+            with self.subTest(text=text):
+                state = speak(self._discussing_state(), 1, text)
+                self.assertIsNone(state.messages[0].text)
+                self.assertIsNone(state.events[-1].text)
+
     def test_speak_wrong_speaker(self):
         """Verifies that an error is raised if a player speaks out of turn."""
         with self.assertRaises(InvalidMoveError):
