@@ -62,3 +62,10 @@ class DiscussionContext(StrEnum):
     AFTER_PEEK_CLAIM = auto()
     AFTER_SPECIAL_ELECTION = auto()
     AFTER_EXECUTION = auto()
+
+
+class WinCondition(StrEnum):
+    LIBERAL_POLICIES = auto()
+    FASCIST_POLICIES = auto()
+    HITLER_ELECTED = auto()
+    HITLER_EXECUTED = auto()

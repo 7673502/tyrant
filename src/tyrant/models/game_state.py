@@ -33,11 +33,31 @@ from tyrant.models.enums import (
     PresidentialPower,
     Role,
     Vote,
+    WinCondition,
+)
+from tyrant.models.event import (
+    ClaimEvent,
+    ElectionEvent,
+    Event,
+    ExecutionEvent,
+    GameOverEvent,
+    InvestigationEvent,
+    NominationEvent,
+    PolicyEnactedEvent,
+    SpecialElectionEvent,
+    SpeechEvent,
+    VetoEvent,
 )
 from tyrant.models.player import Player
 
 ROLE_DISTRIBUTION: Final[frozendict[int, tuple[int, int]]] = frozendict(
     {5: (3, 2), 6: (4, 2), 7: (4, 3), 8: (5, 3), 9: (5, 4), 10: (6, 4)}
+)
+POLICY_WIN_CONDITIONS: Final[frozendict[Party, WinCondition]] = frozendict(
+    {
+        Party.LIBERAL: WinCondition.LIBERAL_POLICIES,
+        Party.FASCIST: WinCondition.FASCIST_POLICIES,
+    }
 )
 
 
@@ -70,6 +90,7 @@ class GameState:
     discussion_enabled: bool = False
     discussion: Discussion | None = None
     messages: tuple[Message, ...] = ()
+    events: tuple[Event, ...] = ()
 
 
 def create_game(
@@ -143,6 +164,15 @@ def create_game(
         deck_shuffled_last_action=False,
         current_investigation_result=None,
         discussion_enabled=discussion_enabled,
+    )
+
+
+def _end_game(state: GameState, winner: Party, condition: WinCondition) -> GameState:
+    return replace(
+        state,
+        winner=winner,
+        phase=GamePhase.GAME_OVER,
+        events=state.events + (GameOverEvent(winner=winner, condition=condition),),
     )
 
 
@@ -221,6 +251,8 @@ def speak(state: GameState, uid: int, text: str | None) -> GameState:
         state,
         messages=state.messages
         + (Message(uid=uid, text=text, context=discussion.context),),
+        events=state.events
+        + (SpeechEvent(uid=uid, text=text, context=discussion.context),),
         deck_shuffled_last_action=False,
     )
 
@@ -264,6 +296,10 @@ def nominate_chancellor(state: GameState, chancellor_uid: int) -> GameState:
         phase=GamePhase.VOTING,
         ballot_box=BallotBox(),
         deck_shuffled_last_action=False,
+        events=state.events
+        + (
+            NominationEvent(president_uid=president.uid, chancellor_uid=chancellor_uid),
+        ),
     )
     return _begin_discussion(new_state, DiscussionContext.AFTER_NOMINATION)
 
@@ -287,16 +323,23 @@ def _resolve_election(state: GameState) -> GameState:
     ja_votes = sum(1 for v in state.ballot_box.votes.values() if v == Vote.JA)
     nein_votes = sum(1 for v in state.ballot_box.votes.values() if v == Vote.NEIN)
 
+    election = ElectionEvent(
+        president_uid=state.players[state.president_index].uid,
+        chancellor_uid=state.chancellor,
+        votes=state.ballot_box.votes,
+        result=Vote.JA if ja_votes > nein_votes else Vote.NEIN,
+    )
+    state = replace(state, events=state.events + (election,))
+
     if ja_votes > nein_votes:
         chancellor_uid = state.chancellor
         chancellor = next(p for p in state.players if p.uid == chancellor_uid)
 
         if state.board.hitler_zone and chancellor.role == Role.HITLER:
-            return replace(
-                state,
-                winner=Party.FASCIST,
-                phase=GamePhase.GAME_OVER,
-                deck_shuffled_last_action=False,
+            return _end_game(
+                replace(state, deck_shuffled_last_action=False),
+                Party.FASCIST,
+                WinCondition.HITLER_ELECTED,
             )
 
         state = _ensure_deck_ready(state)
@@ -328,11 +371,19 @@ def _resolve_election(state: GameState) -> GameState:
                 board=new_board,
                 previous_president=None,
                 previous_chancellor=None,
+                events=state.events
+                + (
+                    PolicyEnactedEvent(
+                        policy=tile, president_uid=None, chancellor_uid=None
+                    ),
+                ),
             )
 
             if new_board.winner is not None:
-                return replace(
-                    new_state, winner=new_board.winner, phase=GamePhase.GAME_OVER
+                return _end_game(
+                    new_state,
+                    new_board.winner,
+                    POLICY_WIN_CONDITIONS[new_board.winner],
                 )
 
             return _begin_discussion(
@@ -415,10 +466,20 @@ def chancellor_enact(state: GameState, enact_index: int) -> GameState:
         deck=new_deck,
         drawn_policies=(),
         deck_shuffled_last_action=False,
+        events=state.events
+        + (
+            PolicyEnactedEvent(
+                policy=enacted_tile,
+                president_uid=state.players[state.president_index].uid,
+                chancellor_uid=state.chancellor,
+            ),
+        ),
     )
 
     if new_board.winner is not None:
-        return replace(new_state, phase=GamePhase.GAME_OVER, winner=new_board.winner)
+        return _end_game(
+            new_state, new_board.winner, POLICY_WIN_CONDITIONS[new_board.winner]
+        )
 
     return replace(
         new_state,
@@ -459,6 +520,15 @@ def claim_enact(
     new_state = replace(
         state,
         claims=state.claims + (claim,),
+        events=state.events
+        + (
+            ClaimEvent(
+                claim=claim,
+                president_uid=president_uid,
+                chancellor_uid=chancellor_uid,
+                target_uid=None,
+            ),
+        ),
         pending_president_enact_claim=new_pending_president,
         pending_chancellor_enact_claim=new_pending_chancellor,
         deck_shuffled_last_action=False,
@@ -501,6 +571,13 @@ def president_veto_response(state: GameState, approve: bool) -> GameState:
     if not state.board.veto_power_unlocked:
         raise InvalidMoveError("Veto power is not unlocked")
 
+    veto = VetoEvent(
+        president_uid=state.players[state.president_index].uid,
+        chancellor_uid=state.chancellor,
+        approved=approve,
+    )
+    state = replace(state, events=state.events + (veto,))
+
     if approve:
         new_deck = discard_policies(state.deck, *state.drawn_policies)
         state = replace(state, deck=new_deck)
@@ -522,11 +599,19 @@ def president_veto_response(state: GameState, approve: bool) -> GameState:
                 drawn_policies=(),
                 previous_president=None,
                 previous_chancellor=None,
+                events=state.events
+                + (
+                    PolicyEnactedEvent(
+                        policy=tile, president_uid=None, chancellor_uid=None
+                    ),
+                ),
             )
 
             if new_board.winner is not None:
-                return replace(
-                    new_state, phase=GamePhase.GAME_OVER, winner=new_board.winner
+                return _end_game(
+                    new_state,
+                    new_board.winner,
+                    POLICY_WIN_CONDITIONS[new_board.winner],
                 )
 
         else:
@@ -577,6 +662,8 @@ def investigate_loyalty(state: GameState, target_uid: int) -> GameState:
         deck_shuffled_last_action=False,
         phase=GamePhase.CLAIM_INVESTIGATION,
         current_investigation_result=target.party,
+        events=state.events
+        + (InvestigationEvent(president_uid=investigator_uid, target_uid=target_uid),),
     )
 
 
@@ -593,6 +680,15 @@ def claim_investigation(state: GameState, claim: InvestigationClaim) -> GameStat
         current_investigation_result=None,
         deck_shuffled_last_action=False,
         claims=state.claims + (claim,),
+        events=state.events
+        + (
+            ClaimEvent(
+                claim=claim,
+                president_uid=president_uid,
+                chancellor_uid=None,
+                target_uid=next(reversed(state.investigations), None),
+            ),
+        ),
     )
     return _begin_discussion(
         _advance_to_nomination(new_state), DiscussionContext.AFTER_INVESTIGATION_CLAIM
@@ -619,6 +715,8 @@ def call_special_election(state: GameState, target_uid: int) -> GameState:
         special_election_president=target_uid,
         special_election_caller_index=state.president_index,
         deck_shuffled_last_action=False,
+        events=state.events
+        + (SpecialElectionEvent(president_uid=president_uid, target_uid=target_uid),),
     )
 
     return _begin_discussion(
@@ -651,6 +749,15 @@ def claim_peek(state: GameState, claim: PeekClaim) -> GameState:
         drawn_policies=(),
         deck_shuffled_last_action=False,
         claims=state.claims + (claim,),
+        events=state.events
+        + (
+            ClaimEvent(
+                claim=claim,
+                president_uid=president_uid,
+                chancellor_uid=None,
+                target_uid=None,
+            ),
+        ),
     )
 
     return _begin_discussion(
@@ -679,15 +786,18 @@ def execute_player(state: GameState, target_uid: int) -> GameState:
             new_players[i] = replace(p, is_alive=False)
 
     new_state = replace(
-        state, players=tuple(new_players), deck_shuffled_last_action=False
+        state,
+        players=tuple(new_players),
+        deck_shuffled_last_action=False,
+        events=state.events
+        + (ExecutionEvent(president_uid=president_uid, target_uid=target_uid),),
     )
 
     if target.role == Role.HITLER:
-        return replace(
-            new_state,
-            phase=GamePhase.GAME_OVER,
-            winner=Party.LIBERAL,
-            active_power=PresidentialPower.NONE,
+        return _end_game(
+            replace(new_state, active_power=PresidentialPower.NONE),
+            Party.LIBERAL,
+            WinCondition.HITLER_EXECUTED,
         )
 
     return _begin_discussion(
