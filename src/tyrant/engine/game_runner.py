@@ -44,7 +44,7 @@ class GameRunner:
         discussion_enabled: bool = False,
         discussion_rounds: int = 3,
         max_retries: int = 2,
-        timeout: float | None = None,
+        timeout: float | None = 120.0,
     ):
         if initial_state is None:
             initial_state = create_game(
