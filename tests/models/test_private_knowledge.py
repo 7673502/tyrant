@@ -1,6 +1,7 @@
 import unittest
 from dataclasses import replace
 
+from tests.scripted_game import play_first_legal_actions
 from tyrant.models.enums import GamePhase, Party, PolicyTile, PresidentialPower, Vote
 from tyrant.models.game_state import (
     GameState,
@@ -122,6 +123,46 @@ class TestPrivateKnowledge(unittest.TestCase):
         )
         self.assertEqual(scrub_state(state, 2).knowledge, (state.knowledge[1],))
         self.assertEqual(scrub_state(state, 3).knowledge, ())
+
+
+class TestPrivateKnowledgeLeaks(unittest.TestCase):
+    def test_scripted_games_never_leak_knowledge(self):
+        """Verifies that no viewer ever sees another player's knowledge during full games."""
+        for player_count in (5, 7, 9):
+            for discussion_enabled in (False, True):
+                with self.subTest(
+                    player_count=player_count, discussion_enabled=discussion_enabled
+                ):
+                    uids = tuple(range(1, player_count + 1))
+                    states = play_first_legal_actions(
+                        create_game(uids, 42, discussion_enabled=discussion_enabled)
+                    )
+                    for state in states:
+                        for uid in uids:
+                            scrubbed = scrub_state(state, uid).knowledge
+                            self.assertTrue(all(k.uid == uid for k in scrubbed))
+                            self.assertEqual(
+                                scrubbed,
+                                tuple(k for k in state.knowledge if k.uid == uid),
+                            )
+
+    def test_scripted_games_record_every_knowledge_type(self):
+        """Verifies that the scripted games used for leak checks cover every knowledge type."""
+        recorded = set()
+        for player_count in (5, 7):
+            final = play_first_legal_actions(
+                create_game(tuple(range(1, player_count + 1)), 42)
+            )[-1]
+            recorded |= {type(k) for k in final.knowledge}
+        self.assertEqual(
+            recorded,
+            {
+                PresidentDrawKnowledge,
+                ChancellorReceiveKnowledge,
+                PeekKnowledge,
+                InvestigationKnowledge,
+            },
+        )
 
 
 if __name__ == "__main__":
