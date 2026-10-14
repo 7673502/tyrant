@@ -148,12 +148,15 @@ class TestRenderDict(unittest.TestCase):
         self.assertEqual(turn["awaiting"], [state.discussion.current_speaker])
 
     def test_render_dict_discussion_round(self):
-        """Verifies that the discussion round and round count are reported during discussion."""
+        """Verifies that the discussion context, round and round count are reported during discussion."""
         state = _nominated(replace(self.state, discussion_enabled=True))
         for uid in state.discussion.speaker_order:
             state = speak(state, uid, None)
         turn = render_dict(scrub_state(state, 1), 1)["turn"]
-        self.assertEqual(turn["discussion"], {"round": 2, "rounds": 3})
+        self.assertEqual(
+            turn["discussion"],
+            {"context": "after_nomination", "round": 2, "rounds": 3},
+        )
 
     def test_render_dict_no_discussion(self):
         """Verifies that the discussion entry is None outside of discussion."""
@@ -245,6 +248,15 @@ class TestRenderText(unittest.TestCase):
             "- Discussion round: 1 of 3\n", render_text(scrub_state(state, 1), 1)
         )
         self.assertNotIn("Discussion round", render_text(scrub_state(self.state, 1), 1))
+
+    def test_render_text_discussion_topic(self):
+        """Verifies that the current turn shows the discussion topic only during discussion."""
+        state = _nominated(replace(self.state, discussion_enabled=True))
+        self.assertIn(
+            "- Discussion topic: after_nomination\n",
+            render_text(scrub_state(state, 1), 1),
+        )
+        self.assertNotIn("Discussion topic", render_text(scrub_state(self.state, 1), 1))
 
     def test_render_text_empty_logs(self):
         """Verifies that empty timelines and knowledge render placeholder lines."""
