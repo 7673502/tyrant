@@ -1,5 +1,8 @@
+import asyncio
 import copy
+import json
 import unittest
+from random import Random
 
 from tyrant.engine.prompt import (
     RESPONSE_FORMAT,
@@ -9,15 +12,17 @@ from tyrant.engine.prompt import (
     parse_action,
     render_actions,
 )
+from tyrant.engine.game_runner import GameRunner
 from tyrant.engine.renderer import render_text
 from tyrant.engine.router import apply_action, get_legal_actions
 from tyrant.exceptions import InvalidMoveError
-from tyrant.models.action import PassAction, SpeakAction, VoteAction
+from tyrant.models.action import Action, PassAction, SpeakAction, VoteAction
 from tyrant.models.discussion import MAX_SPEECH_LENGTH
 from tyrant.models.enums import GamePhase, Vote, WinCondition
 from tyrant.models.game_state import GameState, create_game, scrub_state
 
 UIDS = (1, 2, 3, 4, 5)
+SEEDS = (0, 1, 2)
 VOTE_ACTIONS = (
     VoteAction(description="Vote JA", vote=Vote.JA),
     VoteAction(description="Vote NEIN", vote=Vote.NEIN),
@@ -38,6 +43,22 @@ def _discussion_state() -> GameState:
         )
         state = apply_action(state, action, uid)
     return state
+
+
+class FakeLLMAgent:
+    """Builds a prompt and answers with canned JSON naming a random option."""
+
+    def __init__(self, uid: int, seed: int):
+        self.uid = uid
+        self.rng = Random(seed * len(UIDS) + uid)
+
+    async def choose_action(
+        self, state: GameState, valid_actions: tuple[Action, ...]
+    ) -> Action:
+        prompt = build_prompt(state, self.uid, valid_actions)
+        number = self.rng.randrange(len(valid_actions)) + 1
+        reply = {"action": number, "message": f"Prompt had {len(prompt)} characters."}
+        return parse_action(f"Thinking it over.\n{json.dumps(reply)}", valid_actions)
 
 
 class TestSystemPrompt(unittest.TestCase):
@@ -171,3 +192,15 @@ class TestParseAction(unittest.TestCase):
             with self.subTest(response=response):
                 with self.assertRaises(InvalidMoveError):
                     parse_action(response, DISCUSSION_ACTIONS)
+
+
+class TestPromptGame(unittest.TestCase):
+    def test_prompted_games_finish_without_faults(self):
+        """Verifies that agents answering through build_prompt and parse_action finish games with no faults."""
+        for seed in SEEDS:
+            with self.subTest(seed=seed):
+                agents = [FakeLLMAgent(uid, seed) for uid in UIDS]
+                runner = GameRunner(agents, seed=seed, discussion_enabled=True)
+                state = asyncio.run(runner.run())
+                self.assertEqual(state.phase, GamePhase.GAME_OVER)
+                self.assertEqual(runner.faults, ())
