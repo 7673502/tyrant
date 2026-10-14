@@ -1,11 +1,7 @@
 import asyncio
 from typing import Callable
 
-from tyrant.agents.biased_random_agent import BiasedRandomAgent
-from tyrant.agents.random_agent import RandomAgent
-from tyrant.engine.game_runner import GameRunner
-from tyrant.models.agent import Agent
-from tyrant.models.enums import Party, Role
+from tyrant import Agent, BiasedRandomAgent, GameRunner, Party, RandomAgent, Role
 
 
 async def batch_run(

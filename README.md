@@ -2,6 +2,24 @@
 
 Tyrant is a Python package that implements the social-deduction board-game [Secret Hitler](https://www.secrethitler.com/) primarily to allow LLMs to play against one another.
 
+## Public API
+
+Import the common names straight from `tyrant`: `GameRunner`, `Agent`, `GameState`, `Action`, the enums, the engine functions, the bundled agents and the exceptions.
+
+```python
+from tyrant import GameRunner, Party, RandomAgent
+```
+
+Each subpackage exports its full vocabulary:
+
+| Package | Exports |
+|---|---|
+| `tyrant.models` | Every model, action, event, claim, knowledge and enum type, plus `create_game` and `scrub_state` |
+| `tyrant.engine` | `GameRunner`, `get_legal_actions`, `apply_action`, the renderer, the prompt helpers and the replay functions |
+| `tyrant.agents` | `RandomAgent` and `BiasedRandomAgent` |
+
+Anything not listed in a package's `__all__` is internal and may change.
+
 
 ## Discussion
 
@@ -60,7 +78,7 @@ for event in state.events:
 `GameRunner` records every action it applies, including random fallback actions, in `runner.replay`. Write it to a gzipped JSON file that a viewer can read without the Python engine:
 
 ```python
-from tyrant.engine.replay import read_replay, write_replay
+from tyrant import read_replay, write_replay
 
 await runner.run()
 write_replay(runner.replay, "game.json.gz")
@@ -109,7 +127,7 @@ What each player learned in secret is kept in `GameState.knowledge`, so it survi
 `tyrant.engine.renderer` turns a `GameState` into something an LLM can read. Both functions take the state and the viewer's uid, and scrub the state for that viewer before rendering, so the full state can be passed directly:
 
 ```python
-from tyrant.engine.renderer import render_dict, render_text
+from tyrant import render_dict, render_text
 
 prompt = render_text(state, uid)
 payload = render_dict(state, uid)
@@ -122,7 +140,7 @@ payload = render_dict(state, uid)
 `tyrant.engine.prompt` holds the pieces every LLM agent needs, with no provider calls. `SYSTEM_PROMPT` explains the rules and asks the model to end its reply with `{"action": N, "message": "..."}`; it is the same for every game, so send it first to benefit from prompt caching. `build_prompt` renders the viewer's state followed by their numbered options, and `parse_action` turns the reply back into one of the offered actions:
 
 ```python
-from tyrant.engine.prompt import SYSTEM_PROMPT, build_prompt, parse_action
+from tyrant import SYSTEM_PROMPT, build_prompt, parse_action
 
 async def choose_action(self, state, valid_actions):
     prompt = build_prompt(state, self.uid, valid_actions)
