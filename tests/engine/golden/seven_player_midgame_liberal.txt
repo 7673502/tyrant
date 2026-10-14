@@ -1,0 +1,61 @@
+# Secret Hitler: Player 7's view
+
+## You
+- Player 7
+- Role: liberal
+- Party: liberal
+- Status: alive
+- Known teammates: none
+
+## Players
+In seat order:
+- Player 4: party unknown, role unknown, alive
+- Player 7 (you): party liberal, role liberal, alive
+- Player 3: party unknown, role unknown, alive
+- Player 5: party unknown, role unknown, alive
+- Player 1: party unknown, role unknown, alive
+- Player 6: party unknown, role unknown, alive
+- Player 2: party unknown, role unknown, alive
+
+## Board
+- Liberal policies: 1/5
+- Fascist policies: 2/6
+- Fascist track: none, investigate_loyalty, call_special_election, execution, execution, none
+- Election tracker: 0/3
+- Hitler zone: no
+- Veto unlocked: no
+- Draw pile: 8, discard pile: 6
+
+## Government
+- President: Player 5
+- Chancellor: Player 7
+- Previous president: Player 3
+- Previous chancellor: Player 4
+
+## Current Turn
+- Phase: voting
+- Waiting on: Player 7, Player 3, Player 5, Player 1, Player 6, Player 2
+
+## Timeline
+1. President Player 4 nominated Player 7 for chancellor.
+2. Election of President Player 4 and Chancellor Player 7 passed (ja: Player 4, Player 7, Player 3, Player 5, Player 1, Player 6, Player 2; nein: none).
+3. President Player 4 and Chancellor Player 7 enacted a liberal policy.
+4. President Player 4 claimed drawing liberal, liberal, liberal.
+5. Chancellor Player 7 claimed receiving liberal, liberal.
+6. President Player 7 nominated Player 3 for chancellor.
+7. Election of President Player 7 and Chancellor Player 3 passed (ja: Player 4, Player 7, Player 3, Player 5, Player 1, Player 6, Player 2; nein: none).
+8. President Player 7 and Chancellor Player 3 enacted a fascist policy.
+9. President Player 7 claimed drawing liberal, liberal, liberal.
+10. Chancellor Player 3 claimed receiving liberal, liberal.
+11. President Player 3 nominated Player 4 for chancellor.
+12. Election of President Player 3 and Chancellor Player 4 passed (ja: Player 4, Player 7, Player 3, Player 5, Player 1, Player 6, Player 2; nein: none).
+13. President Player 3 and Chancellor Player 4 enacted a fascist policy.
+14. Chancellor Player 4 claimed receiving liberal, liberal.
+15. President Player 3 claimed drawing liberal, liberal, liberal.
+16. President Player 3 investigated Player 4.
+17. President Player 3 claimed Player 4 is liberal.
+18. President Player 5 nominated Player 7 for chancellor.
+
+## Private Knowledge
+- As chancellor under President Player 4, you received liberal, fascist.
+- As president with Chancellor Player 3, you drew liberal, fascist, fascist.

@@ -58,6 +58,20 @@ What each player learned in secret is kept in `GameState.knowledge`, so it survi
 
 `scrub_state` keeps only the viewer's own entries, so an agent never sees what another player learned.
 
+## Rendering state for prompts
+
+`tyrant.engine.renderer` turns a scrubbed `GameState` into something an LLM can read. Both functions take the scrubbed state and the viewer's uid:
+
+```python
+from tyrant.engine.renderer import render_dict, render_text
+
+scrubbed = scrub_state(state, uid)
+prompt = render_text(scrubbed, uid)
+payload = render_dict(scrubbed, uid)
+```
+
+`render_dict` returns plain `dict`, `list`, `str`, `int`, `bool` and `None` values, so it can be passed straight to `json.dumps`. `render_text` builds Markdown from the same dict, with sections for the viewer's role and known teammates, the players, the board and election tracker, the government, the current phase and who must act, a numbered timeline of public events and discussion, and the viewer's private knowledge. Hidden values always render as `unknown`.
+
 ## Agent Resilience
 
 `GameRunner` only applies actions that were offered to the agent. An action matches an offered one when it has the same type and the same identifying fields; `description` and `SpeakAction.message` are ignored, since the agent may fill them in.

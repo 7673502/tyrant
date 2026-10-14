@@ -1,0 +1,547 @@
+{
+  "viewer": {
+    "uid": 4,
+    "role": "liberal",
+    "party": "liberal",
+    "alive": false,
+    "teammates": []
+  },
+  "players": [
+    {
+      "uid": 4,
+      "party": "liberal",
+      "role": "liberal",
+      "alive": false
+    },
+    {
+      "uid": 3,
+      "party": "unknown",
+      "role": "unknown",
+      "alive": false
+    },
+    {
+      "uid": 1,
+      "party": "unknown",
+      "role": "unknown",
+      "alive": true
+    },
+    {
+      "uid": 5,
+      "party": "unknown",
+      "role": "unknown",
+      "alive": true
+    },
+    {
+      "uid": 2,
+      "party": "unknown",
+      "role": "unknown",
+      "alive": true
+    }
+  ],
+  "board": {
+    "liberal_policies": 2,
+    "liberal_policies_to_win": 5,
+    "fascist_policies": 6,
+    "fascist_policies_to_win": 6,
+    "fascist_track": [
+      "none",
+      "none",
+      "policy_peek",
+      "execution",
+      "execution",
+      "none"
+    ],
+    "election_tracker": 0,
+    "failures_until_top_deck": 3,
+    "hitler_zone": true,
+    "veto_unlocked": true,
+    "draw_pile": 3,
+    "discard_pile": 6
+  },
+  "government": {
+    "president": 5,
+    "chancellor": 1,
+    "previous_president": 5,
+    "previous_chancellor": 1
+  },
+  "turn": {
+    "phase": "game_over",
+    "awaiting": [],
+    "active_power": "none",
+    "hand": [],
+    "winner": "fascist"
+  },
+  "timeline": [
+    {
+      "type": "nomination",
+      "president_uid": 4,
+      "chancellor_uid": 3
+    },
+    {
+      "type": "election",
+      "president_uid": 4,
+      "chancellor_uid": 3,
+      "votes": {
+        "4": "ja",
+        "3": "ja",
+        "1": "ja",
+        "5": "ja",
+        "2": "ja"
+      },
+      "result": "ja"
+    },
+    {
+      "type": "policy_enacted",
+      "policy": "fascist",
+      "president_uid": 4,
+      "chancellor_uid": 3
+    },
+    {
+      "type": "claim",
+      "claim": {
+        "type": "president_enact",
+        "uid": 4,
+        "policies": [
+          "liberal",
+          "liberal",
+          "liberal"
+        ]
+      },
+      "president_uid": 4,
+      "chancellor_uid": 3,
+      "target_uid": null
+    },
+    {
+      "type": "claim",
+      "claim": {
+        "type": "chancellor_enact",
+        "uid": 3,
+        "policies": [
+          "liberal",
+          "liberal"
+        ]
+      },
+      "president_uid": 4,
+      "chancellor_uid": 3,
+      "target_uid": null
+    },
+    {
+      "type": "nomination",
+      "president_uid": 3,
+      "chancellor_uid": 4
+    },
+    {
+      "type": "election",
+      "president_uid": 3,
+      "chancellor_uid": 4,
+      "votes": {
+        "4": "ja",
+        "3": "ja",
+        "1": "ja",
+        "5": "ja",
+        "2": "ja"
+      },
+      "result": "ja"
+    },
+    {
+      "type": "policy_enacted",
+      "policy": "liberal",
+      "president_uid": 3,
+      "chancellor_uid": 4
+    },
+    {
+      "type": "claim",
+      "claim": {
+        "type": "chancellor_enact",
+        "uid": 4,
+        "policies": [
+          "liberal",
+          "liberal"
+        ]
+      },
+      "president_uid": 3,
+      "chancellor_uid": 4,
+      "target_uid": null
+    },
+    {
+      "type": "claim",
+      "claim": {
+        "type": "president_enact",
+        "uid": 3,
+        "policies": [
+          "liberal",
+          "liberal",
+          "liberal"
+        ]
+      },
+      "president_uid": 3,
+      "chancellor_uid": 4,
+      "target_uid": null
+    },
+    {
+      "type": "nomination",
+      "president_uid": 1,
+      "chancellor_uid": 3
+    },
+    {
+      "type": "election",
+      "president_uid": 1,
+      "chancellor_uid": 3,
+      "votes": {
+        "4": "ja",
+        "3": "ja",
+        "1": "ja",
+        "5": "ja",
+        "2": "ja"
+      },
+      "result": "ja"
+    },
+    {
+      "type": "policy_enacted",
+      "policy": "fascist",
+      "president_uid": 1,
+      "chancellor_uid": 3
+    },
+    {
+      "type": "claim",
+      "claim": {
+        "type": "chancellor_enact",
+        "uid": 3,
+        "policies": [
+          "liberal",
+          "liberal"
+        ]
+      },
+      "president_uid": 1,
+      "chancellor_uid": 3,
+      "target_uid": null
+    },
+    {
+      "type": "claim",
+      "claim": {
+        "type": "president_enact",
+        "uid": 1,
+        "policies": [
+          "liberal",
+          "liberal",
+          "liberal"
+        ]
+      },
+      "president_uid": 1,
+      "chancellor_uid": 3,
+      "target_uid": null
+    },
+    {
+      "type": "nomination",
+      "president_uid": 5,
+      "chancellor_uid": 4
+    },
+    {
+      "type": "election",
+      "president_uid": 5,
+      "chancellor_uid": 4,
+      "votes": {
+        "4": "ja",
+        "3": "ja",
+        "1": "ja",
+        "5": "ja",
+        "2": "ja"
+      },
+      "result": "ja"
+    },
+    {
+      "type": "policy_enacted",
+      "policy": "liberal",
+      "president_uid": 5,
+      "chancellor_uid": 4
+    },
+    {
+      "type": "claim",
+      "claim": {
+        "type": "chancellor_enact",
+        "uid": 4,
+        "policies": [
+          "liberal",
+          "liberal"
+        ]
+      },
+      "president_uid": 5,
+      "chancellor_uid": 4,
+      "target_uid": null
+    },
+    {
+      "type": "claim",
+      "claim": {
+        "type": "president_enact",
+        "uid": 5,
+        "policies": [
+          "liberal",
+          "liberal",
+          "liberal"
+        ]
+      },
+      "president_uid": 5,
+      "chancellor_uid": 4,
+      "target_uid": null
+    },
+    {
+      "type": "nomination",
+      "president_uid": 2,
+      "chancellor_uid": 3
+    },
+    {
+      "type": "election",
+      "president_uid": 2,
+      "chancellor_uid": 3,
+      "votes": {
+        "4": "ja",
+        "3": "ja",
+        "1": "ja",
+        "5": "ja",
+        "2": "ja"
+      },
+      "result": "ja"
+    },
+    {
+      "type": "policy_enacted",
+      "policy": "fascist",
+      "president_uid": 2,
+      "chancellor_uid": 3
+    },
+    {
+      "type": "claim",
+      "claim": {
+        "type": "chancellor_enact",
+        "uid": 3,
+        "policies": [
+          "liberal",
+          "liberal"
+        ]
+      },
+      "president_uid": 2,
+      "chancellor_uid": 3,
+      "target_uid": null
+    },
+    {
+      "type": "claim",
+      "claim": {
+        "type": "president_enact",
+        "uid": 2,
+        "policies": [
+          "liberal",
+          "liberal",
+          "liberal"
+        ]
+      },
+      "president_uid": 2,
+      "chancellor_uid": 3,
+      "target_uid": null
+    },
+    {
+      "type": "claim",
+      "claim": {
+        "type": "peek",
+        "uid": 2,
+        "policies": [
+          "liberal",
+          "liberal",
+          "liberal"
+        ]
+      },
+      "president_uid": 2,
+      "chancellor_uid": null,
+      "target_uid": null
+    },
+    {
+      "type": "nomination",
+      "president_uid": 4,
+      "chancellor_uid": 1
+    },
+    {
+      "type": "election",
+      "president_uid": 4,
+      "chancellor_uid": 1,
+      "votes": {
+        "4": "ja",
+        "3": "ja",
+        "1": "ja",
+        "5": "ja",
+        "2": "ja"
+      },
+      "result": "ja"
+    },
+    {
+      "type": "policy_enacted",
+      "policy": "fascist",
+      "president_uid": 4,
+      "chancellor_uid": 1
+    },
+    {
+      "type": "claim",
+      "claim": {
+        "type": "president_enact",
+        "uid": 4,
+        "policies": [
+          "liberal",
+          "liberal",
+          "liberal"
+        ]
+      },
+      "president_uid": 4,
+      "chancellor_uid": 1,
+      "target_uid": null
+    },
+    {
+      "type": "claim",
+      "claim": {
+        "type": "chancellor_enact",
+        "uid": 1,
+        "policies": [
+          "liberal",
+          "liberal"
+        ]
+      },
+      "president_uid": 4,
+      "chancellor_uid": 1,
+      "target_uid": null
+    },
+    {
+      "type": "execution",
+      "president_uid": 4,
+      "target_uid": 3
+    },
+    {
+      "type": "nomination",
+      "president_uid": 1,
+      "chancellor_uid": 4
+    },
+    {
+      "type": "election",
+      "president_uid": 1,
+      "chancellor_uid": 4,
+      "votes": {
+        "4": "ja",
+        "1": "ja",
+        "5": "ja",
+        "2": "ja"
+      },
+      "result": "ja"
+    },
+    {
+      "type": "policy_enacted",
+      "policy": "fascist",
+      "president_uid": 1,
+      "chancellor_uid": 4
+    },
+    {
+      "type": "claim",
+      "claim": {
+        "type": "chancellor_enact",
+        "uid": 4,
+        "policies": [
+          "liberal",
+          "liberal"
+        ]
+      },
+      "president_uid": 1,
+      "chancellor_uid": 4,
+      "target_uid": null
+    },
+    {
+      "type": "claim",
+      "claim": {
+        "type": "president_enact",
+        "uid": 1,
+        "policies": [
+          "liberal",
+          "liberal",
+          "liberal"
+        ]
+      },
+      "president_uid": 1,
+      "chancellor_uid": 4,
+      "target_uid": null
+    },
+    {
+      "type": "execution",
+      "president_uid": 1,
+      "target_uid": 4
+    },
+    {
+      "type": "nomination",
+      "president_uid": 5,
+      "chancellor_uid": 1
+    },
+    {
+      "type": "election",
+      "president_uid": 5,
+      "chancellor_uid": 1,
+      "votes": {
+        "1": "ja",
+        "5": "ja",
+        "2": "ja"
+      },
+      "result": "ja"
+    },
+    {
+      "type": "policy_enacted",
+      "policy": "fascist",
+      "president_uid": 5,
+      "chancellor_uid": 1
+    },
+    {
+      "type": "game_over",
+      "winner": "fascist",
+      "condition": "fascist_policies"
+    }
+  ],
+  "knowledge": [
+    {
+      "type": "president_draw",
+      "uid": 4,
+      "chancellor_uid": 3,
+      "policies": [
+        "liberal",
+        "fascist",
+        "liberal"
+      ]
+    },
+    {
+      "type": "chancellor_receive",
+      "uid": 4,
+      "president_uid": 3,
+      "policies": [
+        "liberal",
+        "liberal"
+      ]
+    },
+    {
+      "type": "chancellor_receive",
+      "uid": 4,
+      "president_uid": 5,
+      "policies": [
+        "liberal",
+        "fascist"
+      ]
+    },
+    {
+      "type": "president_draw",
+      "uid": 4,
+      "chancellor_uid": 1,
+      "policies": [
+        "fascist",
+        "fascist",
+        "fascist"
+      ]
+    },
+    {
+      "type": "chancellor_receive",
+      "uid": 4,
+      "president_uid": 1,
+      "policies": [
+        "fascist",
+        "fascist"
+      ]
+    }
+  ]
+}
