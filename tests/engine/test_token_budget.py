@@ -4,7 +4,7 @@ from dataclasses import replace
 from random import Random
 
 from tyrant.engine.game_runner import GameRunner
-from tyrant.engine.renderer import render_text
+from tyrant.engine.prompt import SYSTEM_PROMPT, build_prompt
 from tyrant.models.action import Action, SpeakAction
 from tyrant.models.discussion import MAX_SPEECH_LENGTH
 from tyrant.models.game_state import GameState
@@ -29,7 +29,8 @@ class TokenCountingAgent:
     async def choose_action(
         self, state: GameState, valid_actions: tuple[Action, ...]
     ) -> Action:
-        self.prompts.append(len(render_text(state, self.uid)) // CHARS_PER_TOKEN)
+        prompt = SYSTEM_PROMPT + build_prompt(state, self.uid, valid_actions)
+        self.prompts.append(len(prompt) // CHARS_PER_TOKEN)
         speak = next((a for a in valid_actions if isinstance(a, SpeakAction)), None)
         if speak is None:
             return self.rng.choice(valid_actions)
