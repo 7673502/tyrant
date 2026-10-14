@@ -1,8 +1,6 @@
 import asyncio
 
-from tyrant.agents.random_agent import RandomAgent
-from tyrant.engine.game_runner import GameRunner
-from tyrant.models.enums import Party
+from tyrant import GameRunner, Party, RandomAgent
 
 
 async def main():

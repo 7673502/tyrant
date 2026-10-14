@@ -2,10 +2,8 @@ import asyncio
 import random
 from dataclasses import replace
 
-from tyrant.engine.game_runner import GameRunner
-from tyrant.models.action import Action, SpeakAction
-from tyrant.models.event import SpeechEvent
-from tyrant.models.game_state import GameState
+from tyrant import GameRunner, GameState
+from tyrant.models import Action, SpeakAction, SpeechEvent
 
 
 class ChattyAgent:
