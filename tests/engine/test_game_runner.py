@@ -4,7 +4,7 @@ from dataclasses import replace
 
 from tyrant.agents.random_agent import RandomAgent
 from tyrant.engine.game_runner import GameRunner, _is_offered
-from tyrant.engine.router import get_legal_actions
+from tyrant.engine.router import apply_action, get_legal_actions
 from tyrant.exceptions import InvalidMoveError, TyrantError
 from tyrant.models.action import (
     Action,
@@ -17,6 +17,7 @@ from tyrant.models.action import (
 from tyrant.models.agent_fault import AgentFault
 from tyrant.models.enums import HIDDEN, GamePhase, Vote
 from tyrant.models.game_state import GameState, create_game
+from tyrant.models.replay import Replay
 
 
 class StubAgent:
@@ -445,6 +446,40 @@ class TestGameRunnerRun(unittest.IsolatedAsyncioTestCase):
         final_state = await runner.run()
 
         self.assertEqual(final_state.phase, GamePhase.GAME_OVER)
+
+
+def _replayed(replay: Replay) -> GameState:
+    state = replay.initial_state
+    for step in replay.steps:
+        state = apply_action(state, step.action, step.uid)
+    return state
+
+
+class TestGameRunnerReplay(unittest.IsolatedAsyncioTestCase):
+    def test_init_replay_starts_from_initial_state(self):
+        """Verifies that the replay starts empty from the runner's initial state."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        agents = [StubAgent(uid=i, actions_to_play=[]) for i in range(1, 6)]
+        runner = GameRunner(agents=agents, initial_state=state)
+        self.assertIs(runner.replay.initial_state, state)
+        self.assertEqual(runner.replay.steps, ())
+
+    async def test_run_replay_reproduces_final_state(self):
+        """Verifies that replaying the recorded steps reproduces the final state with discussion."""
+        agents = [RandomAgent(uid=i) for i in range(1, 8)]
+        runner = GameRunner(agents=agents, seed=42, discussion_enabled=True)
+        final_state = await runner.run()
+        self.assertEqual(_replayed(runner.replay), final_state)
+
+    async def test_run_replay_records_fallback_actions(self):
+        """Verifies that replaying the recorded steps reproduces the final state after fallbacks."""
+        agents = [RaisingAgent(uid=i) for i in range(1, 6)]
+        runner = GameRunner(agents=agents, seed=42, max_retries=0)
+
+        with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
+            final_state = await runner.run()
+
+        self.assertEqual(_replayed(runner.replay), final_state)
 
 
 if __name__ == "__main__":

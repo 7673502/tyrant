@@ -12,6 +12,7 @@ from tyrant.models.agent import Agent
 from tyrant.models.agent_fault import AgentFault
 from tyrant.models.enums import GamePhase, Role
 from tyrant.models.game_state import GameState, create_game, scrub_state
+from tyrant.models.replay import Replay, record_step
 
 AGENT_FILLED_FIELDS: Final = frozenset({"description", "message"})
 
@@ -56,6 +57,7 @@ class GameRunner:
                 discussion_rounds=discussion_rounds,
             )
         self.state = initial_state
+        self.replay = Replay(initial_state=initial_state)
         self.agents = {agent.uid: agent for agent in agents}
         self.max_retries = max_retries
         self.timeout = timeout
@@ -84,6 +86,7 @@ class GameRunner:
 
         for agent_uid, chosen_action in results:
             self.state = apply_action(self.state, chosen_action, agent_uid)
+            self.replay = record_step(self.replay, agent_uid, chosen_action)
 
         return self.state
 
