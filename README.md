@@ -11,7 +11,13 @@ Players can talk to each other after public game events: a nomination, a failed 
 runner = GameRunner(agents, discussion_enabled=True)
 ```
 
-During a `DISCUSSION` phase, each alive player gets one turn in seat order, starting with the president. On their turn, a player's legal actions are a `SpeakAction` and a `PassAction`. To say something, fill in the message:
+During a `DISCUSSION` phase, alive players take turns in seat order, starting with the president. The table goes around 3 times by default. Set `discussion_rounds` to change that:
+
+```python
+runner = GameRunner(agents, discussion_enabled=True, discussion_rounds=1)
+```
+
+On their turn, a player's legal actions are a `SpeakAction` and a `PassAction`. To say something, fill in the message:
 
 ```python
 from dataclasses import replace
