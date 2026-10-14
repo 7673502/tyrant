@@ -20,3 +20,27 @@ return replace(speak_action, message="I'm a liberal, I swear.")
 ```
 
 The full public transcript is kept in `GameState.messages`. Each `Message` is tagged with the `DiscussionContext` that triggered it, and a pass is recorded with `text=None`. See `examples/discussion.py`.
+
+## Event log
+
+Every public game event is appended to `GameState.events`, in order. Each entry is a frozen subclass of `Event`:
+
+| Event | Recorded when |
+|---|---|
+| `NominationEvent` | The president nominates a chancellor |
+| `ElectionEvent` | An election resolves, with every player's vote and the result |
+| `PolicyEnactedEvent` | A policy is enacted, with its president and chancellor, or with both set to `None` for a top-deck |
+| `VetoEvent` | The president approves or denies a chancellor's veto |
+| `ClaimEvent` | A player makes a claim, linked to its government or power, and to its target for an investigation |
+| `InvestigationEvent`, `SpecialElectionEvent`, `ExecutionEvent` | A presidential power is used, with the president and target |
+| `SpeechEvent` | A player speaks or passes during discussion |
+| `GameOverEvent` | The game ends, with the winner and the `WinCondition` |
+
+The log is fully public, so `scrub_state` passes it through unchanged. Match on the event type to read it:
+
+```python
+for event in state.events:
+    match event:
+        case ElectionEvent(votes=votes, result=result):
+            ...
+```
