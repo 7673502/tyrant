@@ -23,5 +23,9 @@ class Discussion:
         return self.speaker_order[self.turn % len(self.speaker_order)]
 
     @property
+    def current_round(self) -> int:
+        return self.turn // len(self.speaker_order) + 1
+
+    @property
     def is_complete(self) -> bool:
         return self.turn >= self.rounds * len(self.speaker_order)

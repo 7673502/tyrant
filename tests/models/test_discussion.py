@@ -58,6 +58,19 @@ class TestDiscussion(unittest.TestCase):
         self.assertEqual(replace(discussion, turn=3).current_speaker, 3)
         self.assertEqual(replace(discussion, turn=5).current_speaker, 2)
 
+    def test_discussion_current_round(self):
+        """Test that current_round starts at one and advances after each full pass."""
+        discussion = Discussion(
+            context=DiscussionContext.AFTER_NOMINATION,
+            resume_phase=GamePhase.VOTING,
+            speaker_order=(3, 1, 2),
+            rounds=3,
+        )
+        self.assertEqual(discussion.current_round, 1)
+        self.assertEqual(replace(discussion, turn=2).current_round, 1)
+        self.assertEqual(replace(discussion, turn=3).current_round, 2)
+        self.assertEqual(replace(discussion, turn=8).current_round, 3)
+
     def test_discussion_is_complete(self):
         """Test that is_complete is true only once every round has finished."""
         discussion = Discussion(
