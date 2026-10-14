@@ -1,6 +1,9 @@
 from typing import Final
 
+from tyrant.engine.renderer import render_text
+from tyrant.models.action import Action, SpeakAction
 from tyrant.models.discussion import MAX_SPEECH_LENGTH
+from tyrant.models.game_state import GameState
 
 RULES: Final[str] = """# Secret Hitler Rules
 
@@ -60,3 +63,19 @@ Think through your decision in plain text first if you want. Then end your reply
 """
 
 SYSTEM_PROMPT: Final[str] = RULES + "\n" + RESPONSE_FORMAT
+
+
+def render_actions(valid_actions: tuple[Action, ...]) -> str:
+    """Returns a Markdown section listing the valid actions as numbered options."""
+    lines = ["## Your Options"]
+    for number, action in enumerate(valid_actions, start=1):
+        note = " (include a `message`)" if isinstance(action, SpeakAction) else ""
+        lines.append(f"{number}. {action.description}{note}")
+    return "\n".join(lines)
+
+
+def build_prompt(
+    state: GameState, viewer_uid: int, valid_actions: tuple[Action, ...]
+) -> str:
+    """Returns the viewer's rendered state followed by their numbered options."""
+    return render_text(state, viewer_uid) + "\n" + render_actions(valid_actions)
