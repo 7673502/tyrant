@@ -124,6 +124,12 @@ def render_dict(state: GameState, viewer_uid: int) -> dict:
             "active_power": _to_json(state.active_power),
             "hand": _to_json(state.drawn_policies),
             "winner": _to_json(state.winner),
+            "discussion": None
+            if state.discussion is None
+            else {
+                "round": state.discussion.current_round,
+                "rounds": state.discussion.rounds,
+            },
         },
         "timeline": [_to_json(e, "Event") for e in state.events],
         "knowledge": [_to_json(k, "Knowledge") for k in state.knowledge],
@@ -299,6 +305,10 @@ def render_text(state: GameState, viewer_uid: int) -> str:
         f"- Phase: {turn['phase']}",
         f"- Waiting on: {_player_list(turn['awaiting'])}",
     ]
+    if turn["discussion"] is not None:
+        lines.append(
+            f"- Discussion round: {turn['discussion']['round']} of {turn['discussion']['rounds']}"
+        )
     if turn["active_power"] != "none":
         lines.append(f"- Active power: {turn['active_power']}")
     if turn["hand"]:
