@@ -48,6 +48,13 @@ from tyrant.models.event import (
     SpeechEvent,
     VetoEvent,
 )
+from tyrant.models.knowledge import (
+    ChancellorReceiveKnowledge,
+    InvestigationKnowledge,
+    Knowledge,
+    PeekKnowledge,
+    PresidentDrawKnowledge,
+)
 from tyrant.models.player import Player
 
 ROLE_DISTRIBUTION: Final[frozendict[int, tuple[int, int]]] = frozendict(
@@ -91,6 +98,7 @@ class GameState:
     discussion: Discussion | None = None
     messages: tuple[Message, ...] = ()
     events: tuple[Event, ...] = ()
+    knowledge: tuple[Knowledge, ...] = ()
 
 
 def create_game(
@@ -353,6 +361,14 @@ def _resolve_election(state: GameState) -> GameState:
             election_tracker=ElectionTracker(failed_elections=0),
             previous_president=state.players[state.president_index].uid,
             previous_chancellor=chancellor_uid,
+            knowledge=state.knowledge
+            + (
+                PresidentDrawKnowledge(
+                    uid=state.players[state.president_index].uid,
+                    chancellor_uid=chancellor_uid,
+                    policies=drawn,
+                ),
+            ),
         )
     else:
         new_tracker, triggered_top_deck = increment_election_tracker(
@@ -443,6 +459,14 @@ def president_discard(state: GameState, discard_index: int) -> GameState:
         drawn_policies=remaining_policies,
         phase=GamePhase.CHANCELLOR_ENACT,
         deck_shuffled_last_action=False,
+        knowledge=state.knowledge
+        + (
+            ChancellorReceiveKnowledge(
+                uid=state.chancellor,
+                president_uid=state.players[state.president_index].uid,
+                policies=remaining_policies,
+            ),
+        ),
     )
 
 
@@ -664,6 +688,12 @@ def investigate_loyalty(state: GameState, target_uid: int) -> GameState:
         current_investigation_result=target.party,
         events=state.events
         + (InvestigationEvent(president_uid=investigator_uid, target_uid=target_uid),),
+        knowledge=state.knowledge
+        + (
+            InvestigationKnowledge(
+                uid=investigator_uid, target_uid=target_uid, party=target.party
+            ),
+        ),
     )
 
 
@@ -733,6 +763,13 @@ def policy_peek(state: GameState) -> GameState:
         state,
         drawn_policies=state.deck.peek,
         phase=GamePhase.CLAIM_POLICY_PEEK,
+        knowledge=state.knowledge
+        + (
+            PeekKnowledge(
+                uid=state.players[state.president_index].uid,
+                policies=state.deck.peek,
+            ),
+        ),
     )
 
 
@@ -879,4 +916,5 @@ def scrub_state(state: GameState, viewer_uid: int) -> GameState:
         ballot_box=new_ballot_box,
         rng_state=HIDDEN,
         current_investigation_result=new_investigation_result,
+        knowledge=tuple(k for k in state.knowledge if k.uid == viewer_uid),
     )

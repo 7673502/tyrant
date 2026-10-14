@@ -45,6 +45,19 @@ for event in state.events:
             ...
 ```
 
+## Private knowledge
+
+What each player learned in secret is kept in `GameState.knowledge`, so it survives after transient fields such as `drawn_policies` are cleared. Each entry is a frozen subclass of `Knowledge` with the `uid` of the player who learned it:
+
+| Knowledge | Recorded when |
+|---|---|
+| `PresidentDrawKnowledge` | A president draws 3 policies after a passed election |
+| `ChancellorReceiveKnowledge` | A chancellor receives 2 policies from the president |
+| `PeekKnowledge` | A president peeks at the top 3 policies |
+| `InvestigationKnowledge` | A president learns the party of an investigated player |
+
+`scrub_state` keeps only the viewer's own entries, so an agent never sees what another player learned.
+
 ## Agent Resilience
 
 `GameRunner` only applies actions that were offered to the agent. An action matches an offered one when it has the same type and the same identifying fields; `description` and `SpeakAction.message` are ignored, since the agent may fill them in.
