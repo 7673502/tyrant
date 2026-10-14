@@ -1,0 +1,50 @@
+import unittest
+from dataclasses import FrozenInstanceError, is_dataclass, replace
+
+from tyrant.models.discussion import Discussion, Message
+from tyrant.models.enums import DiscussionContext, GamePhase
+
+
+class TestDiscussion(unittest.TestCase):
+    def test_message_immutability(self):
+        """Test that Message dataclass is frozen."""
+        message = Message(uid=1, text="Hi", context=DiscussionContext.AFTER_NOMINATION)
+        self.assertTrue(is_dataclass(message))
+        with self.assertRaises(FrozenInstanceError):
+            message.uid = 2
+        with self.assertRaises(FrozenInstanceError):
+            message.text = "Bye"
+        with self.assertRaises(FrozenInstanceError):
+            message.context = DiscussionContext.AFTER_EXECUTION
+
+    def test_discussion_immutability(self):
+        """Test that Discussion dataclass is frozen."""
+        discussion = Discussion(
+            context=DiscussionContext.AFTER_NOMINATION,
+            resume_phase=GamePhase.VOTING,
+            speaker_order=(1, 2, 3),
+        )
+        self.assertTrue(is_dataclass(discussion))
+        self.assertIsInstance(discussion.speaker_order, tuple)
+        with self.assertRaises(FrozenInstanceError):
+            discussion.context = DiscussionContext.AFTER_EXECUTION
+        with self.assertRaises(FrozenInstanceError):
+            discussion.resume_phase = GamePhase.NOMINATION
+        with self.assertRaises(FrozenInstanceError):
+            discussion.speaker_order = (3, 2, 1)
+        with self.assertRaises(FrozenInstanceError):
+            discussion.turn = 1
+
+    def test_discussion_current_speaker(self):
+        """Test that current_speaker follows the turn index through the speaker order."""
+        discussion = Discussion(
+            context=DiscussionContext.AFTER_NOMINATION,
+            resume_phase=GamePhase.VOTING,
+            speaker_order=(3, 1, 2),
+        )
+        self.assertEqual(discussion.current_speaker, 3)
+        self.assertEqual(replace(discussion, turn=2).current_speaker, 2)
+
+
+if __name__ == "__main__":
+    unittest.main()

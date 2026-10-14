@@ -20,6 +20,8 @@ from tyrant.models.action import (
     ClaimChancellorEnactAction,
     ClaimInvestigationAction,
     PresidentVetoResponseAction,
+    SpeakAction,
+    PassAction,
 )
 from tyrant.models.claim import InvestigationClaim
 from tyrant.models.election_tracker import ElectionTracker
@@ -752,6 +754,43 @@ class TestGetLegalActionsGameOver(unittest.TestCase):
             self.assertEqual(actions, tuple())
 
 
+class TestGetLegalActionsDiscussion(unittest.TestCase):
+    def _state(self):
+        state = create_game(tuple(range(5)), discussion_enabled=True)
+        return nominate_chancellor(state, state.players[1].uid)
+
+    def test__get_legal_actions_discussion_immutability(self):
+        """Ensure the output of _get_legal_actions_discussion is an immutable tuple."""
+        state = self._state()
+        actions = get_legal_actions(state, state.discussion.current_speaker)
+        self.assertIsInstance(actions, tuple)
+
+    def test__get_legal_actions_discussion_speaker(self):
+        """Ensure the current speaker can speak or pass."""
+        state = self._state()
+        actions = get_legal_actions(state, state.discussion.current_speaker)
+        self.assertEqual(len(actions), 2)
+        self.assertIsInstance(actions[0], SpeakAction)
+        self.assertIsInstance(actions[1], PassAction)
+
+    def test__get_legal_actions_discussion_non_speaker(self):
+        """Ensure every player other than the current speaker receives an empty tuple."""
+        state = self._state()
+        for p in state.players:
+            if p.uid != state.discussion.current_speaker:
+                self.assertEqual(get_legal_actions(state, p.uid), tuple())
+
+    def test__get_legal_actions_discussion_dead_player(self):
+        """Ensure a dead player receives an empty tuple during discussion."""
+        state = self._state()
+        speaker = state.discussion.current_speaker
+        players = tuple(
+            replace(p, is_alive=False) if p.uid == speaker else p for p in state.players
+        )
+        state = replace(state, players=players)
+        self.assertEqual(get_legal_actions(state, speaker), tuple())
+
+
 class TestApplyAction(unittest.TestCase):
     @patch("tyrant.engine.router.nominate_chancellor")
     def test_apply_action_nominate(self, mock_nominate):
@@ -874,6 +913,22 @@ class TestApplyAction(unittest.TestCase):
         action = PresidentVetoResponseAction(description="", approve=False)
         apply_action(state, action, 0)
         mock_veto_response.assert_called_once_with(state, False)
+
+    @patch("tyrant.engine.router.speak")
+    def test_apply_action_speak(self, mock_speak):
+        """Ensure speak calls speak with the message text."""
+        state = create_game(tuple(range(5)))
+        action = SpeakAction(description="", message="I am liberal")
+        apply_action(state, action, 2)
+        mock_speak.assert_called_once_with(state, 2, "I am liberal")
+
+    @patch("tyrant.engine.router.speak")
+    def test_apply_action_pass(self, mock_speak):
+        """Ensure pass calls speak with no text."""
+        state = create_game(tuple(range(5)))
+        action = PassAction(description="")
+        apply_action(state, action, 2)
+        mock_speak.assert_called_once_with(state, 2, None)
 
     def test_apply_action_invalid(self):
         """Ensure an invalid action ID raises a TyrantError."""

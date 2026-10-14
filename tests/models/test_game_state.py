@@ -14,9 +14,11 @@ from tyrant.models.claim import (
     PresidentEnactClaim,
 )
 from tyrant.models.deck import create_deck
+from tyrant.models.discussion import Message
 from tyrant.models.election_tracker import ElectionTracker
 from tyrant.models.enums import (
     HIDDEN,
+    DiscussionContext,
     GamePhase,
     Party,
     PolicyTile,
@@ -27,6 +29,7 @@ from tyrant.models.enums import (
 from tyrant.models.game_state import (
     GameState,
     _advance_to_nomination,
+    _begin_discussion,
     _ensure_deck_ready,
     _resolve_election,
     call_special_election,
@@ -44,6 +47,7 @@ from tyrant.models.game_state import (
     president_discard,
     president_veto_response,
     scrub_state,
+    speak,
 )
 from tyrant.models.player import Player
 
@@ -2257,6 +2261,259 @@ class TestClaimEnact(BaseGameStateTest):
         )
         with self.assertRaises(InvalidMoveError):
             claim_enact(state, claim2)
+
+
+class TestDiscussionPhase(BaseGameStateTest):
+    ROLES = frozendict(
+        {
+            1: Role.LIBERAL,
+            2: Role.LIBERAL,
+            3: Role.LIBERAL,
+            4: Role.FASCIST,
+            5: Role.HITLER,
+        }
+    )
+
+    def _state(self, discussion_enabled: bool = True) -> GameState:
+        return create_game(
+            (1, 2, 3, 4, 5),
+            42,
+            roles=self.ROLES,
+            shuffle_players=False,
+            discussion_enabled=discussion_enabled,
+        )
+
+    def _discussing_state(self) -> GameState:
+        return nominate_chancellor(self._state(), 2)
+
+    def _failed_vote_state(self, state: GameState, failed_elections: int) -> GameState:
+        box = BallotBox(votes=frozendict({uid: Vote.NEIN for uid in (1, 2, 3, 4, 5)}))
+        return replace(
+            state,
+            phase=GamePhase.VOTING,
+            chancellor=2,
+            ballot_box=box,
+            election_tracker=ElectionTracker(failed_elections=failed_elections),
+        )
+
+    def _claims_state(self, state: GameState, power: PresidentialPower) -> GameState:
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_POLICIES,
+            chancellor=2,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+            pending_power=power,
+        )
+        state = claim_enact(state, PresidentEnactClaim(uid=1, policies=None))
+        return claim_enact(state, ChancellorEnactClaim(uid=2, policies=None))
+
+    def _hook_cases(self, discussion_enabled: bool):
+        state = self._state(discussion_enabled)
+        power_state = replace(state, phase=GamePhase.PRESIDENTIAL_POWER)
+        return (
+            (
+                "nomination",
+                lambda: nominate_chancellor(state, 2),
+                DiscussionContext.AFTER_NOMINATION,
+                GamePhase.VOTING,
+                1,
+            ),
+            (
+                "failed_election",
+                lambda: _resolve_election(self._failed_vote_state(state, 0)),
+                DiscussionContext.AFTER_FAILED_ELECTION,
+                GamePhase.NOMINATION,
+                2,
+            ),
+            (
+                "failed_election_top_deck",
+                lambda: _resolve_election(self._failed_vote_state(state, 2)),
+                DiscussionContext.AFTER_FAILED_ELECTION,
+                GamePhase.NOMINATION,
+                2,
+            ),
+            (
+                "policy_claims_no_power",
+                lambda: self._claims_state(state, PresidentialPower.NONE),
+                DiscussionContext.AFTER_POLICY_CLAIMS,
+                GamePhase.NOMINATION,
+                2,
+            ),
+            (
+                "policy_claims_with_power",
+                lambda: self._claims_state(state, PresidentialPower.EXECUTION),
+                DiscussionContext.AFTER_POLICY_CLAIMS,
+                GamePhase.PRESIDENTIAL_POWER,
+                1,
+            ),
+            (
+                "investigation_claim",
+                lambda: claim_investigation(
+                    replace(
+                        state,
+                        phase=GamePhase.CLAIM_INVESTIGATION,
+                        current_investigation_result=Party.LIBERAL,
+                    ),
+                    InvestigationClaim(uid=1, party=Party.LIBERAL),
+                ),
+                DiscussionContext.AFTER_INVESTIGATION_CLAIM,
+                GamePhase.NOMINATION,
+                2,
+            ),
+            (
+                "peek_claim",
+                lambda: claim_peek(
+                    replace(state, phase=GamePhase.CLAIM_POLICY_PEEK),
+                    PeekClaim(uid=1, policies=None),
+                ),
+                DiscussionContext.AFTER_PEEK_CLAIM,
+                GamePhase.NOMINATION,
+                2,
+            ),
+            (
+                "special_election",
+                lambda: call_special_election(power_state, 4),
+                DiscussionContext.AFTER_SPECIAL_ELECTION,
+                GamePhase.NOMINATION,
+                4,
+            ),
+            (
+                "execution",
+                lambda: execute_player(power_state, 4),
+                DiscussionContext.AFTER_EXECUTION,
+                GamePhase.NOMINATION,
+                2,
+            ),
+        )
+
+    def test__begin_discussion_immutability(self):
+        """Verifies that _begin_discussion returns a new instance without mutating the input state."""
+        state = replace(self._state(), phase=GamePhase.VOTING)
+        new_state = _begin_discussion(state, DiscussionContext.AFTER_NOMINATION)
+        self.assert_pure_transition(state, new_state)
+        self.assertEqual(state.phase, GamePhase.VOTING)
+        self.assertIsNone(state.discussion)
+
+    def test_speak_immutability(self):
+        """Verifies that speak returns a new instance without mutating the input state."""
+        state = self._discussing_state()
+        new_state = speak(state, 1, "Hello")
+        self.assert_pure_transition(state, new_state)
+        self.assertEqual(state.messages, ())
+        self.assertEqual(state.discussion.turn, 0)
+
+    def test_create_game_discussion_disabled_by_default(self):
+        """Verifies that create_game disables discussion unless asked."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        self.assertFalse(state.discussion_enabled)
+        self.assertIsNone(state.discussion)
+        self.assertEqual(state.messages, ())
+
+    def test_hooks_enter_discussion_when_enabled(self):
+        """Verifies that every hook point enters discussion with the right context, resume phase and speakers."""
+        for name, transition, context, resume_phase, first in self._hook_cases(True):
+            with self.subTest(hook=name):
+                new_state = transition()
+                alive = {p.uid for p in new_state.players if p.is_alive}
+                self.assertEqual(new_state.phase, GamePhase.DISCUSSION)
+                self.assertEqual(new_state.discussion.context, context)
+                self.assertEqual(new_state.discussion.resume_phase, resume_phase)
+                self.assertEqual(new_state.discussion.speaker_order[0], first)
+                self.assertEqual(set(new_state.discussion.speaker_order), alive)
+                self.assertEqual(len(new_state.discussion.speaker_order), len(alive))
+
+    def test_hooks_unchanged_when_disabled(self):
+        """Verifies that every hook point skips discussion when it is disabled."""
+        for name, transition, _, resume_phase, _ in self._hook_cases(False):
+            with self.subTest(hook=name):
+                new_state = transition()
+                self.assertEqual(new_state.phase, resume_phase)
+                self.assertIsNone(new_state.discussion)
+
+    def test__begin_discussion_speaker_order(self):
+        """Verifies that speakers are alive players in seat order starting from the president."""
+        state = self._state()
+        players = tuple(
+            replace(p, is_alive=False) if p.uid == 4 else p for p in state.players
+        )
+        state = replace(state, players=players, president_index=2)
+        new_state = _begin_discussion(state, DiscussionContext.AFTER_EXECUTION)
+        self.assertEqual(new_state.discussion.speaker_order, (3, 5, 1, 2))
+
+    def test__begin_discussion_game_over(self):
+        """Verifies that no discussion begins once the game is over."""
+        state = replace(self._state(), phase=GamePhase.GAME_OVER)
+        new_state = _begin_discussion(state, DiscussionContext.AFTER_EXECUTION)
+        self.assertIs(new_state, state)
+
+    def test_execute_hitler_skips_discussion(self):
+        """Verifies that executing Hitler ends the game without a discussion."""
+        state = replace(self._state(), phase=GamePhase.PRESIDENTIAL_POWER)
+        new_state = execute_player(state, 5)
+        self.assertEqual(new_state.phase, GamePhase.GAME_OVER)
+        self.assertIsNone(new_state.discussion)
+
+    def test_top_deck_win_skips_discussion(self):
+        """Verifies that a winning top deck after a failed election ends the game without a discussion."""
+        state = self._failed_vote_state(self._state(), 2)
+        state = replace(
+            state, board=replace(state.board, liberal_played=4, fascist_played=5)
+        )
+        new_state = _resolve_election(state)
+        self.assertEqual(new_state.phase, GamePhase.GAME_OVER)
+        self.assertIsNone(new_state.discussion)
+
+    def test_speak_records_message_and_advances_turn(self):
+        """Verifies that speaking appends a tagged message and passes the turn."""
+        state = speak(self._discussing_state(), 1, "Trust me")
+        self.assertEqual(
+            state.messages,
+            (
+                Message(
+                    uid=1, text="Trust me", context=DiscussionContext.AFTER_NOMINATION
+                ),
+            ),
+        )
+        self.assertEqual(state.discussion.current_speaker, 2)
+        self.assertEqual(state.phase, GamePhase.DISCUSSION)
+
+    def test_speak_pass_records_none(self):
+        """Verifies that passing records a message with no text."""
+        state = speak(self._discussing_state(), 1, None)
+        self.assertIsNone(state.messages[0].text)
+
+    def test_speak_resumes_phase_after_last_speaker(self):
+        """Verifies that the resume phase is restored after every speaker has had a turn."""
+        state = self._discussing_state()
+        for uid in (1, 2, 3, 4, 5):
+            state = speak(state, uid, None)
+        self.assertEqual(state.phase, GamePhase.VOTING)
+        self.assertIsNone(state.discussion)
+        self.assertEqual(len(state.messages), 5)
+
+    def test_speak_wrong_speaker(self):
+        """Verifies that an error is raised if a player speaks out of turn."""
+        with self.assertRaises(InvalidMoveError):
+            speak(self._discussing_state(), 2, "Me first")
+
+    def test_speak_wrong_phase(self):
+        """Verifies that an error is raised if a player speaks outside of discussion."""
+        with self.assertRaises(InvalidMoveError):
+            speak(self._state(), 1, "Hello")
+
+    def test_ballot_box_survives_failed_election(self):
+        """Verifies that failed election votes stay public until the next nomination."""
+        state = self._failed_vote_state(self._state(False), 0)
+        new_state = _resolve_election(state)
+        self.assertEqual(new_state.ballot_box, state.ballot_box)
+        self.assertEqual(new_state.ballot_box.vote_count, 5)
+
+    def test_nominate_chancellor_resets_ballot_box(self):
+        """Verifies that nominating a chancellor clears the previous votes."""
+        state = _resolve_election(self._failed_vote_state(self._state(False), 0))
+        new_state = nominate_chancellor(state, 3)
+        self.assertEqual(new_state.ballot_box, BallotBox())
 
 
 if __name__ == "__main__":
