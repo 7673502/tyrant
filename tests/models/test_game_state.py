@@ -2350,7 +2350,7 @@ class TestDiscussionPhase(BaseGameStateTest):
                 ),
                 DiscussionContext.BEFORE_INVESTIGATION,
                 GamePhase.PRESIDENTIAL_POWER,
-                1,
+                2,
             ),
             (
                 "policy_claims_call_special_election",
@@ -2359,7 +2359,7 @@ class TestDiscussionPhase(BaseGameStateTest):
                 ),
                 DiscussionContext.BEFORE_SPECIAL_ELECTION,
                 GamePhase.PRESIDENTIAL_POWER,
-                1,
+                2,
             ),
             (
                 "policy_claims_policy_peek",
@@ -2373,7 +2373,7 @@ class TestDiscussionPhase(BaseGameStateTest):
                 lambda: self._claims_state(state, PresidentialPower.EXECUTION),
                 DiscussionContext.BEFORE_EXECUTION,
                 GamePhase.PRESIDENTIAL_POWER,
-                1,
+                2,
             ),
             (
                 "investigation_claim",
@@ -2481,6 +2481,22 @@ class TestDiscussionPhase(BaseGameStateTest):
         state = replace(state, players=players, president_index=2)
         new_state = _begin_discussion(state, DiscussionContext.AFTER_EXECUTION)
         self.assertEqual(new_state.discussion.speaker_order, (3, 5, 1, 2))
+
+    def test__begin_discussion_president_speaks_last_before_power(self):
+        """Verifies that the president speaks last in discussions before a presidential power."""
+        state = self._state()
+        players = tuple(
+            replace(p, is_alive=False) if p.uid == 4 else p for p in state.players
+        )
+        state = replace(state, players=players, president_index=2)
+        for context in (
+            DiscussionContext.BEFORE_INVESTIGATION,
+            DiscussionContext.BEFORE_SPECIAL_ELECTION,
+            DiscussionContext.BEFORE_EXECUTION,
+        ):
+            with self.subTest(context=context):
+                new_state = _begin_discussion(state, context)
+                self.assertEqual(new_state.discussion.speaker_order, (5, 1, 2, 3))
 
     def test__begin_discussion_game_over(self):
         """Verifies that no discussion begins once the game is over."""
