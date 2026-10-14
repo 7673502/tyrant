@@ -155,7 +155,7 @@ class TestRenderDict(unittest.TestCase):
         turn = render_dict(scrub_state(state, 1), 1)["turn"]
         self.assertEqual(
             turn["discussion"],
-            {"context": "after_nomination", "round": 2, "rounds": 3},
+            {"context": "after_nomination", "round": 2, "rounds": 2},
         )
 
     def test_render_dict_no_discussion(self):
@@ -245,7 +245,7 @@ class TestRenderText(unittest.TestCase):
         """Verifies that the current turn shows the discussion round only during discussion."""
         state = _nominated(replace(self.state, discussion_enabled=True))
         self.assertIn(
-            "- Discussion round: 1 of 3\n", render_text(scrub_state(state, 1), 1)
+            "- Discussion round: 1 of 2\n", render_text(scrub_state(state, 1), 1)
         )
         self.assertNotIn("Discussion round", render_text(scrub_state(self.state, 1), 1))
 

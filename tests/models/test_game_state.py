@@ -2439,9 +2439,9 @@ class TestDiscussionPhase(BaseGameStateTest):
         self.assertEqual(state.messages, ())
 
     def test_create_game_discussion_rounds_default(self):
-        """Verifies that create_game defaults to three discussion rounds."""
+        """Verifies that create_game defaults to two discussion rounds."""
         state = create_game((1, 2, 3, 4, 5), 42)
-        self.assertEqual(state.discussion_rounds, 3)
+        self.assertEqual(state.discussion_rounds, 2)
 
     def test_create_game_invalid_discussion_rounds(self):
         """Verifies that an error is raised when discussion rounds is less than one."""
