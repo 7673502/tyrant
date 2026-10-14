@@ -44,3 +44,16 @@ for event in state.events:
         case ElectionEvent(votes=votes, result=result):
             ...
 ```
+
+## Private knowledge
+
+What each player learned in secret is kept in `GameState.knowledge`, so it survives after transient fields such as `drawn_policies` are cleared. Each entry is a frozen subclass of `Knowledge` with the `uid` of the player who learned it:
+
+| Knowledge | Recorded when |
+|---|---|
+| `PresidentDrawKnowledge` | A president draws 3 policies after a passed election |
+| `ChancellorReceiveKnowledge` | A chancellor receives 2 policies from the president |
+| `PeekKnowledge` | A president peeks at the top 3 policies |
+| `InvestigationKnowledge` | A president learns the party of an investigated player |
+
+`scrub_state` keeps only the viewer's own entries, so an agent never sees what another player learned.
