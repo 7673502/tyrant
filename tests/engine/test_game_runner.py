@@ -14,6 +14,7 @@ from tyrant.models.action import (
     SpeakAction,
     VoteAction,
 )
+from tyrant.models.agent_fault import AgentFault
 from tyrant.models.enums import HIDDEN, GamePhase, Vote
 from tyrant.models.game_state import GameState, create_game
 
@@ -201,7 +202,8 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
         )
         runner = GameRunner(agents=[agent], initial_state=self.state)
 
-        _, action = await runner._query_agent(agent, self.valid_actions)
+        with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
+            _, action = await runner._query_agent(agent, self.valid_actions)
 
         self.assertEqual(action, good_action)
 
@@ -210,7 +212,8 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
         agent = StubAgent(uid=self.president_uid, actions_to_play=[self.bad_action] * 3)
         runner = GameRunner(agents=[agent], initial_state=self.state)
 
-        _, action = await runner._query_agent(agent, self.valid_actions)
+        with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
+            _, action = await runner._query_agent(agent, self.valid_actions)
 
         self.assertIn(action, self.valid_actions)
         self.assertEqual(agent._actions_to_play, [])
@@ -220,7 +223,8 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
         agent = RaisingAgent(uid=self.president_uid)
         runner = GameRunner(agents=[agent], initial_state=self.state, max_retries=4)
 
-        _, action = await runner._query_agent(agent, self.valid_actions)
+        with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
+            _, action = await runner._query_agent(agent, self.valid_actions)
 
         self.assertIn(action, self.valid_actions)
         self.assertEqual(agent.calls, 5)
@@ -232,17 +236,76 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
             agents=[agent], initial_state=self.state, max_retries=1, timeout=0.01
         )
 
-        _, action = await runner._query_agent(agent, self.valid_actions)
+        with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
+            _, action = await runner._query_agent(agent, self.valid_actions)
 
         self.assertIn(action, self.valid_actions)
         self.assertEqual(agent.calls, 2)
+
+    async def test_query_agent_well_behaved_records_no_faults(self):
+        """Verifies that a well-behaved agent leaves the fault record empty."""
+        agent = StubAgent(
+            uid=self.president_uid, actions_to_play=[self.valid_actions[0]]
+        )
+        runner = GameRunner(agents=[agent], initial_state=self.state)
+
+        await runner._query_agent(agent, self.valid_actions)
+
+        self.assertEqual(runner.faults, ())
+
+    async def test_query_agent_records_faults(self):
+        """Verifies that each failed attempt is recorded and only the last is marked as a fallback."""
+        agent = StubAgent(uid=self.president_uid, actions_to_play=[self.bad_action] * 3)
+        runner = GameRunner(agents=[agent], initial_state=self.state)
+
+        with self.assertLogs("tyrant.engine.game_runner", level="WARNING") as logs:
+            await runner._query_agent(agent, self.valid_actions)
+
+        self.assertEqual(len(runner.faults), 3)
+        self.assertEqual(len(logs.records), 3)
+        self.assertEqual(
+            tuple(f.fell_back for f in runner.faults), (False, False, True)
+        )
+        for fault in runner.faults:
+            self.assertIsInstance(fault, AgentFault)
+            self.assertEqual(fault.uid, self.president_uid)
+            self.assertEqual(fault.phase, GamePhase.NOMINATION)
+            self.assertIn("InvalidMoveError", fault.reason)
+
+    async def test_query_agent_records_recovered_fault(self):
+        """Verifies that a fault followed by a legal action is recorded without a fallback."""
+        agent = StubAgent(
+            uid=self.president_uid,
+            actions_to_play=[self.bad_action, self.valid_actions[0]],
+        )
+        runner = GameRunner(agents=[agent], initial_state=self.state)
+
+        with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
+            await runner._query_agent(agent, self.valid_actions)
+
+        self.assertEqual(len(runner.faults), 1)
+        self.assertFalse(runner.faults[0].fell_back)
+
+    async def test_query_agent_records_timeout_fault(self):
+        """Verifies that a timeout is recorded as a TimeoutError fault."""
+        agent = SlowAgent(uid=self.president_uid)
+        runner = GameRunner(
+            agents=[agent], initial_state=self.state, max_retries=0, timeout=0.01
+        )
+
+        with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
+            await runner._query_agent(agent, self.valid_actions)
+
+        self.assertIn("TimeoutError", runner.faults[0].reason)
+        self.assertTrue(runner.faults[0].fell_back)
 
     async def test_query_agent_zero_retries(self):
         """Verifies that max_retries of zero falls back after a single failed attempt."""
         agent = RaisingAgent(uid=self.president_uid)
         runner = GameRunner(agents=[agent], initial_state=self.state, max_retries=0)
 
-        await runner._query_agent(agent, self.valid_actions)
+        with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
+            await runner._query_agent(agent, self.valid_actions)
 
         self.assertEqual(agent.calls, 1)
 
@@ -252,10 +315,11 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
         for _ in range(2):
             agent = RaisingAgent(uid=self.president_uid)
             runner = GameRunner(agents=[agent], initial_state=self.state, seed=7)
-            picks = [
-                (await runner._query_agent(agent, self.valid_actions))[1]
-                for _ in range(5)
-            ]
+            with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
+                picks = [
+                    (await runner._query_agent(agent, self.valid_actions))[1]
+                    for _ in range(5)
+                ]
             chosen.append(picks)
 
         self.assertEqual(chosen[0], chosen[1])
@@ -265,7 +329,8 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
         agents = [RaisingAgent(uid=i) for i in range(1, 6)]
         runner = GameRunner(agents=agents, seed=42, max_retries=0)
 
-        final_state = await runner.run()
+        with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
+            final_state = await runner.run()
 
         self.assertEqual(final_state.phase, GamePhase.GAME_OVER)
 

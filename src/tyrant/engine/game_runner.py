@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from collections.abc import Awaitable, Mapping, Sequence
 from dataclasses import fields
 from random import Random
@@ -8,10 +9,13 @@ from tyrant.engine.router import apply_action, get_legal_actions
 from tyrant.exceptions import InvalidMoveError, TyrantError
 from tyrant.models.action import Action
 from tyrant.models.agent import Agent
+from tyrant.models.agent_fault import AgentFault
 from tyrant.models.enums import GamePhase, Role
 from tyrant.models.game_state import GameState, create_game, scrub_state
 
 AGENT_FILLED_FIELDS: Final = frozenset({"description", "message"})
+
+logger = logging.getLogger(__name__)
 
 
 def _identity(action: Action) -> tuple:
@@ -54,6 +58,7 @@ class GameRunner:
         self.max_retries = max_retries
         self.timeout = timeout
         self.rng = Random(seed)
+        self.faults: tuple[AgentFault, ...] = ()
 
     async def run(self) -> GameState:
         while self.state.phase != GamePhase.GAME_OVER:
@@ -84,13 +89,27 @@ class GameRunner:
         self, agent: Agent, valid_actions: tuple[Action, ...]
     ) -> tuple[int, Action]:
         scrubbed_state = scrub_state(self.state, agent.uid)
-        for _ in range(self.max_retries + 1):
+        attempts = self.max_retries + 1
+        for attempt in range(attempts):
             try:
                 action = await self._attempt(agent, scrubbed_state, valid_actions)
                 return agent.uid, action
-            except Exception:
-                pass
+            except Exception as e:
+                self._record_fault(agent.uid, repr(e), attempt == attempts - 1)
         return agent.uid, self.rng.choice(valid_actions)
+
+    def _record_fault(self, uid: int, reason: str, fell_back: bool) -> None:
+        fault = AgentFault(
+            uid=uid, phase=self.state.phase, reason=reason, fell_back=fell_back
+        )
+        self.faults = self.faults + (fault,)
+        logger.warning(
+            "Player %s failed in phase %s: %s%s",
+            uid,
+            fault.phase,
+            reason,
+            " (falling back to a random legal action)" if fell_back else "",
+        )
 
     async def _attempt(
         self, agent: Agent, state: GameState, valid_actions: tuple[Action, ...]
