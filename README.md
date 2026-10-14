@@ -90,4 +90,4 @@ If an agent returns an action that was not offered, raises an exception, or take
 runner = GameRunner(agents, max_retries=2, timeout=60.0)
 ```
 
-By default `max_retries=2` and `timeout=None`, so a well-behaved agent is queried exactly once with no time limit. Every failed attempt is logged as a warning and recorded in `runner.faults` as an `AgentFault` with the player's `uid`, the `phase`, the `reason`, and whether it triggered the fallback (`fell_back`).
+By default `max_retries=2` and `timeout=120.0`, so a well-behaved agent is queried exactly once and a hung call is abandoned after two minutes. Pass `timeout=None` to disable the limit, for example when a human is playing. Every failed attempt is logged as a warning and recorded in `runner.faults` as an `AgentFault` with the player's `uid`, the `phase`, the `reason`, and whether it triggered the fallback (`fell_back`).

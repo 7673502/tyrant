@@ -178,10 +178,10 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
         )
 
     def test_init_resilience_defaults(self):
-        """Verifies that GameRunner defaults to two retries and no timeout."""
+        """Verifies that GameRunner defaults to two retries and a 120-second timeout."""
         runner = GameRunner(agents=[], initial_state=self.state)
         self.assertEqual(runner.max_retries, 2)
-        self.assertIsNone(runner.timeout)
+        self.assertEqual(runner.timeout, 120.0)
 
     async def test_query_agent_well_behaved_called_once(self):
         """Verifies that a well-behaved agent is queried once and its action is used."""
