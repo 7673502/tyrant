@@ -17,6 +17,7 @@ from tyrant.models.enums import HIDDEN, GamePhase
 from tyrant.models.game_state import GameState
 
 UNKNOWN = "unknown"
+DISCUSSIONS_SHOWN = 2
 PRESIDENT_PHASES = (
     GamePhase.NOMINATION,
     GamePhase.PRESIDENT_DISCARD,
@@ -231,6 +232,22 @@ def _timeline_line(entry: dict) -> str:
             return f"Game over: {entry['winner']} win by {entry['condition']}."
 
 
+def _timeline_lines(timeline: list[dict]) -> list[str]:
+    starts = [
+        i
+        for i, entry in enumerate(timeline)
+        if entry["type"] == "speech" and (i == 0 or timeline[i - 1]["type"] != "speech")
+    ]
+    cutoff = starts[-DISCUSSIONS_SHOWN] if len(starts) > DISCUSSIONS_SHOWN else 0
+    lines = []
+    for i, entry in enumerate(timeline):
+        if entry["type"] != "speech" or i >= cutoff:
+            lines.append(_timeline_line(entry))
+        elif i in starts:
+            lines.append(f"Earlier discussion ({entry['context']}) omitted.")
+    return lines
+
+
 def _knowledge_line(entry: dict) -> str:
     match entry["type"]:
         case "president_draw":
@@ -321,8 +338,8 @@ def render_text(state: GameState, viewer_uid: int) -> str:
 
     lines += ["", "## Timeline"]
     lines += [
-        f"{i}. {_timeline_line(entry)}"
-        for i, entry in enumerate(view["timeline"], start=1)
+        f"{i}. {line}"
+        for i, line in enumerate(_timeline_lines(view["timeline"]), start=1)
     ] or ["No events yet."]
 
     lines += ["", "## Private Knowledge"]

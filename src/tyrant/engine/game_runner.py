@@ -42,7 +42,7 @@ class GameRunner:
         roles: Mapping[int, Role] | None = None,
         shuffle_players: bool = True,
         discussion_enabled: bool = False,
-        discussion_rounds: int = 3,
+        discussion_rounds: int = 2,
         max_retries: int = 2,
         timeout: float | None = 120.0,
     ):
