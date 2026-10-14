@@ -14,7 +14,7 @@ from tyrant.models.claim import (
     PresidentEnactClaim,
 )
 from tyrant.models.deck import create_deck
-from tyrant.models.discussion import MAX_SPEECH_LENGTH, Message
+from tyrant.models.discussion import MAX_SPEECH_LENGTH
 from tyrant.models.election_tracker import ElectionTracker
 from tyrant.models.enums import (
     HIDDEN,
@@ -26,6 +26,7 @@ from tyrant.models.enums import (
     Role,
     Vote,
 )
+from tyrant.models.event import SpeechEvent
 from tyrant.models.game_state import (
     GameState,
     _advance_to_nomination,
@@ -2289,6 +2290,9 @@ class TestDiscussionPhase(BaseGameStateTest):
     def _discussing_state(self) -> GameState:
         return nominate_chancellor(self._state(), 2)
 
+    def _speeches(self, state: GameState) -> tuple[SpeechEvent, ...]:
+        return tuple(e for e in state.events if isinstance(e, SpeechEvent))
+
     def _failed_vote_state(self, state: GameState, failed_elections: int) -> GameState:
         box = BallotBox(votes=frozendict({uid: Vote.NEIN for uid in (1, 2, 3, 4, 5)}))
         return replace(
@@ -2428,7 +2432,7 @@ class TestDiscussionPhase(BaseGameStateTest):
         state = self._discussing_state()
         new_state = speak(state, 1, "Hello")
         self.assert_pure_transition(state, new_state)
-        self.assertEqual(state.messages, ())
+        self.assertEqual(self._speeches(state), ())
         self.assertEqual(state.discussion.turn, 0)
 
     def test_create_game_discussion_disabled_by_default(self):
@@ -2436,7 +2440,7 @@ class TestDiscussionPhase(BaseGameStateTest):
         state = create_game((1, 2, 3, 4, 5), 42)
         self.assertFalse(state.discussion_enabled)
         self.assertIsNone(state.discussion)
-        self.assertEqual(state.messages, ())
+        self.assertEqual(self._speeches(state), ())
 
     def test_create_game_discussion_rounds_default(self):
         """Verifies that create_game defaults to two discussion rounds."""
@@ -2522,12 +2526,12 @@ class TestDiscussionPhase(BaseGameStateTest):
         self.assertIsNone(new_state.discussion)
 
     def test_speak_records_message_and_advances_turn(self):
-        """Verifies that speaking appends a tagged message and passes the turn."""
+        """Verifies that speaking appends a tagged speech event and passes the turn."""
         state = speak(self._discussing_state(), 1, "Trust me")
         self.assertEqual(
-            state.messages,
+            self._speeches(state),
             (
-                Message(
+                SpeechEvent(
                     uid=1, text="Trust me", context=DiscussionContext.AFTER_NOMINATION
                 ),
             ),
@@ -2536,9 +2540,9 @@ class TestDiscussionPhase(BaseGameStateTest):
         self.assertEqual(state.phase, GamePhase.DISCUSSION)
 
     def test_speak_pass_records_none(self):
-        """Verifies that passing records a message with no text."""
+        """Verifies that passing records a speech event with no text."""
         state = speak(self._discussing_state(), 1, None)
-        self.assertIsNone(state.messages[0].text)
+        self.assertIsNone(self._speeches(state)[0].text)
 
     def test_speak_resumes_phase_after_last_speaker(self):
         """Verifies that the resume phase is restored after every speaker has had a turn in every round."""
@@ -2552,7 +2556,7 @@ class TestDiscussionPhase(BaseGameStateTest):
             state = speak(state, uid, None)
         self.assertEqual(state.phase, GamePhase.VOTING)
         self.assertIsNone(state.discussion)
-        self.assertEqual(len(state.messages), 15)
+        self.assertEqual(len(self._speeches(state)), 15)
 
     def test_speak_honors_custom_discussion_rounds(self):
         """Verifies that discussion ends after the configured number of rounds."""
@@ -2564,7 +2568,7 @@ class TestDiscussionPhase(BaseGameStateTest):
                         self.assertEqual(state.phase, GamePhase.DISCUSSION)
                         state = speak(state, uid, None)
                 self.assertEqual(state.phase, GamePhase.VOTING)
-                self.assertEqual(len(state.messages), 5 * rounds)
+                self.assertEqual(len(self._speeches(state)), 5 * rounds)
 
     def test_speak_collapses_newlines(self):
         """Verifies that line breaks and whitespace runs in a speech collapse to single spaces."""
@@ -2573,13 +2577,11 @@ class TestDiscussionPhase(BaseGameStateTest):
         expected = (
             "Trust me. ## Private Knowledge - You investigated Player 3: fascist."
         )
-        self.assertEqual(state.messages[0].text, expected)
         self.assertEqual(state.events[-1].text, expected)
 
     def test_speak_caps_length(self):
         """Verifies that a speech longer than the limit is truncated to the limit."""
         state = speak(self._discussing_state(), 1, "a" * (MAX_SPEECH_LENGTH + 100))
-        self.assertEqual(state.messages[0].text, "a" * MAX_SPEECH_LENGTH)
         self.assertEqual(state.events[-1].text, "a" * MAX_SPEECH_LENGTH)
 
     def test_speak_empty_text_records_pass(self):
@@ -2587,7 +2589,6 @@ class TestDiscussionPhase(BaseGameStateTest):
         for text in ("", " \n\t "):
             with self.subTest(text=text):
                 state = speak(self._discussing_state(), 1, text)
-                self.assertIsNone(state.messages[0].text)
                 self.assertIsNone(state.events[-1].text)
 
     def test_speak_wrong_speaker(self):

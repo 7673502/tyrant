@@ -16,6 +16,7 @@ from tyrant.models.action import (
 )
 from tyrant.models.agent_fault import AgentFault
 from tyrant.models.enums import HIDDEN, GamePhase, Vote
+from tyrant.models.event import SpeechEvent
 from tyrant.models.game_state import GameState, create_game
 from tyrant.models.replay import Replay
 
@@ -141,7 +142,7 @@ class TestGameRunnerDiscussion(unittest.IsolatedAsyncioTestCase):
         runner = GameRunner(agents=agents, seed=42, discussion_enabled=True)
         final_state = await runner.run()
         self.assertEqual(final_state.phase, GamePhase.GAME_OVER)
-        self.assertGreater(len(final_state.messages), 0)
+        self.assertTrue(any(isinstance(e, SpeechEvent) for e in final_state.events))
 
 
 class TestGameRunnerQueryAgent(unittest.IsolatedAsyncioTestCase):

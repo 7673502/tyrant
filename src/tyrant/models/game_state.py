@@ -22,7 +22,7 @@ from tyrant.models.deck import (
     shuffle_deck,
     top_deck,
 )
-from tyrant.models.discussion import MAX_SPEECH_LENGTH, Discussion, Message
+from tyrant.models.discussion import MAX_SPEECH_LENGTH, Discussion
 from tyrant.models.election_tracker import ElectionTracker, increment_election_tracker
 from tyrant.models.enums import (
     HIDDEN,
@@ -115,7 +115,6 @@ class GameState:
     discussion_enabled: bool = False
     discussion_rounds: int = 2
     discussion: Discussion | None = None
-    messages: tuple[Message, ...] = ()
     events: tuple[Event, ...] = ()
     knowledge: tuple[Knowledge, ...] = ()
 
@@ -287,8 +286,6 @@ def speak(state: GameState, uid: int, text: str | None) -> GameState:
 
     new_state = replace(
         state,
-        messages=state.messages
-        + (Message(uid=uid, text=text, context=discussion.context),),
         events=state.events
         + (SpeechEvent(uid=uid, text=text, context=discussion.context),),
         deck_shuffled_last_action=False,

@@ -1,22 +1,11 @@
 import unittest
 from dataclasses import FrozenInstanceError, is_dataclass, replace
 
-from tyrant.models.discussion import Discussion, Message
+from tyrant.models.discussion import Discussion
 from tyrant.models.enums import DiscussionContext, GamePhase
 
 
 class TestDiscussion(unittest.TestCase):
-    def test_message_immutability(self):
-        """Test that Message dataclass is frozen."""
-        message = Message(uid=1, text="Hi", context=DiscussionContext.AFTER_NOMINATION)
-        self.assertTrue(is_dataclass(message))
-        with self.assertRaises(FrozenInstanceError):
-            message.uid = 2
-        with self.assertRaises(FrozenInstanceError):
-            message.text = "Bye"
-        with self.assertRaises(FrozenInstanceError):
-            message.context = DiscussionContext.AFTER_EXECUTION
-
     def test_discussion_immutability(self):
         """Test that Discussion dataclass is frozen."""
         discussion = Discussion(
