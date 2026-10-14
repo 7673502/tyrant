@@ -1,6 +1,9 @@
+import json
+from dataclasses import replace
 from typing import Final
 
 from tyrant.engine.renderer import render_text
+from tyrant.exceptions import InvalidMoveError
 from tyrant.models.action import Action, SpeakAction
 from tyrant.models.discussion import MAX_SPEECH_LENGTH
 from tyrant.models.game_state import GameState
@@ -79,3 +82,36 @@ def build_prompt(
 ) -> str:
     """Returns the viewer's rendered state followed by their numbered options."""
     return render_text(state, viewer_uid) + "\n" + render_actions(valid_actions)
+
+
+def _last_choice(response: str) -> dict:
+    decoder = json.JSONDecoder()
+    start = response.rfind("{")
+    while start != -1:
+        try:
+            value, _ = decoder.raw_decode(response, start)
+        except json.JSONDecodeError:
+            value = None
+        if isinstance(value, dict) and "action" in value:
+            return value
+        start = response.rfind("{", 0, start)
+    raise InvalidMoveError("Reply has no JSON object with an action")
+
+
+def parse_action(response: str, valid_actions: tuple[Action, ...]) -> Action:
+    """Returns the offered action chosen by the last JSON object in an LLM reply."""
+    choice = _last_choice(response)
+    number = choice["action"]
+    if type(number) is not int:
+        raise InvalidMoveError(f"Action must be an integer, got {number!r}")
+    if not 1 <= number <= len(valid_actions):
+        raise InvalidMoveError(
+            f"Action must be between 1 and {len(valid_actions)}, got {number}"
+        )
+    action = valid_actions[number - 1]
+    if not isinstance(action, SpeakAction):
+        return action
+    message = choice.get("message")
+    if not isinstance(message, str) or not message.strip():
+        raise InvalidMoveError("Speaking requires a non-empty message")
+    return replace(action, message=message)

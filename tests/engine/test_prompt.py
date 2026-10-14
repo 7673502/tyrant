@@ -6,10 +6,12 @@ from tyrant.engine.prompt import (
     RULES,
     SYSTEM_PROMPT,
     build_prompt,
+    parse_action,
     render_actions,
 )
 from tyrant.engine.renderer import render_text
 from tyrant.engine.router import apply_action, get_legal_actions
+from tyrant.exceptions import InvalidMoveError
 from tyrant.models.action import PassAction, SpeakAction, VoteAction
 from tyrant.models.discussion import MAX_SPEECH_LENGTH
 from tyrant.models.enums import GamePhase, Vote, WinCondition
@@ -99,3 +101,73 @@ class TestBuildPrompt(unittest.TestCase):
             build_prompt(self.scrubbed, self.uid, self.actions),
             render_text(self.scrubbed, self.uid) + "\n" + render_actions(self.actions),
         )
+
+
+class TestParseAction(unittest.TestCase):
+    def test_parse_action_immutability(self):
+        """Verifies that parse_action returns a new speak action without mutating the offered ones."""
+        before = copy.deepcopy(DISCUSSION_ACTIONS)
+        action = parse_action('{"action": 1, "message": "Hi"}', DISCUSSION_ACTIONS)
+        self.assertIsNot(action, DISCUSSION_ACTIONS[0])
+        self.assertEqual(DISCUSSION_ACTIONS, before)
+
+    def test_parse_action_bare_json(self):
+        """Verifies that a reply of only a JSON object selects the numbered option."""
+        self.assertIs(parse_action('{"action": 2}', VOTE_ACTIONS), VOTE_ACTIONS[1])
+
+    def test_parse_action_after_reasoning(self):
+        """Verifies that reasoning before the JSON object is ignored."""
+        response = 'Player 3 seems trustworthy {maybe}.\n\n{"action": 1}'
+        self.assertIs(parse_action(response, VOTE_ACTIONS), VOTE_ACTIONS[0])
+
+    def test_parse_action_last_object_wins(self):
+        """Verifies that the last JSON object with an action is used."""
+        response = 'First {"action": 1}, then {"action": 2} and {"note": 1}.'
+        self.assertIs(parse_action(response, VOTE_ACTIONS), VOTE_ACTIONS[1])
+
+    def test_parse_action_ignores_message_on_other_actions(self):
+        """Verifies that a message on a non-speak option returns the offered action unchanged."""
+        response = '{"action": 2, "message": "Hello"}'
+        self.assertIs(parse_action(response, DISCUSSION_ACTIONS), DISCUSSION_ACTIONS[1])
+
+    def test_parse_action_speak_with_message(self):
+        """Verifies that choosing to speak returns the speak action carrying the message."""
+        action = parse_action(
+            '{"action": 1, "message": "I trust Player 2."}', DISCUSSION_ACTIONS
+        )
+        self.assertEqual(
+            action,
+            SpeakAction(
+                description="Say something to the table", message="I trust Player 2."
+            ),
+        )
+
+    def test_parse_action_rejects_missing_json(self):
+        """Verifies that a reply without a JSON object raises InvalidMoveError."""
+        with self.assertRaises(InvalidMoveError):
+            parse_action("I vote ja.", VOTE_ACTIONS)
+
+    def test_parse_action_rejects_bad_action_numbers(self):
+        """Verifies that out-of-range, non-integer and missing actions raise InvalidMoveError."""
+        for response in (
+            '{"action": 0}',
+            '{"action": 3}',
+            '{"action": "1"}',
+            '{"action": true}',
+            '{"message": "Hi"}',
+        ):
+            with self.subTest(response=response):
+                with self.assertRaises(InvalidMoveError):
+                    parse_action(response, VOTE_ACTIONS)
+
+    def test_parse_action_rejects_speech_without_message(self):
+        """Verifies that speaking without a message or with an empty one raises InvalidMoveError."""
+        for response in (
+            '{"action": 1}',
+            '{"action": 1, "message": ""}',
+            '{"action": 1, "message": "   "}',
+            '{"action": 1, "message": 5}',
+        ):
+            with self.subTest(response=response):
+                with self.assertRaises(InvalidMoveError):
+                    parse_action(response, DISCUSSION_ACTIONS)
