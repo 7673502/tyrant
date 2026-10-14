@@ -46,6 +46,7 @@ from tyrant.models.game_state import (
     investigate_loyalty,
     nominate_chancellor,
     president_veto_response,
+    scrub_state,
     speak,
 )
 
@@ -423,6 +424,15 @@ class TestEventLog(unittest.TestCase):
         )
         for before, after in zip(states, states[1:]):
             self.assertEqual(after.events[: len(before.events)], before.events)
+
+    def test_scrub_state_passes_events_through(self):
+        """Verifies that every viewer sees the full event log at every point in a game."""
+        states = play_first_legal_actions(
+            create_game(UIDS, 42, discussion_enabled=True)
+        )
+        for state in states:
+            for uid in UIDS:
+                self.assertEqual(scrub_state(state, uid).events, state.events)
 
 
 if __name__ == "__main__":
