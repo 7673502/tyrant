@@ -2344,9 +2344,34 @@ class TestDiscussionPhase(BaseGameStateTest):
                 2,
             ),
             (
-                "policy_claims_with_power",
-                lambda: self._claims_state(state, PresidentialPower.EXECUTION),
+                "policy_claims_investigate_loyalty",
+                lambda: self._claims_state(
+                    state, PresidentialPower.INVESTIGATE_LOYALTY
+                ),
+                DiscussionContext.BEFORE_INVESTIGATION,
+                GamePhase.PRESIDENTIAL_POWER,
+                1,
+            ),
+            (
+                "policy_claims_call_special_election",
+                lambda: self._claims_state(
+                    state, PresidentialPower.CALL_SPECIAL_ELECTION
+                ),
+                DiscussionContext.BEFORE_SPECIAL_ELECTION,
+                GamePhase.PRESIDENTIAL_POWER,
+                1,
+            ),
+            (
+                "policy_claims_policy_peek",
+                lambda: self._claims_state(state, PresidentialPower.POLICY_PEEK),
                 DiscussionContext.AFTER_POLICY_CLAIMS,
+                GamePhase.PRESIDENTIAL_POWER,
+                1,
+            ),
+            (
+                "policy_claims_execution",
+                lambda: self._claims_state(state, PresidentialPower.EXECUTION),
+                DiscussionContext.BEFORE_EXECUTION,
                 GamePhase.PRESIDENTIAL_POWER,
                 1,
             ),

@@ -66,6 +66,17 @@ POLICY_WIN_CONDITIONS: Final[frozendict[Party, WinCondition]] = frozendict(
         Party.FASCIST: WinCondition.FASCIST_POLICIES,
     }
 )
+POLICY_CLAIMS_DISCUSSION_CONTEXTS: Final[
+    frozendict[PresidentialPower, DiscussionContext]
+] = frozendict(
+    {
+        PresidentialPower.NONE: DiscussionContext.AFTER_POLICY_CLAIMS,
+        PresidentialPower.INVESTIGATE_LOYALTY: DiscussionContext.BEFORE_INVESTIGATION,
+        PresidentialPower.CALL_SPECIAL_ELECTION: DiscussionContext.BEFORE_SPECIAL_ELECTION,
+        PresidentialPower.POLICY_PEEK: DiscussionContext.AFTER_POLICY_CLAIMS,
+        PresidentialPower.EXECUTION: DiscussionContext.BEFORE_EXECUTION,
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -576,7 +587,7 @@ def claim_enact(
             new_state = replace(
                 new_state, phase=GamePhase.PRESIDENTIAL_POWER, active_power=power
             )
-        return _begin_discussion(new_state, DiscussionContext.AFTER_POLICY_CLAIMS)
+        return _begin_discussion(new_state, POLICY_CLAIMS_DISCUSSION_CONTEXTS[power])
 
     return new_state
 
