@@ -233,11 +233,11 @@ class TestRenderText(unittest.TestCase):
                 "# Secret Hitler: Player 1's view",
                 "## You",
                 "## Players",
+                "## Private Knowledge",
+                "## Timeline",
                 "## Board",
                 "## Government",
                 "## Current Turn",
-                "## Timeline",
-                "## Private Knowledge",
             ],
         )
 
