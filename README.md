@@ -17,6 +17,8 @@ During a `DISCUSSION` phase, alive players take turns in seat order, starting wi
 runner = GameRunner(agents, discussion_enabled=True, discussion_rounds=1)
 ```
 
+To keep prompts small, `render_text` shows speeches from only the last two discussions; older ones collapse into one line each. `render_dict` keeps every speech.
+
 On their turn, a player's legal actions are a `SpeakAction` and a `PassAction`. To say something, fill in the message:
 
 ```python

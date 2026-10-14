@@ -346,6 +346,47 @@ class TestRenderText(unittest.TestCase):
         self.assertEqual(text.count("## Private Knowledge\n"), 1)
         self.assertNotIn("\n- You investigated Player 3", text)
 
+    def test_render_text_omits_old_discussions(self):
+        """Verifies that only the last two discussions keep their speeches while other events stay."""
+        nomination, claims = (
+            DiscussionContext.AFTER_NOMINATION,
+            DiscussionContext.AFTER_POLICY_CLAIMS,
+        )
+        text = self.render_events(
+            SpeechEvent(uid=1, text="Oldest.", context=claims),
+            SpeechEvent(uid=2, text=None, context=claims),
+            NominationEvent(president_uid=1, chancellor_uid=2),
+            SpeechEvent(uid=1, text="Older.", context=nomination),
+            PolicyEnactedEvent(policy=L, president_uid=1, chancellor_uid=2),
+            SpeechEvent(uid=1, text="Previous.", context=claims),
+            NominationEvent(president_uid=2, chancellor_uid=3),
+            SpeechEvent(uid=2, text="Current.", context=nomination),
+        )
+        expected = [
+            "1. Earlier discussion (after_policy_claims) omitted.",
+            "2. President Player 1 nominated Player 2 for chancellor.",
+            "3. Earlier discussion (after_nomination) omitted.",
+            "4. President Player 1 and Chancellor Player 2 enacted a liberal policy.",
+            '5. Player 1 said: "Previous."',
+            "6. President Player 2 nominated Player 3 for chancellor.",
+            '7. Player 2 said: "Current."',
+        ]
+        for line in expected:
+            self.assertIn(line + "\n", text)
+        for speech in ("Oldest.", "Older.", "Player 2 passed."):
+            self.assertNotIn(speech, text)
+
+    def test_render_dict_keeps_old_discussions(self):
+        """Verifies that render_dict keeps every speech in the timeline."""
+        speech = SpeechEvent(
+            uid=1, text="Hi.", context=DiscussionContext.AFTER_NOMINATION
+        )
+        events = (speech, NominationEvent(president_uid=1, chancellor_uid=2)) * 3
+        view = render_dict(scrub_state(replace(self.state, events=events), 1), 1)
+        self.assertEqual(
+            [e["type"] for e in view["timeline"]], ["speech", "nomination"] * 3
+        )
+
     def test_render_text_claims(self):
         """Verifies that every claim type renders with its government or target."""
         text = self.render_events(
