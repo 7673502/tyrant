@@ -303,6 +303,17 @@ def render_text(state: GameState, viewer_uid: int) -> str:
         f"party {p['party']}, role {p['role']}, {'alive' if p['alive'] else 'dead'}"
         for p in view["players"]
     ]
+    lines += ["", "## Private Knowledge"]
+    lines += [f"- {_knowledge_line(entry)}" for entry in view["knowledge"]] or [
+        "- None."
+    ]
+
+    lines += ["", "## Timeline"]
+    lines += [
+        f"{i}. {line}"
+        for i, line in enumerate(_timeline_lines(view["timeline"]), start=1)
+    ] or ["No events yet."]
+
     lines += [
         "",
         "## Board",
@@ -335,16 +346,5 @@ def render_text(state: GameState, viewer_uid: int) -> str:
         lines.append(f"- Your hand: {', '.join(turn['hand'])}")
     if turn["winner"] is not None:
         lines.append(f"- Winner: {turn['winner']}")
-
-    lines += ["", "## Timeline"]
-    lines += [
-        f"{i}. {line}"
-        for i, line in enumerate(_timeline_lines(view["timeline"]), start=1)
-    ] or ["No events yet."]
-
-    lines += ["", "## Private Knowledge"]
-    lines += [f"- {_knowledge_line(entry)}" for entry in view["knowledge"]] or [
-        "- None."
-    ]
 
     return "\n".join(lines) + "\n"

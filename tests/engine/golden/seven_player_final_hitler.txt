@@ -17,25 +17,8 @@ In seat order:
 - Player 6 (you): party fascist, role hitler, alive
 - Player 2: party unknown, role unknown, alive
 
-## Board
-- Liberal policies: 3/5
-- Fascist policies: 6/6
-- Fascist track: none, investigate_loyalty, call_special_election, execution, execution, none
-- Election tracker: 0/3
-- Hitler zone: yes
-- Veto unlocked: yes
-- Draw pile: 0, discard pile: 8
-
-## Government
-- President: Player 3
-- Chancellor: Player 5
-- Previous president: Player 3
-- Previous chancellor: Player 5
-
-## Current Turn
-- Phase: game_over
-- Waiting on: none
-- Winner: fascist
+## Private Knowledge
+- As president with Chancellor Player 3, you drew liberal, fascist, fascist.
 
 ## Timeline
 1. President Player 4 nominated Player 7 for chancellor.
@@ -88,5 +71,22 @@ In seat order:
 48. President Player 3 and Chancellor Player 5 enacted a fascist policy.
 49. Game over: fascist win by fascist_policies.
 
-## Private Knowledge
-- As president with Chancellor Player 3, you drew liberal, fascist, fascist.
+## Board
+- Liberal policies: 3/5
+- Fascist policies: 6/6
+- Fascist track: none, investigate_loyalty, call_special_election, execution, execution, none
+- Election tracker: 0/3
+- Hitler zone: yes
+- Veto unlocked: yes
+- Draw pile: 0, discard pile: 8
+
+## Government
+- President: Player 3
+- Chancellor: Player 5
+- Previous president: Player 3
+- Previous chancellor: Player 5
+
+## Current Turn
+- Phase: game_over
+- Waiting on: none
+- Winner: fascist
