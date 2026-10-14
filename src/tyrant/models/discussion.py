@@ -15,8 +15,13 @@ class Discussion:
     context: DiscussionContext
     resume_phase: GamePhase
     speaker_order: tuple[int, ...]
+    rounds: int = 1
     turn: int = 0
 
     @property
     def current_speaker(self) -> int:
-        return self.speaker_order[self.turn]
+        return self.speaker_order[self.turn % len(self.speaker_order)]
+
+    @property
+    def is_complete(self) -> bool:
+        return self.turn >= self.rounds * len(self.speaker_order)
