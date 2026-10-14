@@ -2,10 +2,18 @@ import unittest
 from dataclasses import replace
 
 from tyrant.agents.random_agent import RandomAgent
-from tyrant.engine.game_runner import GameRunner
-from tyrant.exceptions import TyrantError
-from tyrant.models.action import Action, NominateAction, ChancellorEnactAction
-from tyrant.models.enums import HIDDEN, GamePhase
+from tyrant.engine.game_runner import GameRunner, _is_offered
+from tyrant.engine.router import get_legal_actions
+from tyrant.exceptions import InvalidMoveError, TyrantError
+from tyrant.models.action import (
+    Action,
+    ChancellorEnactAction,
+    NominateAction,
+    PassAction,
+    SpeakAction,
+    VoteAction,
+)
+from tyrant.models.enums import HIDDEN, GamePhase, Vote
 from tyrant.models.game_state import GameState, create_game
 
 
@@ -37,7 +45,7 @@ class CapturingAgent:
         self, state: GameState, valid_actions: tuple[Action, ...]
     ) -> Action:
         self.captured_state = state
-        return Action(description="Test")
+        return valid_actions[0]
 
 
 class TestGameRunnerInitialization(unittest.TestCase):
@@ -100,13 +108,65 @@ class TestGameRunnerQueryAgent(unittest.IsolatedAsyncioTestCase):
     async def test_query_agent_scrubs_state(self):
         """Verifies that the GameState passed to the agent is properly scrubbed for hidden information."""
         state = create_game((1, 2, 3, 4, 5), 42)
-        agent = CapturingAgent(uid=1)
+        president_uid = state.players[state.president_index].uid
+        agent = CapturingAgent(uid=president_uid)
         runner = GameRunner(agents=[agent], initial_state=state)
 
-        await runner._query_agent(agent, tuple())
+        await runner._query_agent(agent, get_legal_actions(state, president_uid))
 
         self.assertIsNotNone(agent.captured_state)
         self.assertEqual(agent.captured_state.rng_state, HIDDEN)
+
+    async def test_query_agent_rejects_unoffered_action(self):
+        """Verifies that an action outside valid_actions raises an InvalidMoveError."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        president_uid = state.players[state.president_index].uid
+        bad_action = NominateAction(description="Nominate", target_uid=president_uid)
+        agent = StubAgent(uid=president_uid, actions_to_play=[bad_action])
+        runner = GameRunner(agents=[agent], initial_state=state)
+
+        with self.assertRaises(InvalidMoveError):
+            await runner._query_agent(agent, get_legal_actions(state, president_uid))
+
+
+class TestIsOffered(unittest.TestCase):
+    def test_is_offered_matching_action(self):
+        """Verifies that an action equal to an offered action is accepted."""
+        offered = (VoteAction(description="Vote JA", vote=Vote.JA),)
+        self.assertTrue(
+            _is_offered(VoteAction(description="Vote JA", vote=Vote.JA), offered)
+        )
+
+    def test_is_offered_ignores_description(self):
+        """Verifies that a different description does not prevent a match."""
+        offered = (VoteAction(description="Vote JA", vote=Vote.JA),)
+        self.assertTrue(
+            _is_offered(VoteAction(description="Other", vote=Vote.JA), offered)
+        )
+
+    def test_is_offered_field_mismatch(self):
+        """Verifies that an action with different identifying fields is rejected."""
+        offered = (VoteAction(description="Vote JA", vote=Vote.JA),)
+        self.assertFalse(
+            _is_offered(VoteAction(description="Vote JA", vote=Vote.NEIN), offered)
+        )
+
+    def test_is_offered_type_mismatch(self):
+        """Verifies that an action of a type that was not offered is rejected."""
+        offered = (SpeakAction(description="Speak"),)
+        self.assertFalse(_is_offered(PassAction(description="Speak"), offered))
+
+    def test_is_offered_base_action_rejected(self):
+        """Verifies that a bare Action is not accepted in place of a subclass."""
+        offered = (PassAction(description="Pass"),)
+        self.assertFalse(_is_offered(Action(description="Pass"), offered))
+
+    def test_is_offered_speak_with_message(self):
+        """Verifies that a SpeakAction with an agent-filled message is accepted."""
+        offered = (SpeakAction(description="Speak"),)
+        self.assertTrue(
+            _is_offered(SpeakAction(description="Speak", message="Hello."), offered)
+        )
 
 
 class TestGameRunnerIteration(unittest.IsolatedAsyncioTestCase):

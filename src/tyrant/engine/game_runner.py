@@ -1,12 +1,31 @@
 import asyncio
 from collections.abc import Awaitable, Mapping, Sequence
+from dataclasses import fields
+from typing import Final
 
 from tyrant.engine.router import apply_action, get_legal_actions
-from tyrant.exceptions import TyrantError
+from tyrant.exceptions import InvalidMoveError, TyrantError
 from tyrant.models.action import Action
 from tyrant.models.agent import Agent
 from tyrant.models.enums import GamePhase, Role
 from tyrant.models.game_state import GameState, create_game, scrub_state
+
+AGENT_FILLED_FIELDS: Final = frozenset({"description", "message"})
+
+
+def _identity(action: Action) -> tuple:
+    return tuple(
+        getattr(action, f.name)
+        for f in fields(action)
+        if f.name not in AGENT_FILLED_FIELDS
+    )
+
+
+def _is_offered(action: Action, valid_actions: tuple[Action, ...]) -> bool:
+    return any(
+        type(action) is type(offered) and _identity(action) == _identity(offered)
+        for offered in valid_actions
+    )
 
 
 class GameRunner:
@@ -60,4 +79,8 @@ class GameRunner:
     ) -> tuple[int, Action]:
         scrubbed_state = scrub_state(self.state, agent.uid)
         action = await agent.choose_action(scrubbed_state, valid_actions)
+        if not _is_offered(action, valid_actions):
+            raise InvalidMoveError(
+                f"Player {agent.uid} chose an action that was not offered: {action}"
+            )
         return agent.uid, action
