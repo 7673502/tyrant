@@ -335,7 +335,7 @@ def speak(state: GameState, uid: int, text: str | None) -> GameState:
         text: What the player says, or `None` to pass. Whitespace is collapsed and the text is cut to `MAX_SPEECH_LENGTH` characters.
 
     Returns:
-        The new game state, back in the interrupted phase once the discussion is complete.
+        The new game state, back in the interrupted phase once the discussion is complete or every speaker has passed in a row.
 
     Raises:
         InvalidMoveError: If no discussion is running or it is not this player's turn.
@@ -357,7 +357,11 @@ def speak(state: GameState, uid: int, text: str | None) -> GameState:
         deck_shuffled_last_action=False,
     )
 
-    next_discussion = replace(discussion, turn=discussion.turn + 1)
+    next_discussion = replace(
+        discussion,
+        turn=discussion.turn + 1,
+        consecutive_passes=0 if text is not None else discussion.consecutive_passes + 1,
+    )
     if next_discussion.is_complete:
         return replace(new_state, phase=discussion.resume_phase, discussion=None)
 

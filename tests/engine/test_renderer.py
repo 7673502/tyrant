@@ -151,7 +151,7 @@ class TestRenderDict(unittest.TestCase):
         """Verifies that the discussion context, round and round count are reported during discussion."""
         state = _nominated(replace(self.state, discussion_enabled=True))
         for uid in state.discussion.speaker_order:
-            state = speak(state, uid, None)
+            state = speak(state, uid, "Hello")
         turn = render_dict(scrub_state(state, 1), 1)["turn"]
         self.assertEqual(
             turn["discussion"],
