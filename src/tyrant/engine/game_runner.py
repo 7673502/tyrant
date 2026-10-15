@@ -82,11 +82,15 @@ class GameRunner:
                 f"Stalemate: No players have legal actions in phase {self.state.phase}."
             )
 
+        fault_count = len(self.faults)
         results: list[tuple[int, Action]] = await asyncio.gather(*pending_tasks)
+        fell_back = {f.uid for f in self.faults[fault_count:] if f.fell_back}
 
         for agent_uid, chosen_action in results:
             self.state = apply_action(self.state, chosen_action, agent_uid)
-            self.replay = record_step(self.replay, agent_uid, chosen_action)
+            self.replay = record_step(
+                self.replay, agent_uid, chosen_action, agent_uid in fell_back
+            )
 
         return self.state
 

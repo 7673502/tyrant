@@ -76,7 +76,7 @@ class TestReplayDict(unittest.TestCase):
 
     def test_replay_dict_format(self):
         """Verifies the exact format of the header, initial snapshot, and first step."""
-        self.assertEqual(self.view["version"], 1)
+        self.assertEqual(self.view["version"], 2)
         self.assertEqual(
             self.view["settings"],
             {
@@ -127,12 +127,23 @@ class TestReplayDict(unittest.TestCase):
                 "index": 0,
                 "uid": 4,
                 "action": {"type": "nominate", "target_uid": 3},
+                "fallback": False,
                 "events": [
                     {"type": "nomination", "president_uid": 4, "chancellor_uid": 3}
                 ],
                 "knowledge": [],
                 "state": initial | {"phase": "voting", "chancellor": 3},
             },
+        )
+
+    def test_replay_dict_fallback(self):
+        """Verifies that each step reports whether its action was a fallback."""
+        replay = Replay(initial_state=self.replay.initial_state)
+        for index, step in enumerate(self.replay.steps):
+            replay = record_step(replay, step.uid, step.action, index == 1)
+        self.assertEqual(
+            [s["fallback"] for s in replay_dict(replay)["steps"][:3]],
+            [False, True, False],
         )
 
     def test_replay_dict_omits_agent_filled_fields(self):
