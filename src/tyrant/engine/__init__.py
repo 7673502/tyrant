@@ -1,3 +1,5 @@
+"""The game loop, legal move routing, state rendering and replays."""
+
 from tyrant.engine.game_runner import GameRunner
 from tyrant.engine.renderer import render_dict, render_text
 from tyrant.engine.replay import read_replay, replay_dict, write_replay

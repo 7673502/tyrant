@@ -48,12 +48,21 @@ FASCIST_TRACKS: Final = frozendict(
 
 @dataclass(frozen=True)
 class Board:
+    """The liberal and fascist policy tracks.
+
+    Attributes:
+        player_count: Number of players, which selects the fascist track.
+        liberal_played: Number of liberal policies enacted.
+        fascist_played: Number of fascist policies enacted.
+    """
+
     player_count: int
     liberal_played: int = 0
     fascist_played: int = 0
 
     @property
     def winner(self) -> Party | None:
+        """The party that has enacted enough policies to win, or `None`."""
         if self.liberal_played >= LIBERAL_TILES_TO_WIN:
             return Party.LIBERAL
         elif self.fascist_played >= FASCIST_TILES_TO_WIN:
@@ -63,14 +72,25 @@ class Board:
 
     @property
     def hitler_zone(self) -> bool:
+        """Whether electing Hitler as chancellor now wins the game for the fascists."""
         return self.fascist_played >= HITLER_ZONE_COUNT
 
     @property
     def veto_power_unlocked(self) -> bool:
+        """Whether the chancellor may propose a veto."""
         return self.fascist_played >= 5
 
 
 def play_tile(board: Board, tile: PolicyTile) -> tuple[Board, PresidentialPower]:
+    """Enacts a policy on the board.
+
+    Args:
+        board: The current board.
+        tile: The policy to enact.
+
+    Returns:
+        The new board and the presidential power the policy grants.
+    """
     match tile:
         case PolicyTile.LIBERAL:
             return replace(

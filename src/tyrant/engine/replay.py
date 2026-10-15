@@ -16,6 +16,7 @@ REPLAY_VERSION: Final = 2
 
 
 def _action(action: Action) -> dict:
+    """Returns the action as JSON, leaving out the fields an agent may fill in."""
     return {
         key: value
         for key, value in to_json(action, "Action").items()
@@ -24,6 +25,7 @@ def _action(action: Action) -> dict:
 
 
 def _snapshot(state: GameState) -> dict:
+    """Returns the public board snapshot stored with each replay step."""
     return {
         "phase": to_json(state.phase),
         "president": state.players[state.president_index].uid,
@@ -51,6 +53,7 @@ def _snapshot(state: GameState) -> dict:
 
 
 def _result(state: GameState) -> dict | None:
+    """Returns the winner and win condition, or `None` if the game has not ended."""
     game_over = next(
         (e for e in reversed(state.events) if isinstance(e, GameOverEvent)), None
     )
@@ -63,7 +66,14 @@ def _result(state: GameState) -> dict | None:
 
 
 def replay_dict(replay: Replay) -> dict:
-    """Returns a JSON-serializable replay with a full board snapshot after every step."""
+    """Returns a JSON-serializable replay with a full board snapshot after every step.
+
+    Args:
+        replay: The replay to convert.
+
+    Returns:
+        Plain JSON values holding the settings, every player's hidden role, the initial snapshot, one entry per step and the result.
+    """
     initial = replay.initial_state
     state = initial
     steps = []
@@ -111,12 +121,24 @@ def replay_dict(replay: Replay) -> dict:
 
 
 def write_replay(replay: Replay, path: str | Path) -> None:
-    """Writes the replay to a gzipped JSON file."""
+    """Writes the replay to a gzipped JSON file.
+
+    Args:
+        replay: The replay to write.
+        path: The file to write.
+    """
     with gzip.open(path, "wt", encoding="utf-8") as f:
         json.dump(replay_dict(replay), f, separators=(",", ":"))
 
 
 def read_replay(path: str | Path) -> dict:
-    """Reads a gzipped JSON replay file into plain dicts."""
+    """Reads a gzipped JSON replay file into plain dicts.
+
+    Args:
+        path: The file to read.
+
+    Returns:
+        The replay in the format returned by `replay_dict`.
+    """
     with gzip.open(path, "rt", encoding="utf-8") as f:
         return json.load(f)

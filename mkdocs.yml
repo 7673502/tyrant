@@ -1,0 +1,75 @@
+site_name: Tyrant
+site_description: A Secret Hitler engine for LLMs, search agents and people.
+site_url: https://docs.secretarena.org/
+repo_url: https://github.com/7673502/tyrant
+repo_name: 7673502/tyrant
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: false
+            members_order: source
+            show_signature_annotations: true
+            separate_signature: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.snippets:
+      base_path: [.]
+      check_paths: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+
+nav:
+  - Home:
+      - index.md
+      - Design: concepts.md
+  - Getting started:
+      - getting-started/installation.md
+      - tutorials/first-game.md
+      - tutorials/custom-agent.md
+      - tutorials/llm-game.md
+  - Guides:
+      - guides/discussion.md
+      - guides/events.md
+      - guides/knowledge.md
+      - guides/rendering.md
+      - guides/replays.md
+      - guides/prompting.md
+      - guides/agent-resilience.md
+  - API reference:
+      - reference/index.md
+      - reference/models.md
+      - reference/engine.md
+      - reference/agents.md
+      - reference/llm.md
+      - reference/exceptions.md

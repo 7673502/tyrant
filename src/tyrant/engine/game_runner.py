@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def _identity(action: Action) -> tuple:
+    """Returns the action's field values, leaving out the fields an agent may fill in."""
     return tuple(
         getattr(action, f.name)
         for f in fields(action)
@@ -28,6 +29,7 @@ def _identity(action: Action) -> tuple:
 
 
 def _is_offered(action: Action, valid_actions: tuple[Action, ...]) -> bool:
+    """Returns whether the action matches an offered action, ignoring agent-filled fields."""
     return any(
         type(action) is type(offered) and _identity(action) == _identity(offered)
         for offered in valid_actions
@@ -35,6 +37,20 @@ def _is_offered(action: Action, valid_actions: tuple[Action, ...]) -> bool:
 
 
 class GameRunner:
+    """Plays a game by asking agents for actions until it ends.
+
+    Each iteration, every agent with legal actions is asked at the same time, with the state scrubbed for that agent. A failed attempt is retried, and after `max_retries` failed retries the runner plays a random legal action for the agent.
+
+    Attributes:
+        state: The current, unscrubbed game state.
+        replay: Every action applied so far.
+        agents: Each agent, keyed by UID.
+        max_retries: Retries allowed after an agent's first failed attempt.
+        timeout: Seconds allowed for each attempt, or `None` for no limit.
+        rng: Random generator that picks fallback actions.
+        faults: Every failed attempt, in order.
+    """
+
     def __init__(
         self,
         agents: Sequence[Agent],
@@ -47,6 +63,22 @@ class GameRunner:
         max_retries: int = 2,
         timeout: float | None = 120.0,
     ):
+        """Sets up the runner and, unless `initial_state` is given, a new game.
+
+        Args:
+            agents: The players. Each agent's `uid` becomes a player UID.
+            initial_state: A state to start from instead of a new game.
+            seed: Seed for the new game and for fallback actions, or `None` for random.
+            roles: Fixed role for each UID, or `None` to deal roles at random.
+            shuffle_players: Whether to shuffle the seating order.
+            discussion_enabled: Whether to hold discussions.
+            discussion_rounds: How many times the table goes around in each discussion.
+            max_retries: Retries allowed after an agent's first failed attempt.
+            timeout: Seconds allowed for each attempt, or `None` for no limit.
+
+        Raises:
+            TyrantError: If the settings are not valid for a new game.
+        """
         if initial_state is None:
             initial_state = create_game(
                 uids=tuple(agent.uid for agent in agents),
@@ -65,11 +97,20 @@ class GameRunner:
         self.faults: tuple[AgentFault, ...] = ()
 
     async def run(self) -> GameState:
+        """Plays the game until it ends.
+
+        Returns:
+            The final, unscrubbed game state.
+
+        Raises:
+            TyrantError: If no player has a legal action.
+        """
         while self.state.phase != GamePhase.GAME_OVER:
             await self._run_iteration()
         return self.state
 
     async def _run_iteration(self) -> GameState:
+        """Asks every agent with legal actions at once and applies their choices in order."""
         pending_tasks: list[Awaitable[tuple[int, Action]]] = []
 
         for agent in self.agents.values():
@@ -97,6 +138,7 @@ class GameRunner:
     async def _query_agent(
         self, agent: Agent, valid_actions: tuple[Action, ...]
     ) -> tuple[int, Action]:
+        """Asks an agent for an action, retrying on failure and falling back to a random legal action."""
         scrubbed_state = scrub_state(self.state, agent.uid)
         attempts = self.max_retries + 1
         for attempt in range(attempts):
@@ -108,6 +150,7 @@ class GameRunner:
         return agent.uid, self.rng.choice(valid_actions)
 
     def _record_fault(self, uid: int, reason: str, fell_back: bool) -> None:
+        """Records and logs a failed attempt."""
         fault = AgentFault(
             uid=uid, phase=self.state.phase, reason=reason, fell_back=fell_back
         )
@@ -123,6 +166,7 @@ class GameRunner:
     async def _attempt(
         self, agent: Agent, state: GameState, valid_actions: tuple[Action, ...]
     ) -> Action:
+        """Makes one timed request to an agent and rejects an action that was not offered."""
         action = await asyncio.wait_for(
             agent.choose_action(state, valid_actions), self.timeout
         )

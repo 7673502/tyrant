@@ -11,6 +11,13 @@ POLICY_DRAW_COUNT: Final = 3
 
 @dataclass(frozen=True)
 class Deck:
+    """The policy draw and discard piles.
+
+    Attributes:
+        draw_pile: Policies left to draw; the last element is the top of the deck.
+        discard_pile: Discarded policies.
+    """
+
     draw_pile: tuple[PolicyTile | HIDDEN, ...]
     discard_pile: tuple[PolicyTile | HIDDEN, ...] = ()
 
@@ -18,6 +25,11 @@ class Deck:
     def peek(
         self,
     ) -> tuple[PolicyTile | HIDDEN, PolicyTile | HIDDEN, PolicyTile | HIDDEN]:
+        """The top three policies of the draw pile, from the top down.
+
+        Raises:
+            RuntimeError: If the draw pile holds fewer than three policies.
+        """
         _check_draw_size(self)
         return (self.draw_pile[-1], self.draw_pile[-2], self.draw_pile[-3])
 
@@ -31,7 +43,14 @@ def _check_draw_size(deck: Deck):
 
 
 def create_deck(rng: Random) -> Deck:
-    """Creates and returns a new initialized, shuffled deck."""
+    """Creates and returns a new initialized, shuffled deck.
+
+    Args:
+        rng: Random generator used to shuffle.
+
+    Returns:
+        A deck with 6 liberal and 11 fascist policies in the draw pile.
+    """
     initial_pile = [PolicyTile.LIBERAL] * NUM_LIBERAL_POLICIES + [
         PolicyTile.FASCIST
     ] * NUM_FASCIST_POLICIES
@@ -40,7 +59,15 @@ def create_deck(rng: Random) -> Deck:
 
 
 def shuffle_deck(deck: Deck, rng: Random) -> tuple[Deck, bool]:
-    """Shuffles only if less than 3 tiles in draw pile and returns whether shuffle occurred."""
+    """Shuffles only if less than 3 tiles in draw pile and returns whether shuffle occurred.
+
+    Args:
+        deck: The current deck.
+        rng: Random generator used to shuffle.
+
+    Returns:
+        The deck, with the discard pile shuffled into the draw pile if needed, and whether a shuffle happened.
+    """
     if len(deck.draw_pile) < POLICY_DRAW_COUNT:
         new_draw = list(deck.draw_pile) + list(deck.discard_pile)
         rng.shuffle(new_draw)
@@ -49,7 +76,17 @@ def shuffle_deck(deck: Deck, rng: Random) -> tuple[Deck, bool]:
 
 
 def draw_policies(deck: Deck) -> tuple[Deck, tuple[PolicyTile, PolicyTile, PolicyTile]]:
-    """Draws 3 policies from the deck."""
+    """Draws 3 policies from the deck.
+
+    Args:
+        deck: The current deck.
+
+    Returns:
+        The new deck and the drawn policies, from the top down.
+
+    Raises:
+        RuntimeError: If the draw pile holds fewer than three policies.
+    """
     _check_draw_size(deck)
     top_three = (deck.draw_pile[-1], deck.draw_pile[-2], deck.draw_pile[-3])
     new_draw_pile = deck.draw_pile[:-3]
@@ -57,7 +94,17 @@ def draw_policies(deck: Deck) -> tuple[Deck, tuple[PolicyTile, PolicyTile, Polic
 
 
 def top_deck(deck: Deck) -> tuple[Deck, PolicyTile]:
-    """Draws 1 policy from the top of the deck."""
+    """Draws 1 policy from the top of the deck.
+
+    Args:
+        deck: The current deck.
+
+    Returns:
+        The new deck and the drawn policy.
+
+    Raises:
+        RuntimeError: If the draw pile holds fewer than three policies.
+    """
     _check_draw_size(deck)
     tile = deck.draw_pile[-1]
     new_draw_pile = deck.draw_pile[:-1]
@@ -65,6 +112,14 @@ def top_deck(deck: Deck) -> tuple[Deck, PolicyTile]:
 
 
 def discard_policies(deck: Deck, *tiles: PolicyTile) -> Deck:
-    """Discards policies into the discard pile."""
+    """Discards policies into the discard pile.
+
+    Args:
+        deck: The current deck.
+        *tiles: The policies to discard.
+
+    Returns:
+        The new deck.
+    """
     new_discard = deck.discard_pile + tiles
     return Deck(draw_pile=deck.draw_pile, discard_pile=new_discard)

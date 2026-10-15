@@ -52,6 +52,7 @@ TILE_MAP: Final = {"L": PolicyTile.LIBERAL, "F": PolicyTile.FASCIST}
 def _get_legal_actions_nomination(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
+    """Returns the president's nominations, leaving out dead and term-limited players."""
     president_uid = state.players[state.president_index].uid
     if player_uid != president_uid:
         return tuple()
@@ -79,6 +80,7 @@ def _get_legal_actions_nomination(
 def _get_legal_actions_discussion(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
+    """Returns a speak and a pass action for the current speaker."""
     if state.discussion is None or player_uid != state.discussion.current_speaker:
         return tuple()
 
@@ -89,6 +91,7 @@ def _get_legal_actions_discussion(
 
 
 def _get_legal_actions_voting(state: GameState, player_uid: int) -> tuple[Action, ...]:
+    """Returns a ja and a nein vote for a player who has not voted yet."""
     if player_uid in state.ballot_box.votes:
         return tuple()
 
@@ -101,6 +104,7 @@ def _get_legal_actions_voting(state: GameState, player_uid: int) -> tuple[Action
 def _get_legal_actions_president_discard(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
+    """Returns one discard action per drawn policy for the president."""
     president_uid = state.players[state.president_index].uid
     if player_uid != president_uid:
         return tuple()
@@ -119,6 +123,7 @@ def _get_legal_actions_president_discard(
 def _get_legal_actions_chancellor_enact(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
+    """Returns one enact action per received policy for the chancellor, plus a veto when allowed."""
     if player_uid != state.chancellor:
         return tuple()
 
@@ -139,6 +144,7 @@ def _get_legal_actions_chancellor_enact(
 def _get_legal_actions_investigate_loyalty(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
+    """Returns one investigation per other living player who has not been investigated."""
     actions: list[Action] = []
     for p in state.players:
         if p.is_alive and p.uid != player_uid and p.uid not in state.investigations:
@@ -153,6 +159,7 @@ def _get_legal_actions_investigate_loyalty(
 def _get_legal_actions_call_special_election(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
+    """Returns one special election per other living player."""
     actions: list[Action] = []
     for p in state.players:
         if p.is_alive and p.uid != player_uid:
@@ -167,6 +174,7 @@ def _get_legal_actions_call_special_election(
 def _get_legal_actions_execution(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
+    """Returns one execution per other living player."""
     actions: list[Action] = []
     for p in state.players:
         if p.is_alive and p.uid != player_uid:
@@ -179,6 +187,7 @@ def _get_legal_actions_execution(
 def _get_legal_actions_presidential_power(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
+    """Returns the president's actions for the active presidential power."""
     president_uid = state.players[state.president_index].uid
     if president_uid != player_uid:
         return tuple()
@@ -201,6 +210,7 @@ def _get_legal_actions_presidential_power(
 def _get_legal_actions_claim_investigation(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
+    """Returns the president's liberal, fascist and decline claims about an investigation."""
     if player_uid != state.players[state.president_index].uid:
         return tuple()
     actions: list[Action] = []
@@ -225,6 +235,7 @@ def _get_legal_actions_claim_investigation(
 def _get_legal_actions_claim_peek(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
+    """Returns every ordered peek claim for the president, plus a decline."""
     if player_uid != state.players[state.president_index].uid:
         return tuple()
 
@@ -249,6 +260,7 @@ def _get_legal_actions_claim_peek(
 def _get_legal_actions_enact_claims(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
+    """Returns the pending policy claims for the president or chancellor, each with a decline."""
     actions: list[Action] = []
 
     president_uid = state.players[state.president_index].uid
@@ -288,6 +300,7 @@ def _get_legal_actions_enact_claims(
 def _get_legal_actions_president_veto_response(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
+    """Returns the president's approve and refuse responses to a veto proposal."""
     if player_uid != state.players[state.president_index].uid:
         return tuple()
 
@@ -302,6 +315,18 @@ def _get_legal_actions_president_veto_response(
 
 
 def get_legal_actions(state: GameState, player_uid: int) -> tuple[Action, ...]:
+    """Lists the actions a player may take now.
+
+    Args:
+        state: The current game state.
+        player_uid: UID of the player.
+
+    Returns:
+        The legal actions, or an empty tuple if the player is dead or not due to act.
+
+    Raises:
+        TyrantError: If the player is not in the game.
+    """
     player = next((p for p in state.players if p.uid == player_uid), None)
     if player is None:
         raise TyrantError(f"Player with UID {player_uid} not found")
@@ -334,6 +359,20 @@ def get_legal_actions(state: GameState, player_uid: int) -> tuple[Action, ...]:
 
 
 def apply_action(state: GameState, action: Action, player_uid: int) -> GameState:
+    """Applies a player's action to the game.
+
+    Args:
+        state: The full game state.
+        action: The action to apply, usually one returned by `get_legal_actions`.
+        player_uid: UID of the acting player.
+
+    Returns:
+        The new game state.
+
+    Raises:
+        InvalidMoveError: If the action is not legal in this state.
+        TyrantError: If the action type is not recognized.
+    """
     match action:
         case NominateAction(target_uid=uid):
             return nominate_chancellor(state, uid)

@@ -29,11 +29,21 @@ PRESIDENT_PHASES = (
 
 
 def _type_name(value: Any, suffix: str) -> str:
+    """Returns the value's class name in snake case, without the given suffix."""
     name = type(value).__name__.removesuffix(suffix)
     return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
 
 def to_json(value: Any, suffix: str = "") -> Any:
+    """Converts a model value to plain JSON values.
+
+    Args:
+        value: An enum, tuple, frozendict, dataclass, `HIDDEN` or plain value.
+        suffix: Suffix removed from a dataclass's class name to form its `type` field.
+
+    Returns:
+        The value as plain dicts, lists, strings, numbers, booleans and `None`.
+    """
     if value is HIDDEN:
         return UNKNOWN
     if isinstance(value, Enum):
@@ -50,6 +60,7 @@ def to_json(value: Any, suffix: str = "") -> Any:
 
 
 def _awaiting(state: GameState) -> list[int]:
+    """Returns the UIDs of the players the game is waiting on."""
     president_uid = state.players[state.president_index].uid
     if state.phase in PRESIDENT_PHASES:
         return [president_uid]
@@ -75,7 +86,18 @@ def _awaiting(state: GameState) -> list[int]:
 
 
 def render_dict(state: GameState, viewer_uid: int) -> dict:
-    """Returns a JSON-serializable view of the state, scrubbed for the given viewer."""
+    """Returns a JSON-serializable view of the state, scrubbed for the given viewer.
+
+    Args:
+        state: The game state to render; it is scrubbed for the viewer first.
+        viewer_uid: UID of the player who will see the view.
+
+    Returns:
+        A dict with `viewer`, `players`, `board`, `government`, `turn`, `timeline` and `knowledge` sections.
+
+    Raises:
+        TyrantError: If the viewer is not in the game.
+    """
     state = scrub_state(state, viewer_uid)
     viewer = next((p for p in state.players if p.uid == viewer_uid), None)
     if viewer is None:
@@ -141,18 +163,22 @@ def render_dict(state: GameState, viewer_uid: int) -> dict:
 
 
 def _player(uid: int | None) -> str:
+    """Returns a player's display name, or `none`."""
     return "none" if uid is None else f"Player {uid}"
 
 
 def _player_list(uids: list[int]) -> str:
+    """Returns a comma-separated list of player names, or `none`."""
     return ", ".join(_player(uid) for uid in uids) or "none"
 
 
 def _yes_no(value: bool) -> str:
+    """Returns `yes` or `no`."""
     return "yes" if value else "no"
 
 
 def _claim_line(entry: dict) -> str:
+    """Returns the timeline sentence for a claim event."""
     claim = entry["claim"]
     who = _player(claim["uid"])
     match claim["type"]:
@@ -179,6 +205,7 @@ def _claim_line(entry: dict) -> str:
 
 
 def _timeline_line(entry: dict) -> str:
+    """Returns the timeline sentence for an event."""
     match entry["type"]:
         case "nomination":
             return (
@@ -234,6 +261,7 @@ def _timeline_line(entry: dict) -> str:
 
 
 def _timeline_lines(timeline: list[dict]) -> list[str]:
+    """Returns the timeline sentences, collapsing speeches from all but the last few discussions."""
     starts = [
         i
         for i, entry in enumerate(timeline)
@@ -250,6 +278,7 @@ def _timeline_lines(timeline: list[dict]) -> list[str]:
 
 
 def _knowledge_line(entry: dict) -> str:
+    """Returns the sentence for one piece of private knowledge."""
     match entry["type"]:
         case "president_draw":
             return (
@@ -274,7 +303,18 @@ def _knowledge_line(entry: dict) -> str:
 
 
 def render_text(state: GameState, viewer_uid: int) -> str:
-    """Returns a prompt-ready Markdown view of the state, scrubbed for the given viewer."""
+    """Returns a prompt-ready Markdown view of the state, scrubbed for the given viewer.
+
+    Args:
+        state: The game state to render; it is scrubbed for the viewer first.
+        viewer_uid: UID of the player who will see the view.
+
+    Returns:
+        Markdown with sections for the viewer, the players, private knowledge, the timeline, the board, the government and the current turn.
+
+    Raises:
+        TyrantError: If the viewer is not in the game.
+    """
     view = render_dict(state, viewer_uid)
     viewer, board, government, turn = (
         view["viewer"],

@@ -1,3 +1,5 @@
+"""A Secret Hitler engine for LLMs, search agents and people."""
+
 from tyrant.agents import BiasedRandomAgent, RandomAgent
 from tyrant.engine import (
     GameRunner,
