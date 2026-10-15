@@ -8,6 +8,8 @@ from tyrant.models.action import Action, SpeakAction
 from tyrant.models.discussion import MAX_SPEECH_LENGTH
 from tyrant.models.game_state import GameState
 
+MAX_NOTES_LENGTH: Final = 200
+
 RULES: Final[str] = """# Secret Hitler Rules
 
 ## Teams and Roles
@@ -58,10 +60,11 @@ Some Fascist policies grant the President a power, which they must use before th
 RESPONSE_FORMAT: Final[str] = f"""# Response Format
 Think through your decision in plain text first if you want. Then end your reply with exactly one JSON object:
 
-{{"action": N, "message": "..."}}
+{{"action": N, "message": "...", "notes": "..."}}
 
 - `action` is the number of the option you choose from Your Options.
 - `message` is only required when you choose the option to say something to the table. It is what you say, at most {MAX_SPEECH_LENGTH} characters. Leave it out otherwise.
+- `notes` are your private notes, at most {MAX_NOTES_LENGTH} characters. Only you ever see them. They are shown back to you under Your Notes on your next turn, so use them to track suspicions, claims and plans. Each `notes` you send replaces your previous notes entirely, so rewrite everything you want to keep. Leave it out to keep your notes unchanged.
 - Only the last JSON object in your reply is read.
 """
 
@@ -77,11 +80,23 @@ def render_actions(valid_actions: tuple[Action, ...]) -> str:
     return "\n".join(lines)
 
 
+def render_notes(notes: str) -> str:
+    """Returns a Markdown section holding the notes as one escaped quoted string."""
+    return "## Your Notes\n" + json.dumps(notes, ensure_ascii=False)
+
+
 def build_prompt(
-    state: GameState, viewer_uid: int, valid_actions: tuple[Action, ...]
+    state: GameState,
+    viewer_uid: int,
+    valid_actions: tuple[Action, ...],
+    notes: str | None = None,
 ) -> str:
-    """Returns the viewer's rendered state followed by their numbered options."""
-    return render_text(state, viewer_uid) + "\n" + render_actions(valid_actions)
+    """Returns the viewer's rendered state, their notes if any, then their numbered options."""
+    sections = [render_text(state, viewer_uid)]
+    if notes:
+        sections.append(render_notes(notes))
+    sections.append(render_actions(valid_actions))
+    return "\n".join(sections)
 
 
 def _last_choice(response: str) -> dict:
@@ -115,3 +130,11 @@ def parse_action(response: str, valid_actions: tuple[Action, ...]) -> Action:
     if not isinstance(message, str) or not message.strip():
         raise InvalidMoveError("Speaking requires a non-empty message")
     return replace(action, message=message)
+
+
+def parse_notes(response: str) -> str | None:
+    """Returns the cleaned notes from the last JSON object in an LLM reply, or None if it has none."""
+    notes = _last_choice(response).get("notes")
+    if not isinstance(notes, str):
+        return None
+    return " ".join(notes.split())[:MAX_NOTES_LENGTH]

@@ -4,7 +4,7 @@ from dataclasses import replace
 from random import Random
 
 from tyrant.engine.game_runner import GameRunner
-from tyrant.llm.prompt import SYSTEM_PROMPT, build_prompt
+from tyrant.llm.prompt import MAX_NOTES_LENGTH, SYSTEM_PROMPT, build_prompt
 from tyrant.models.action import Action, SpeakAction
 from tyrant.models.discussion import MAX_SPEECH_LENGTH
 from tyrant.models.game_state import GameState
@@ -18,7 +18,7 @@ MAX_OUTPUT_TOKENS_PER_GAME = 100_000
 
 
 class TokenCountingAgent:
-    """Plays randomly, always speaks at full length, and counts the text it reads and writes."""
+    """Plays randomly, always speaks and keeps notes at full length, and counts the text it reads and writes."""
 
     def __init__(self, uid: int, seed: int, prompts: list[int], outputs: list[int]):
         self.uid = uid
@@ -29,12 +29,14 @@ class TokenCountingAgent:
     async def choose_action(
         self, state: GameState, valid_actions: tuple[Action, ...]
     ) -> Action:
-        prompt = SYSTEM_PROMPT + build_prompt(state, self.uid, valid_actions)
+        notes = "x" * MAX_NOTES_LENGTH
+        prompt = SYSTEM_PROMPT + build_prompt(state, self.uid, valid_actions, notes)
         self.prompts.append(len(prompt) // CHARS_PER_TOKEN)
         speak = next((a for a in valid_actions if isinstance(a, SpeakAction)), None)
         if speak is None:
+            self.outputs.append(MAX_NOTES_LENGTH // CHARS_PER_TOKEN)
             return self.rng.choice(valid_actions)
-        self.outputs.append(MAX_SPEECH_LENGTH // CHARS_PER_TOKEN)
+        self.outputs.append((MAX_SPEECH_LENGTH + MAX_NOTES_LENGTH) // CHARS_PER_TOKEN)
         return replace(speak, message="x" * MAX_SPEECH_LENGTH)
 
 
@@ -67,7 +69,7 @@ class TestTokenBudget(unittest.TestCase):
                 self.assertLessEqual(sum(prompts), MAX_INPUT_TOKENS_PER_GAME)
 
     def test_output_tokens_per_game_within_budget(self):
-        """Verifies that the total speech tokens of a game stay within budget under default parameters."""
+        """Verifies that the total speech and notes tokens of a game stay within budget under default parameters."""
         for seed, (_, outputs) in self.games.items():
             with self.subTest(seed=seed):
                 self.assertLessEqual(sum(outputs), MAX_OUTPUT_TOKENS_PER_GAME)
