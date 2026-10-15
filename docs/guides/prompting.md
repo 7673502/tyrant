@@ -25,6 +25,18 @@ Each turn, `LLMAgent` sends `SYSTEM_PROMPT` as the system message and `build_pro
 
 Each agent keeps running totals of `prompt_tokens`, `completion_tokens`, `cached_tokens` and `cost`, in US dollars from `litellm.completion_cost`. A model litellm has no price for adds nothing to `cost`, and the move still goes through.
 
+## Personas
+
+`LLMAgent` takes an optional `persona`, a short description of how that player plays:
+
+```python
+agent = LLMAgent(0, "anthropic/claude-haiku-5-5", persona="Cautious, rarely accuses without a contradiction.")
+```
+
+When `persona` is set, the system message is [`system_prompt(persona)`](../reference/llm.md#tyrant.llm.system_prompt): `SYSTEM_PROMPT` followed by a `## Your Personality` section holding the persona. Every player's system message still starts with the same `SYSTEM_PROMPT` text, so the provider can keep reusing its cached prefix. With no persona, the system message is exactly `SYSTEM_PROMPT`.
+
+Describe a playing style, not a goal. "Cautious, rarely accuses without a contradiction" or "talkative, pushes hard on vote patterns" shape how a player argues without changing what they are trying to win. A persona that clashes with the role, such as "always tell the truth" for a Fascist, pulls the model against its own win condition and mostly adds noise when you're comparing models.
+
 ## Notes
 
 An `LLMAgent` keeps private notes, one string that lasts for one game. Only that agent sees them: they are shown back to it under `## Your Notes` on each of its turns, so it can track suspicions, claims and plans between turns.

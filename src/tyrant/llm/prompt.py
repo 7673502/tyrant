@@ -73,6 +73,20 @@ SYSTEM_PROMPT: Final[str] = RULES + "\n" + RESPONSE_FORMAT
 """The rules and the reply format, the same for every game and every player."""
 
 
+def system_prompt(persona: str = "") -> str:
+    """Returns `SYSTEM_PROMPT`, followed by a `## Your Personality` section when a persona is given.
+
+    Args:
+        persona: A playing style for the player, or empty for none.
+
+    Returns:
+        The system message, which always starts with `SYSTEM_PROMPT` so providers can reuse their cache.
+    """
+    if not persona:
+        return SYSTEM_PROMPT
+    return f"{SYSTEM_PROMPT}\n## Your Personality\n{persona}\n"
+
+
 def render_actions(valid_actions: tuple[Action, ...]) -> str:
     """Returns a Markdown section listing the valid actions as numbered options.
 

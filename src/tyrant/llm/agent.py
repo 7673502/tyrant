@@ -10,7 +10,7 @@ except ImportError as e:
 from frozendict import frozendict
 
 from tyrant.exceptions import InvalidMoveError
-from tyrant.llm.prompt import SYSTEM_PROMPT, build_prompt, parse_action, parse_notes
+from tyrant.llm.prompt import build_prompt, parse_action, parse_notes, system_prompt
 from tyrant.models.action import Action
 from tyrant.models.game_state import GameState
 
@@ -18,12 +18,13 @@ from tyrant.models.game_state import GameState
 class LLMAgent:
     """An agent that plays through any model litellm supports.
 
-    Each turn it sends `SYSTEM_PROMPT` as the system message and `build_prompt` as the user message, then reads the reply with `parse_action` and `parse_notes`. When a reply is rejected, the next call adds that reply and the reason to the conversation.
+    Each turn it sends `SYSTEM_PROMPT`, followed by the persona if one is set, as the system message and `build_prompt` as the user message, then reads the reply with `parse_action` and `parse_notes`. When a reply is rejected, the next call adds that reply and the reason to the conversation.
 
     Attributes:
         uid: The player's unique ID.
         model: The litellm model string.
         completion_kwargs: Extra arguments for `litellm.acompletion`.
+        persona: A playing style added to the system message under `## Your Personality`, or empty for none.
         notes: Private notes, shown back to the agent on each of its turns.
         prompt_tokens: Total prompt tokens used.
         completion_tokens: Total completion tokens used.
@@ -36,6 +37,7 @@ class LLMAgent:
         uid: int,
         model: str,
         completion_kwargs: frozendict = frozendict(),
+        persona: str = "",
     ):
         """Creates the agent.
 
@@ -43,10 +45,12 @@ class LLMAgent:
             uid: The player's unique ID.
             model: A litellm model string, such as `anthropic/claude-haiku-5-5`.
             completion_kwargs: Extra arguments for `litellm.acompletion`, such as `temperature`.
+            persona: A playing style, such as "cautious, rarely accuses without a contradiction", or empty for none.
         """
         self.uid = uid
         self.model = model
         self.completion_kwargs = completion_kwargs
+        self.persona = persona
         self.notes = ""
         self.prompt_tokens = 0
         self.completion_tokens = 0
@@ -70,7 +74,7 @@ class LLMAgent:
             InvalidMoveError: If the reply has no usable choice.
         """
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt(self.persona)},
             {
                 "role": "user",
                 "content": build_prompt(state, self.uid, valid_actions, self.notes),

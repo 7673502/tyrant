@@ -18,6 +18,7 @@ from tyrant.llm.prompt import (
     parse_notes,
     render_actions,
     render_notes,
+    system_prompt,
 )
 from tyrant.models.action import Action, PassAction, SpeakAction, VoteAction
 from tyrant.models.discussion import MAX_SPEECH_LENGTH
@@ -83,6 +84,24 @@ class TestSystemPrompt(unittest.TestCase):
         for condition in WinCondition:
             with self.subTest(condition=condition):
                 self.assertIn(f"`{condition.value}`", RULES)
+
+
+class TestSystemPromptPersona(unittest.TestCase):
+    def test_system_prompt_immutability(self):
+        """Verifies that system_prompt returns equal text for equal personas."""
+        self.assertEqual(system_prompt("Cautious."), system_prompt("Cautious."))
+
+    def test_system_prompt_without_persona_is_system_prompt(self):
+        """Verifies that an empty persona leaves the system prompt unchanged."""
+        self.assertEqual(system_prompt(), SYSTEM_PROMPT)
+
+    def test_system_prompt_appends_persona_after_shared_prefix(self):
+        """Verifies that a persona follows the unchanged system prompt under its own heading."""
+        self.assertEqual(
+            system_prompt("Cautious, rarely accuses without a contradiction."),
+            SYSTEM_PROMPT
+            + "\n## Your Personality\nCautious, rarely accuses without a contradiction.\n",
+        )
 
 
 class TestRenderActions(unittest.TestCase):
