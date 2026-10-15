@@ -17,7 +17,8 @@ Each subpackage exports its full vocabulary:
 | `tyrant.models` | Every model, action, event, claim, knowledge and enum type, plus `create_game` and `scrub_state` |
 | `tyrant.engine` | `GameRunner`, `get_legal_actions`, `apply_action`, the renderer and the replay functions |
 | `tyrant.agents` | `RandomAgent` and `BiasedRandomAgent` |
-| `tyrant.llm` | `SYSTEM_PROMPT`, `build_prompt` and `parse_action` |
+| `tyrant.llm` | `SYSTEM_PROMPT`, `build_prompt`, `parse_action`, `parse_notes` and `MAX_NOTES_LENGTH` |
+| `tyrant.llm.agent` | `LLMAgent`, which needs the `llm` extra |
 
 Anything not listed in a package's `__all__` is internal and may change.
 
@@ -145,7 +146,7 @@ LLM support is optional. Install it with the `llm` extra, which adds `litellm`:
 pip install "tyrant[llm]"
 ```
 
-`tyrant.llm` holds the pieces every LLM agent needs, with no provider calls. `SYSTEM_PROMPT` explains the rules and asks the model to end its reply with `{"action": N, "message": "..."}`; it is the same for every game, so send it first to benefit from prompt caching. `build_prompt` renders the viewer's state followed by their numbered options, and `parse_action` turns the reply back into one of the offered actions:
+`tyrant.llm` holds the pieces every LLM agent needs, with no provider calls. `SYSTEM_PROMPT` explains the rules and asks the model to end its reply with `{"action": N, "message": "...", "notes": "..."}`; it is the same for every game, so send it first to benefit from prompt caching. `build_prompt` renders the viewer's state followed by their numbered options, and `parse_action` turns the reply back into one of the offered actions:
 
 ```python
 from tyrant.llm import SYSTEM_PROMPT, build_prompt, parse_action
@@ -157,6 +158,46 @@ async def choose_action(self, state, valid_actions):
 ```
 
 `parse_action` reads the last JSON object in the reply, so the model may reason before it. It raises `InvalidMoveError` when the reply has no usable choice, which `GameRunner` treats like any other agent failure.
+
+`build_prompt` also takes optional `notes`, rendered as a `## Your Notes` section between the state and the options. `parse_notes` reads them back from the same JSON object as `parse_action`. See [Notes](#notes).
+
+## Running an LLM game
+
+`LLMAgent` plays through [litellm](https://docs.litellm.ai/), so it works with any model litellm supports. It needs the `llm` extra, and importing `tyrant.llm.agent` without it raises an `ImportError` that says so:
+
+```python
+from tyrant import GameRunner
+from tyrant.llm.agent import LLMAgent
+
+agents = [LLMAgent(uid, "anthropic/claude-haiku-5-5") for uid in range(5)]
+runner = GameRunner(agents, discussion_enabled=True)
+await runner.run()
+```
+
+The model is any litellm model string. litellm reads provider API keys from its usual environment variables, such as `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or `GEMINI_API_KEY`, so set the one for your provider before you start. Anything else for `litellm.acompletion`, such as `temperature` or `api_base`, goes in `completion_kwargs`:
+
+```python
+from frozendict import frozendict
+
+agent = LLMAgent(0, "openai/gpt-5", completion_kwargs=frozendict(temperature=0.7))
+```
+
+Each turn, the agent sends `SYSTEM_PROMPT` as the system message and `build_prompt(...)` as the user message, and returns `parse_action(reply, valid_actions)`. When `parse_action` rejects a reply, the agent raises the error to `GameRunner` and, on its next call, adds the rejected reply and the reason to the conversation. Timeouts, retries and the random fallback are left to `GameRunner`.
+
+Each agent keeps running totals of `prompt_tokens`, `completion_tokens`, `cached_tokens` and `cost`, in US dollars from `litellm.completion_cost`. A model litellm has no price for adds nothing to `cost`, and the move still goes through.
+
+`examples/llm_game.py` plays a 5-player game with discussion and prints the winner, the faults, the token totals, the cost and each agent's final notes:
+
+```sh
+export ANTHROPIC_API_KEY=...
+TYRANT_MODEL=anthropic/claude-haiku-5-5 uv run --extra llm python examples/llm_game.py
+```
+
+### Notes
+
+An `LLMAgent` keeps private notes, one string that lasts for one game. Only that agent sees them: they are shown back to it under `## Your Notes` on each of its turns, so it can track suspicions, claims and plans between turns.
+
+A reply may include `notes` in its final JSON object. When present, it replaces the previous notes entirely; when missing, the previous notes stay. Only replies that become accepted moves change the notes, so a rejected reply leaves them alone. Notes have their whitespace collapsed, the same as speeches, and are cut to `MAX_NOTES_LENGTH` (1000) characters. They are rendered as an escaped quoted string, so they can't forge a prompt section. Read an agent's current notes from `agent.notes`. Notes are not recorded in replays.
 
 ## Agent Resilience
 
