@@ -7,6 +7,7 @@ from tyrant.models.knowledge import (
     InvestigationKnowledge,
     Knowledge,
     PeekKnowledge,
+    PresidentDiscardKnowledge,
     PresidentDrawKnowledge,
 )
 
@@ -29,6 +30,14 @@ class TestKnowledge(unittest.TestCase):
         """Verifies that PresidentDrawKnowledge is a frozen dataclass with immutable fields."""
         self.assert_frozen(
             PresidentDrawKnowledge(uid=1, chancellor_uid=2, policies=THREE)
+        )
+
+    def test_president_discard_knowledge_immutability(self):
+        """Verifies that PresidentDiscardKnowledge is a frozen dataclass with immutable fields."""
+        self.assert_frozen(
+            PresidentDiscardKnowledge(
+                uid=1, chancellor_uid=2, discarded=THREE[0], passed=THREE[1:]
+            )
         )
 
     def test_chancellor_receive_knowledge_immutability(self):

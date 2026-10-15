@@ -63,6 +63,7 @@ from tyrant.models.knowledge import (
     InvestigationKnowledge,
     Knowledge,
     PeekKnowledge,
+    PresidentDiscardKnowledge,
     PresidentDrawKnowledge,
 )
 from tyrant.models.player import Player
@@ -114,6 +115,7 @@ __all__ = [
     "PolicyPeekAction",
     "PolicyTile",
     "PresidentDiscardAction",
+    "PresidentDiscardKnowledge",
     "PresidentDrawKnowledge",
     "PresidentEnactClaim",
     "PresidentVetoResponseAction",

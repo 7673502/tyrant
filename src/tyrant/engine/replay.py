@@ -12,7 +12,7 @@ from tyrant.models.event import GameOverEvent
 from tyrant.models.game_state import GameState
 from tyrant.models.replay import Replay
 
-REPLAY_VERSION: Final = 2
+REPLAY_VERSION: Final = 3
 
 
 def _action(action: Action) -> dict:

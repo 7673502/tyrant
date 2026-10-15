@@ -595,6 +595,16 @@
         "fascist",
         "fascist"
       ]
+    },
+    {
+      "type": "president_discard",
+      "uid": 6,
+      "chancellor_uid": 3,
+      "discarded": "liberal",
+      "passed": [
+        "fascist",
+        "fascist"
+      ]
     }
   ]
 }

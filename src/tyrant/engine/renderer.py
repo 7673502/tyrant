@@ -285,6 +285,11 @@ def _knowledge_line(entry: dict) -> str:
                 f"As president with Chancellor {_player(entry['chancellor_uid'])}, "
                 f"you drew {', '.join(entry['policies'])}."
             )
+        case "president_discard":
+            return (
+                f"As president with Chancellor {_player(entry['chancellor_uid'])}, "
+                f"you discarded {entry['discarded']}, passed {', '.join(entry['passed'])}."
+            )
         case "chancellor_receive":
             return (
                 f"As chancellor under President {_player(entry['president_uid'])}, "
@@ -300,6 +305,24 @@ def _knowledge_line(entry: dict) -> str:
                 f"You investigated {_player(entry['target_uid'])}: "
                 f"{entry['party']} party."
             )
+
+
+def _knowledge_lines(knowledge: list[dict]) -> list[str]:
+    """Returns the knowledge sentences, joining each discard onto the draw before it."""
+    lines = []
+    for i, entry in enumerate(knowledge):
+        if (
+            entry["type"] == "president_discard"
+            and i > 0
+            and knowledge[i - 1]["type"] == "president_draw"
+        ):
+            lines[-1] = (
+                f"{lines[-1].removesuffix('.')}, discarded {entry['discarded']}, "
+                f"passed {', '.join(entry['passed'])}."
+            )
+        else:
+            lines.append(_knowledge_line(entry))
+    return lines
 
 
 def render_text(state: GameState, viewer_uid: int) -> str:
@@ -345,7 +368,7 @@ def render_text(state: GameState, viewer_uid: int) -> str:
         for p in view["players"]
     ]
     lines += ["", "## Private Knowledge"]
-    lines += [f"- {_knowledge_line(entry)}" for entry in view["knowledge"]] or [
+    lines += [f"- {line}" for line in _knowledge_lines(view["knowledge"])] or [
         "- None."
     ]
 

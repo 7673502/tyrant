@@ -47,6 +47,7 @@ from tyrant.models.knowledge import (
     ChancellorReceiveKnowledge,
     InvestigationKnowledge,
     PeekKnowledge,
+    PresidentDiscardKnowledge,
     PresidentDrawKnowledge,
 )
 
@@ -467,6 +468,25 @@ class TestRenderText(unittest.TestCase):
         for line in expected:
             self.assertIn(line + "\n", text)
         self.assertNotIn("fascist, fascist, fascist", text)
+
+    def test_render_text_joins_discard_to_draw(self):
+        """Verifies that a president's discard renders on the same line as the draw before it."""
+        state = replace(
+            self.state,
+            knowledge=(
+                PresidentDrawKnowledge(uid=1, chancellor_uid=2, policies=(F, F, L)),
+                PresidentDiscardKnowledge(
+                    uid=1, chancellor_uid=2, discarded=F, passed=(F, L)
+                ),
+            ),
+        )
+        text = render_text(scrub_state(state, 1), 1)
+        self.assertIn(
+            "- As president with Chancellor Player 2, you drew fascist, fascist, "
+            "liberal, discarded fascist, passed fascist, liberal.\n",
+            text,
+        )
+        self.assertEqual(text.count("As president"), 1)
 
     def test_render_text_liberal_raw_state_hides_others(self):
         """Verifies that a liberal viewer's raw-state text shows no other role or knowledge."""
