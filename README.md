@@ -197,7 +197,7 @@ TYRANT_MODEL=anthropic/claude-haiku-5-5 uv run --extra llm python examples/llm_g
 
 An `LLMAgent` keeps private notes, one string that lasts for one game. Only that agent sees them: they are shown back to it under `## Your Notes` on each of its turns, so it can track suspicions, claims and plans between turns.
 
-A reply may include `notes` in its final JSON object. When present, it replaces the previous notes entirely; when missing, the previous notes stay. Only replies that become accepted moves change the notes, so a rejected reply leaves them alone. Notes have their whitespace collapsed, the same as speeches, and are cut to `MAX_NOTES_LENGTH` (1000) characters. They are rendered as an escaped quoted string, so they can't forge a prompt section. Read an agent's current notes from `agent.notes`. Notes are not recorded in replays.
+A reply may include `notes` in its final JSON object. When present, it replaces the previous notes entirely; when missing, the previous notes stay. Only replies that become accepted moves change the notes, so a rejected reply leaves them alone. Notes have their whitespace collapsed, the same as speeches, and are cut to `MAX_NOTES_LENGTH` (200) characters. They are rendered as an escaped quoted string, so they can't forge a prompt section. Read an agent's current notes from `agent.notes`. Notes are not recorded in replays.
 
 ## Agent Resilience
 

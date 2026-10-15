@@ -8,7 +8,7 @@ from tyrant.models.action import Action, SpeakAction
 from tyrant.models.discussion import MAX_SPEECH_LENGTH
 from tyrant.models.game_state import GameState
 
-MAX_NOTES_LENGTH: Final = 1000
+MAX_NOTES_LENGTH: Final = 200
 
 RULES: Final[str] = """# Secret Hitler Rules
 
