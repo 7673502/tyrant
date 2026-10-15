@@ -9,10 +9,11 @@ from tyrant.engine.renderer import to_json
 from tyrant.engine.replay import _snapshot, read_replay, replay_dict, write_replay
 from tyrant.engine.router import apply_action, get_legal_actions
 from tyrant.models.action import SpeakAction
+from tyrant.models.agent_fault import AgentFault
 from tyrant.models.enums import GamePhase
 from tyrant.models.event import GameOverEvent
 from tyrant.models.game_state import create_game
-from tyrant.models.replay import Replay, record_step
+from tyrant.models.replay import Replay, record_fault, record_step
 
 UIDS = (1, 2, 3, 4, 5)
 
@@ -146,6 +147,34 @@ class TestReplayDict(unittest.TestCase):
             [False, True, False],
         )
 
+    def test_replay_dict_faults(self):
+        """Verifies that every recorded fault is listed with its step, reason and rejected reply."""
+        replay = record_fault(
+            self.replay,
+            AgentFault(
+                uid=4,
+                phase=GamePhase.NOMINATION,
+                reason="InvalidMoveError('Bad reply')",
+                fell_back=False,
+                step=0,
+                reply="Not JSON.",
+            ),
+        )
+        self.assertEqual(self.view["faults"], [])
+        self.assertEqual(
+            replay_dict(replay)["faults"],
+            [
+                {
+                    "step": 0,
+                    "uid": 4,
+                    "phase": "nomination",
+                    "reason": "InvalidMoveError('Bad reply')",
+                    "reply": "Not JSON.",
+                    "fell_back": False,
+                }
+            ],
+        )
+
     def test_replay_dict_omits_agent_filled_fields(self):
         """Verifies that actions leave out the description and message fields."""
         for step in replay_dict(_speech_replay())["steps"]:
@@ -206,6 +235,18 @@ class TestReplayFile(unittest.TestCase):
             self.assertEqual(read_replay(path), replay_dict(replay))
             with gzip.open(path, "rt") as f:
                 self.assertNotIn(" ", f.read(200))
+
+    def test_read_replay_loads_version_2(self):
+        """Verifies that a version 2 file without faults still reads back unchanged."""
+        replay, _ = record_first_legal_actions(create_game(UIDS, 42))
+        legacy = replay_dict(replay)
+        legacy["version"] = 2
+        del legacy["faults"]
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "game.json.gz"
+            with gzip.open(path, "wt", encoding="utf-8") as f:
+                json.dump(legacy, f)
+            self.assertEqual(read_replay(path), legacy)
 
 
 if __name__ == "__main__":

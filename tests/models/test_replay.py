@@ -2,12 +2,21 @@ import unittest
 from dataclasses import fields, is_dataclass
 
 from tyrant.models.action import NominateAction, VoteAction
-from tyrant.models.enums import Vote
+from tyrant.models.agent_fault import AgentFault
+from tyrant.models.enums import GamePhase, Vote
 from tyrant.models.game_state import create_game
-from tyrant.models.replay import Replay, ReplayStep, record_step
+from tyrant.models.replay import Replay, ReplayStep, record_fault, record_step
 
 NOMINATE = NominateAction(description="Nominate Player 2", target_uid=2)
 VOTE = VoteAction(description="Vote ja", vote=Vote.JA)
+FAULT = AgentFault(
+    uid=1,
+    phase=GamePhase.NOMINATION,
+    reason="InvalidMoveError('Bad reply')",
+    fell_back=False,
+    step=0,
+    reply="Not JSON.",
+)
 
 
 class TestReplay(unittest.TestCase):
@@ -31,6 +40,7 @@ class TestReplay(unittest.TestCase):
 
         replay = Replay(initial_state=self.state)
         self.assertIsInstance(replay.steps, tuple)
+        self.assertIsInstance(replay.faults, tuple)
         for field in fields(replay):
             with self.assertRaises(Exception):
                 setattr(replay, field.name, None)
@@ -60,6 +70,30 @@ class TestReplay(unittest.TestCase):
         replay = record_step(replay, 3, VOTE, fallback=True)
 
         self.assertEqual(tuple(step.fallback for step in replay.steps), (False, True))
+
+    def test_record_fault_immutability(self):
+        """Verifies that record_fault returns a new Replay and leaves the input unchanged."""
+        replay = record_step(Replay(initial_state=self.state), 1, NOMINATE)
+        new_replay = record_fault(replay, FAULT)
+
+        self.assertIsNot(new_replay, replay)
+        self.assertEqual(replay.faults, ())
+        self.assertIs(new_replay.steps, replay.steps)
+        self.assertIs(new_replay.initial_state, self.state)
+
+    def test_record_fault_appends_fault(self):
+        """Verifies that record_fault appends faults in the order they are recorded."""
+        second = AgentFault(
+            uid=2,
+            phase=GamePhase.VOTING,
+            reason="TimeoutError()",
+            fell_back=True,
+            step=1,
+        )
+        replay = record_fault(Replay(initial_state=self.state), FAULT)
+        replay = record_fault(replay, second)
+
+        self.assertEqual(replay.faults, (FAULT, second))
 
 
 if __name__ == "__main__":

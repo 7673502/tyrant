@@ -12,7 +12,7 @@ from tyrant.models.agent import Agent
 from tyrant.models.agent_fault import AgentFault
 from tyrant.models.enums import GamePhase, Role
 from tyrant.models.game_state import GameState, create_game, scrub_state
-from tyrant.models.replay import Replay, record_step
+from tyrant.models.replay import Replay, record_fault, record_step
 
 AGENT_FILLED_FIELDS: Final = frozenset({"description", "message"})
 
@@ -43,7 +43,7 @@ class GameRunner:
 
     Attributes:
         state: The current, unscrubbed game state.
-        replay: Every action applied so far.
+        replay: Every action applied so far, and every failed attempt.
         agents: Each agent, keyed by UID.
         max_retries: Retries allowed after an agent's first failed attempt.
         timeout: Seconds allowed for each attempt, or `None` for no limit.
@@ -117,7 +117,8 @@ class GameRunner:
         for agent in self.agents.values():
             valid_actions = get_legal_actions(self.state, agent.uid)
             if valid_actions:
-                pending_tasks.append(self._query_agent(agent, valid_actions))
+                step = len(self.replay.steps) + len(pending_tasks)
+                pending_tasks.append(self._query_agent(agent, valid_actions, step))
 
         if not pending_tasks:
             raise TyrantError(
@@ -137,9 +138,9 @@ class GameRunner:
         return self.state
 
     async def _query_agent(
-        self, agent: Agent, valid_actions: tuple[Action, ...]
+        self, agent: Agent, valid_actions: tuple[Action, ...], step: int
     ) -> tuple[int, Action]:
-        """Asks an agent for an action, retrying on failure and falling back to a random legal action."""
+        """Asks an agent for an action, retrying on failure and falling back to a random legal action; faults are recorded against `step`."""
         scrubbed_state = scrub_state(self.state, agent.uid)
         attempts = self.max_retries + 1
         for attempt in range(attempts):
@@ -147,15 +148,29 @@ class GameRunner:
                 action = await self._attempt(agent, scrubbed_state, valid_actions)
                 return agent.uid, action
             except (InvalidMoveError, TimeoutError, AgentError) as e:
-                self._record_fault(agent.uid, repr(e), attempt == attempts - 1)
+                self._record_fault(
+                    agent.uid,
+                    repr(e),
+                    attempt == attempts - 1,
+                    step,
+                    e.reply if isinstance(e, InvalidMoveError) else None,
+                )
         return agent.uid, self.rng.choice(valid_actions)
 
-    def _record_fault(self, uid: int, reason: str, fell_back: bool) -> None:
-        """Records and logs a failed attempt."""
+    def _record_fault(
+        self, uid: int, reason: str, fell_back: bool, step: int, reply: str | None
+    ) -> None:
+        """Records a failed attempt in `faults` and the replay, and logs it."""
         fault = AgentFault(
-            uid=uid, phase=self.state.phase, reason=reason, fell_back=fell_back
+            uid=uid,
+            phase=self.state.phase,
+            reason=reason,
+            fell_back=fell_back,
+            step=step,
+            reply=reply,
         )
         self.faults = self.faults + (fault,)
+        self.replay = record_fault(self.replay, fault)
         logger.warning(
             "Player %s failed in phase %s: %s%s",
             uid,
