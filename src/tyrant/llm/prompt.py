@@ -9,6 +9,7 @@ from tyrant.models.discussion import MAX_SPEECH_LENGTH
 from tyrant.models.game_state import GameState
 
 MAX_NOTES_LENGTH: Final = 200
+"""Maximum number of characters kept from an agent's notes."""
 
 RULES: Final[str] = """# Secret Hitler Rules
 
@@ -69,10 +70,18 @@ Think through your decision in plain text first if you want. Then end your reply
 """
 
 SYSTEM_PROMPT: Final[str] = RULES + "\n" + RESPONSE_FORMAT
+"""The rules and the reply format, the same for every game and every player."""
 
 
 def render_actions(valid_actions: tuple[Action, ...]) -> str:
-    """Returns a Markdown section listing the valid actions as numbered options."""
+    """Returns a Markdown section listing the valid actions as numbered options.
+
+    Args:
+        valid_actions: The actions the agent may take now.
+
+    Returns:
+        A `## Your Options` section, numbered from 1.
+    """
     lines = ["## Your Options"]
     for number, action in enumerate(valid_actions, start=1):
         note = " (include a `message`)" if isinstance(action, SpeakAction) else ""
@@ -81,7 +90,14 @@ def render_actions(valid_actions: tuple[Action, ...]) -> str:
 
 
 def render_notes(notes: str) -> str:
-    """Returns a Markdown section holding the notes as one escaped quoted string."""
+    """Returns a Markdown section holding the notes as one escaped quoted string.
+
+    Args:
+        notes: The agent's private notes.
+
+    Returns:
+        A `## Your Notes` section.
+    """
     return "## Your Notes\n" + json.dumps(notes, ensure_ascii=False)
 
 
@@ -91,7 +107,17 @@ def build_prompt(
     valid_actions: tuple[Action, ...],
     notes: str | None = None,
 ) -> str:
-    """Returns the viewer's rendered state, their notes if any, then their numbered options."""
+    """Returns the viewer's rendered state, their notes if any, then their numbered options.
+
+    Args:
+        state: The game state; it is scrubbed for the viewer first.
+        viewer_uid: UID of the player being prompted.
+        valid_actions: The actions the player may take now.
+        notes: The player's private notes, shown only when not empty.
+
+    Returns:
+        The user message for this turn.
+    """
     sections = [render_text(state, viewer_uid)]
     if notes:
         sections.append(render_notes(notes))
@@ -100,6 +126,7 @@ def build_prompt(
 
 
 def _last_choice(response: str) -> dict:
+    """Returns the last JSON object in the reply that has an `action` key."""
     decoder = json.JSONDecoder()
     start = response.rfind("{")
     while start != -1:
@@ -114,7 +141,18 @@ def _last_choice(response: str) -> dict:
 
 
 def parse_action(response: str, valid_actions: tuple[Action, ...]) -> Action:
-    """Returns the offered action chosen by the last JSON object in an LLM reply."""
+    """Returns the offered action chosen by the last JSON object in an LLM reply.
+
+    Args:
+        response: The model's reply.
+        valid_actions: The actions offered in the prompt, in the same order.
+
+    Returns:
+        The chosen action, with `message` filled in for a `SpeakAction`.
+
+    Raises:
+        InvalidMoveError: If the reply has no usable choice, the number is not a valid option, or a speech has no message.
+    """
     choice = _last_choice(response)
     number = choice["action"]
     if type(number) is not int:
@@ -133,7 +171,17 @@ def parse_action(response: str, valid_actions: tuple[Action, ...]) -> Action:
 
 
 def parse_notes(response: str) -> str | None:
-    """Returns the cleaned notes from the last JSON object in an LLM reply, or None if it has none."""
+    """Returns the cleaned notes from the last JSON object in an LLM reply, or None if it has none.
+
+    Args:
+        response: The model's reply.
+
+    Returns:
+        The notes with whitespace collapsed and cut to `MAX_NOTES_LENGTH` characters, or `None`.
+
+    Raises:
+        InvalidMoveError: If the reply has no JSON object with an `action` key.
+    """
     notes = _last_choice(response).get("notes")
     if not isinstance(notes, str):
         return None
