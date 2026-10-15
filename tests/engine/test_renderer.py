@@ -401,6 +401,63 @@ class TestRenderText(unittest.TestCase):
             [e["type"] for e in view["timeline"]], ["speech", "nomination"] * 3
         )
 
+    def test_render_text_president_claim_with_discard(self):
+        """Verifies that a president's claim renders the claimed discard."""
+        text = self.render_events(
+            ClaimEvent(
+                claim=PresidentEnactClaim(uid=1, policies=(L, F, F), discarded=L),
+                president_uid=1,
+                chancellor_uid=2,
+                target_uid=None,
+            ),
+        )
+        self.assertIn(
+            "1. President Player 1 claimed drawing liberal, fascist, fascist "
+            "and discarding liberal.\n",
+            text,
+        )
+
+    def test_render_text_points_out_conflicting_claims(self):
+        """Verifies that a chancellor's claim that contradicts the president's claimed pass is flagged."""
+        text = self.render_events(
+            ClaimEvent(
+                claim=PresidentEnactClaim(uid=1, policies=(L, F, F), discarded=F),
+                president_uid=1,
+                chancellor_uid=2,
+                target_uid=None,
+            ),
+            ClaimEvent(
+                claim=ChancellorEnactClaim(uid=2, policies=(F, F)),
+                president_uid=1,
+                chancellor_uid=2,
+                target_uid=None,
+            ),
+        )
+        self.assertIn(
+            "2. Chancellor Player 2 claimed receiving fascist, fascist. These claims "
+            "conflict: President Player 1 claims passing liberal, fascist, but "
+            "Chancellor Player 2 claims receiving fascist, fascist.\n",
+            text,
+        )
+
+    def test_render_text_consistent_claims_have_no_conflict(self):
+        """Verifies that claims agreeing on the passed policies, in any order, are not flagged."""
+        text = self.render_events(
+            ClaimEvent(
+                claim=ChancellorEnactClaim(uid=2, policies=(F, L)),
+                president_uid=1,
+                chancellor_uid=2,
+                target_uid=None,
+            ),
+            ClaimEvent(
+                claim=PresidentEnactClaim(uid=1, policies=(L, F, F), discarded=F),
+                president_uid=1,
+                chancellor_uid=2,
+                target_uid=None,
+            ),
+        )
+        self.assertNotIn("conflict", text)
+
     def test_render_text_claims(self):
         """Verifies that every claim type renders with its government or target."""
         text = self.render_events(

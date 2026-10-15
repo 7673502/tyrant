@@ -128,13 +128,15 @@ class ClaimPolicyPeekAction(Action):
 
 @dataclass(frozen=True)
 class ClaimPresidentEnactAction(Action):
-    """The president claims which three policies they drew.
+    """The president claims which three policies they drew and which one they discarded.
 
     Attributes:
         claim_policies: The claimed policies, or `None` to decline.
+        claim_discarded: The claimed discarded policy, or `None` to decline.
     """
 
     claim_policies: tuple[PolicyTile, ...] | None
+    claim_discarded: PolicyTile | None = None
 
 
 @dataclass(frozen=True)

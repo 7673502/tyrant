@@ -185,7 +185,14 @@ def _claim_line(entry: dict) -> str:
         case "president_enact":
             if claim["policies"] is None:
                 return f"President {who} declined to share the 3 drawn policies."
-            return f"President {who} claimed drawing {', '.join(claim['policies'])}."
+            if claim["discarded"] is None:
+                return (
+                    f"President {who} claimed drawing {', '.join(claim['policies'])}."
+                )
+            return (
+                f"President {who} claimed drawing {', '.join(claim['policies'])} "
+                f"and discarding {claim['discarded']}."
+            )
         case "chancellor_enact":
             if claim["policies"] is None:
                 return f"Chancellor {who} declined to share the 2 received policies."
@@ -260,6 +267,33 @@ def _timeline_line(entry: dict) -> str:
             return f"Game over: {entry['winner']} win by {entry['condition']}."
 
 
+def _claim_conflict(first: dict, second: dict) -> str | None:
+    """Returns a sentence pointing out a conflict between a government's two policy claims, or `None`."""
+    if first["type"] != "claim" or second["type"] != "claim":
+        return None
+    claims = {e["claim"]["type"]: e for e in (first, second)}
+    if claims.keys() != {"president_enact", "chancellor_enact"}:
+        return None
+    if (first["president_uid"], first["chancellor_uid"]) != (
+        second["president_uid"],
+        second["chancellor_uid"],
+    ):
+        return None
+    president = claims["president_enact"]["claim"]
+    chancellor = claims["chancellor_enact"]["claim"]
+    if president["discarded"] is None or chancellor["policies"] is None:
+        return None
+    passed = list(president["policies"])
+    passed.remove(president["discarded"])
+    if sorted(passed) == sorted(chancellor["policies"]):
+        return None
+    return (
+        f"These claims conflict: President {_player(president['uid'])} claims passing "
+        f"{', '.join(passed)}, but Chancellor {_player(chancellor['uid'])} claims "
+        f"receiving {', '.join(chancellor['policies'])}."
+    )
+
+
 def _timeline_lines(timeline: list[dict]) -> list[str]:
     """Returns the timeline sentences, collapsing speeches from all but the last few discussions."""
     starts = [
@@ -271,7 +305,9 @@ def _timeline_lines(timeline: list[dict]) -> list[str]:
     lines = []
     for i, entry in enumerate(timeline):
         if entry["type"] != "speech" or i >= cutoff:
-            lines.append(_timeline_line(entry))
+            line = _timeline_line(entry)
+            conflict = _claim_conflict(timeline[i - 1], entry) if i > 0 else None
+            lines.append(line if conflict is None else f"{line} {conflict}")
         elif i in starts:
             lines.append(f"Earlier discussion ({entry['context']}) omitted.")
     return lines

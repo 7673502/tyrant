@@ -25,18 +25,18 @@ In seat order:
 1. President Player 4 nominated Player 7 for chancellor.
 2. Election of President Player 4 and Chancellor Player 7 passed (ja: Player 4, Player 7, Player 3, Player 5, Player 1, Player 6, Player 2; nein: none).
 3. President Player 4 and Chancellor Player 7 enacted a liberal policy.
-4. President Player 4 claimed drawing liberal, liberal, liberal.
+4. President Player 4 claimed drawing liberal, liberal, liberal and discarding liberal.
 5. Chancellor Player 7 claimed receiving liberal, liberal.
 6. President Player 7 nominated Player 3 for chancellor.
 7. Election of President Player 7 and Chancellor Player 3 passed (ja: Player 4, Player 7, Player 3, Player 5, Player 1, Player 6, Player 2; nein: none).
 8. President Player 7 and Chancellor Player 3 enacted a fascist policy.
-9. President Player 7 claimed drawing liberal, liberal, liberal.
+9. President Player 7 claimed drawing liberal, liberal, liberal and discarding liberal.
 10. Chancellor Player 3 claimed receiving liberal, liberal.
 11. President Player 3 nominated Player 4 for chancellor.
 12. Election of President Player 3 and Chancellor Player 4 passed (ja: Player 4, Player 7, Player 3, Player 5, Player 1, Player 6, Player 2; nein: none).
 13. President Player 3 and Chancellor Player 4 enacted a fascist policy.
 14. Chancellor Player 4 claimed receiving liberal, liberal.
-15. President Player 3 claimed drawing liberal, liberal, liberal.
+15. President Player 3 claimed drawing liberal, liberal, liberal and discarding liberal.
 16. President Player 3 investigated Player 4.
 17. President Player 3 claimed Player 4 is liberal.
 18. President Player 5 nominated Player 7 for chancellor.

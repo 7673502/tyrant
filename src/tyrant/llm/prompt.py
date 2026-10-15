@@ -47,7 +47,7 @@ Some Fascist policies grant the President a power, which they must use before th
 - Execution: the President kills a player, who no longer votes, speaks, or holds office. If that player is Hitler, the Liberals win.
 
 ## Claims
-- After a policy is enacted, the President and the Chancellor may each claim which policies they saw. After an investigation or a policy peek, the President may claim what they learned.
+- After a policy is enacted, the President and the Chancellor may each claim which policies they saw. The President's claim also names the policy they discarded, so it implies the 2 policies they passed. After an investigation or a policy peek, the President may claim what they learned.
 - Claims may be lies, and any claim may be declined.
 
 ## Discussion

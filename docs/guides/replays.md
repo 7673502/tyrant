@@ -40,7 +40,7 @@ The file holds the setup with every hidden role, then one entry per applied acti
 }
 ```
 
-Each step lists the events and private knowledge its action produced. `fallback` is `true` when the agent failed every attempt and the runner played a random legal action for it, so a step with `fallback: false` was the agent's own choice. Version 1 files have no `fallback` field and can't tell the two apart. Version 2 files have no `president_discard` knowledge, so they don't show which policy a president discarded. Actions leave out `description` and `message`; speech text is in the step's `speech` event. `result` is `null` if the game has not ended.
+Each step lists the events and private knowledge its action produced. `fallback` is `true` when the agent failed every attempt and the runner played a random legal action for it, so a step with `fallback: false` was the agent's own choice. Version 1 files have no `fallback` field and can't tell the two apart. Version 2 files have no `president_discard` knowledge and no `discarded` field in `president_enact` claims. Actions leave out `description` and `message`; speech text is in the step's `speech` event. `result` is `null` if the game has not ended.
 
 ## Faults
 

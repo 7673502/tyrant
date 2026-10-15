@@ -1,7 +1,8 @@
 import unittest
-from dataclasses import FrozenInstanceError, is_dataclass
+from dataclasses import FrozenInstanceError, fields, is_dataclass
 
-from tyrant.models.action import Action
+from tyrant.models.action import Action, ClaimPresidentEnactAction
+from tyrant.models.enums import PolicyTile
 
 
 class TestAction(unittest.TestCase):
@@ -13,6 +14,18 @@ class TestAction(unittest.TestCase):
         with self.assertRaises(FrozenInstanceError):
             action.description = "Vote NEIN"
             action.description = "Vote NEIN"
+
+    def test_claim_president_enact_action_immutability(self):
+        """Verifies that ClaimPresidentEnactAction is a frozen dataclass with immutable fields."""
+        action = ClaimPresidentEnactAction(
+            description="Claim",
+            claim_policies=(PolicyTile.LIBERAL, PolicyTile.FASCIST, PolicyTile.FASCIST),
+            claim_discarded=PolicyTile.LIBERAL,
+        )
+        self.assertTrue(type(action).__dataclass_params__.frozen)
+        for field in fields(action):
+            with self.assertRaises(FrozenInstanceError):
+                setattr(action, field.name, None)
 
 
 if __name__ == "__main__":
