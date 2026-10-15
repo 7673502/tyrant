@@ -92,6 +92,15 @@ class TestLLMAgent(unittest.TestCase):
             ],
         )
 
+    def test_persona_extends_system_prompt(self):
+        """Verifies that a persona is sent after the shared system prompt under its own heading."""
+        self.agent = LLMAgent(self.uid, MODEL, persona="Cautious.")
+        scripted, _ = self._play(_reply(1))
+        system = scripted.calls[0]["messages"][0]
+        self.assertEqual(system["role"], "system")
+        self.assertTrue(system["content"].startswith(SYSTEM_PROMPT))
+        self.assertTrue(system["content"].endswith("## Your Personality\nCautious.\n"))
+
     def test_accepted_notes_replace_previous_notes(self):
         """Verifies that notes from an accepted reply replace the old notes and appear in the next prompt."""
         scripted, _ = self._play(

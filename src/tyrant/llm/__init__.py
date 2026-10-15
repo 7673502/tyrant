@@ -6,6 +6,7 @@ from tyrant.llm.prompt import (
     build_prompt,
     parse_action,
     parse_notes,
+    system_prompt,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "build_prompt",
     "parse_action",
     "parse_notes",
+    "system_prompt",
 ]
