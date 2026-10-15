@@ -18,7 +18,7 @@ from tyrant.models.agent_fault import AgentFault
 from tyrant.models.enums import HIDDEN, GamePhase, Vote
 from tyrant.models.event import SpeechEvent
 from tyrant.models.game_state import GameState, create_game
-from tyrant.models.replay import Replay
+from tyrant.models.replay import Replay, record_step
 
 
 class StubAgent:
@@ -62,6 +62,16 @@ class RaisingAgent:
     ) -> Action:
         self.calls += 1
         raise AgentError("Agent failure")
+
+
+class RejectingAgent:
+    def __init__(self, uid: int):
+        self.uid = uid
+
+    async def choose_action(
+        self, state: GameState, valid_actions: tuple[Action, ...]
+    ) -> Action:
+        raise InvalidMoveError("Reply has no JSON object", reply="Not JSON.")
 
 
 class CrashingAgent:
@@ -165,7 +175,7 @@ class TestGameRunnerQueryAgent(unittest.IsolatedAsyncioTestCase):
         agent = CapturingAgent(uid=president_uid)
         runner = GameRunner(agents=[agent], initial_state=state)
 
-        await runner._query_agent(agent, get_legal_actions(state, president_uid))
+        await runner._query_agent(agent, get_legal_actions(state, president_uid), 0)
 
         self.assertIsNotNone(agent.captured_state)
         self.assertEqual(agent.captured_state.rng_state, HIDDEN)
@@ -203,7 +213,7 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
         agent = StubAgent(uid=self.president_uid, actions_to_play=[good_action])
         runner = GameRunner(agents=[agent], initial_state=self.state)
 
-        _, action = await runner._query_agent(agent, self.valid_actions)
+        _, action = await runner._query_agent(agent, self.valid_actions, 0)
 
         self.assertEqual(action, good_action)
         self.assertEqual(agent._actions_to_play, [])
@@ -215,7 +225,7 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
         runner = GameRunner(agents=[agent], initial_state=self.state)
 
         _, action = await runner._query_agent(
-            agent, (SpeakAction(description="Speak"), PassAction(description="Pass"))
+            agent, (SpeakAction(description="Speak"), PassAction(description="Pass")), 0
         )
 
         self.assertEqual(action, speak_action)
@@ -229,7 +239,7 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
         runner = GameRunner(agents=[agent], initial_state=self.state)
 
         with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
-            _, action = await runner._query_agent(agent, self.valid_actions)
+            _, action = await runner._query_agent(agent, self.valid_actions, 0)
 
         self.assertEqual(action, good_action)
 
@@ -239,7 +249,7 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
         runner = GameRunner(agents=[agent], initial_state=self.state)
 
         with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
-            _, action = await runner._query_agent(agent, self.valid_actions)
+            _, action = await runner._query_agent(agent, self.valid_actions, 0)
 
         self.assertIn(action, self.valid_actions)
         self.assertEqual(agent._actions_to_play, [])
@@ -250,7 +260,7 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
         runner = GameRunner(agents=[agent], initial_state=self.state, max_retries=4)
 
         with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
-            _, action = await runner._query_agent(agent, self.valid_actions)
+            _, action = await runner._query_agent(agent, self.valid_actions, 0)
 
         self.assertIn(action, self.valid_actions)
         self.assertEqual(agent.calls, 5)
@@ -261,7 +271,7 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
         runner = GameRunner(agents=[agent], initial_state=self.state)
 
         with self.assertRaises(KeyError):
-            await runner._query_agent(agent, self.valid_actions)
+            await runner._query_agent(agent, self.valid_actions, 0)
 
         self.assertEqual(agent.calls, 1)
         self.assertEqual(runner.faults, ())
@@ -282,7 +292,7 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
         )
 
         with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
-            _, action = await runner._query_agent(agent, self.valid_actions)
+            _, action = await runner._query_agent(agent, self.valid_actions, 0)
 
         self.assertIn(action, self.valid_actions)
         self.assertEqual(agent.calls, 2)
@@ -294,7 +304,7 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
         )
         runner = GameRunner(agents=[agent], initial_state=self.state)
 
-        await runner._query_agent(agent, self.valid_actions)
+        await runner._query_agent(agent, self.valid_actions, 0)
 
         self.assertEqual(runner.faults, ())
 
@@ -304,7 +314,7 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
         runner = GameRunner(agents=[agent], initial_state=self.state)
 
         with self.assertLogs("tyrant.engine.game_runner", level="WARNING") as logs:
-            await runner._query_agent(agent, self.valid_actions)
+            await runner._query_agent(agent, self.valid_actions, 0)
 
         self.assertEqual(len(runner.faults), 3)
         self.assertEqual(len(logs.records), 3)
@@ -326,7 +336,7 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
         runner = GameRunner(agents=[agent], initial_state=self.state)
 
         with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
-            await runner._query_agent(agent, self.valid_actions)
+            await runner._query_agent(agent, self.valid_actions, 0)
 
         self.assertEqual(len(runner.faults), 1)
         self.assertFalse(runner.faults[0].fell_back)
@@ -339,7 +349,7 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
         )
 
         with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
-            await runner._query_agent(agent, self.valid_actions)
+            await runner._query_agent(agent, self.valid_actions, 0)
 
         self.assertIn("TimeoutError", runner.faults[0].reason)
         self.assertTrue(runner.faults[0].fell_back)
@@ -350,7 +360,7 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
         runner = GameRunner(agents=[agent], initial_state=self.state, max_retries=0)
 
         with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
-            await runner._query_agent(agent, self.valid_actions)
+            await runner._query_agent(agent, self.valid_actions, 0)
 
         self.assertEqual(agent.calls, 1)
 
@@ -362,7 +372,7 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
             runner = GameRunner(agents=[agent], initial_state=self.state, seed=7)
             with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
                 picks = [
-                    (await runner._query_agent(agent, self.valid_actions))[1]
+                    (await runner._query_agent(agent, self.valid_actions, 0))[1]
                     for _ in range(5)
                 ]
             chosen.append(picks)
@@ -547,6 +557,69 @@ class TestGameRunnerReplay(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(runner.faults), 1)
         self.assertFalse(runner.replay.steps[0].fallback)
+
+    async def test_run_iteration_records_faults_in_replay(self):
+        """Verifies that faults are stored in the replay with the index of the step the agent's action became."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        president_uid = state.players[state.president_index].uid
+        bad_action = NominateAction(description="Nominate", target_uid=president_uid)
+        good_action = get_legal_actions(state, president_uid)[0]
+        agents = [
+            StubAgent(
+                uid=p.uid,
+                actions_to_play=[bad_action, good_action]
+                if p.uid == president_uid
+                else [],
+            )
+            for p in state.players
+        ]
+        runner = GameRunner(agents=agents, initial_state=state)
+
+        with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
+            await runner._run_iteration()
+
+        self.assertEqual(runner.replay.faults, runner.faults)
+        self.assertEqual(runner.faults[0].step, 0)
+        self.assertIsNone(runner.faults[0].reply)
+
+    async def test_run_iteration_fault_step_matches_agent_step(self):
+        """Verifies that during simultaneous voting each fault points at the step of the agent that failed."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        president_uid = state.players[state.president_index].uid
+        state = apply_action(
+            state, get_legal_actions(state, president_uid)[0], president_uid
+        )
+        failing_uid = state.players[2].uid
+        agents = [
+            RaisingAgent(uid=p.uid) if p.uid == failing_uid else RandomAgent(uid=p.uid)
+            for p in state.players
+        ]
+        runner = GameRunner(agents=agents, initial_state=state, max_retries=0)
+        runner.replay = record_step(
+            runner.replay,
+            president_uid,
+            NominateAction(description="Nominate", target_uid=state.chancellor),
+        )
+
+        with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
+            await runner._run_iteration()
+
+        fault = runner.replay.faults[0]
+        self.assertEqual(runner.replay.steps[fault.step].uid, failing_uid)
+        self.assertTrue(runner.replay.steps[fault.step].fallback)
+
+    async def test_query_agent_records_rejected_reply(self):
+        """Verifies that a fault keeps the raw reply carried by an InvalidMoveError."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        president_uid = state.players[state.president_index].uid
+        agent = RejectingAgent(uid=president_uid)
+        runner = GameRunner(agents=[agent], initial_state=state, max_retries=0)
+
+        with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
+            await runner._query_agent(agent, get_legal_actions(state, president_uid), 4)
+
+        self.assertEqual(runner.faults[0].reply, "Not JSON.")
+        self.assertEqual(runner.faults[0].step, 4)
 
 
 if __name__ == "__main__":

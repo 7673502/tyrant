@@ -20,7 +20,7 @@ By default `max_retries=2` and `timeout=120.0`, so a well-behaved agent is queri
 
 ## Faults
 
-Every failed attempt is logged as a warning and recorded in `runner.faults` as an [`AgentFault`](../reference/models.md#tyrant.models.AgentFault) with the player's `uid`, the `phase`, the `reason`, and whether it triggered the fallback (`fell_back`). The [replay](replays.md) marks each fallback step with `fallback: true`.
+Every failed attempt is logged as a warning and recorded in `runner.faults` and `runner.replay.faults` as an [`AgentFault`](../reference/models.md#tyrant.models.AgentFault) with the player's `uid`, the `phase`, the `reason`, whether it triggered the fallback (`fell_back`), the index of the replay `step` the agent's action became, and the rejected `reply`. `reply` comes from [`InvalidMoveError.reply`](../reference/exceptions.md#tyrant.exceptions.InvalidMoveError), so an agent that raises `InvalidMoveError(message, reply=raw_text)` keeps its raw text in the record; otherwise it is `None`. The [replay](replays.md) stores every fault and marks each fallback step with `fallback: true`.
 
 ```python
 for fault in runner.faults:

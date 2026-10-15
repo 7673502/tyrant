@@ -1,6 +1,7 @@
 from dataclasses import dataclass, replace
 
 from tyrant.models.action import Action
+from tyrant.models.agent_fault import AgentFault
 from tyrant.models.game_state import GameState
 
 
@@ -26,10 +27,12 @@ class Replay:
     Attributes:
         initial_state: The unscrubbed state the game started from.
         steps: The applied actions, in order.
+        faults: Every failed attempt by an agent, in order.
     """
 
     initial_state: GameState
     steps: tuple[ReplayStep, ...] = ()
+    faults: tuple[AgentFault, ...] = ()
 
 
 def record_step(
@@ -48,3 +51,16 @@ def record_step(
     """
     step = ReplayStep(uid=uid, action=action, fallback=fallback)
     return replace(replay, steps=replay.steps + (step,))
+
+
+def record_fault(replay: Replay, fault: AgentFault) -> Replay:
+    """Appends a failed agent attempt to a replay.
+
+    Args:
+        replay: The current replay.
+        fault: The failed attempt.
+
+    Returns:
+        A new replay with the fault added.
+    """
+    return replace(replay, faults=replay.faults + (fault,))

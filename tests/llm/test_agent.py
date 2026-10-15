@@ -128,6 +128,7 @@ class TestLLMAgent(unittest.TestCase):
             _reply(1, notes="Kept notes."), rejected, _reply(2), _reply(1)
         )
         self.assertIsInstance(results[1], InvalidMoveError)
+        self.assertEqual(results[1].reply, rejected)
         self.assertEqual(self.agent.notes, "Kept notes.")
         self.assertIs(results[2], self.actions[1])
         retry = scripted.calls[2]["messages"]

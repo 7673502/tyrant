@@ -72,7 +72,7 @@ def replay_dict(replay: Replay) -> dict:
         replay: The replay to convert.
 
     Returns:
-        Plain JSON values holding the settings, every player's hidden role, the initial snapshot, one entry per step and the result.
+        Plain JSON values holding the settings, every player's hidden role, the initial snapshot, one entry per step, every agent fault and the result.
     """
     initial = replay.initial_state
     state = initial
@@ -116,6 +116,17 @@ def replay_dict(replay: Replay) -> dict:
         ],
         "initial": _snapshot(initial),
         "steps": steps,
+        "faults": [
+            {
+                "step": fault.step,
+                "uid": fault.uid,
+                "phase": to_json(fault.phase),
+                "reason": fault.reason,
+                "reply": fault.reply,
+                "fell_back": fault.fell_back,
+            }
+            for fault in replay.faults
+        ],
         "result": _result(state),
     }
 

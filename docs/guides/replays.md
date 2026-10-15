@@ -1,6 +1,6 @@
 # Replays
 
-[`GameRunner`](../reference/engine.md#tyrant.engine.GameRunner) records every action it applies, including random fallback actions, in `runner.replay`, a [`Replay`](../reference/models.md#tyrant.models.Replay). Write it to a gzipped JSON file that a viewer can read without the Python engine:
+[`GameRunner`](../reference/engine.md#tyrant.engine.GameRunner) records every action it applies, including random fallback actions, and every failed agent attempt in `runner.replay`, a [`Replay`](../reference/models.md#tyrant.models.Replay). Write it to a gzipped JSON file that a viewer can read without the Python engine:
 
 ```python
 from tyrant import read_replay, write_replay
@@ -14,7 +14,7 @@ data = read_replay("game.json.gz")
 
 ## File format
 
-The file holds the setup with every hidden role, then one entry per applied action:
+The file holds the setup with every hidden role, then one entry per applied action and one per agent fault:
 
 ```json
 {
@@ -31,11 +31,24 @@ The file holds the setup with every hidden role, then one entry per applied acti
      "knowledge": [],
      "state": { <snapshot> }}
   ],
+  "faults": [
+    {"step": 12, "uid": 3, "phase": "voting",
+     "reason": "InvalidMoveError('Action must be between 1 and 2, got 3')",
+     "reply": "I'll vote nein. {\"action\": 3}", "fell_back": false}
+  ],
   "result": {"winner": "liberal", "condition": "liberal_policies"}
 }
 ```
 
 Each step lists the events and private knowledge its action produced. `fallback` is `true` when the agent failed every attempt and the runner played a random legal action for it, so a step with `fallback: false` was the agent's own choice. Version 1 files have no `fallback` field and can't tell the two apart. Version 2 files have no `president_discard` knowledge, so they don't show which policy a president discarded. Actions leave out `description` and `message`; speech text is in the step's `speech` event. `result` is `null` if the game has not ended.
+
+## Faults
+
+`faults` lists every failed attempt, in order, from [`AgentFault`](../reference/models.md#tyrant.models.AgentFault). A fault happens before the step it belongs to exists, so `step` is the index of the step the agent's action became: the agent's own choice after a recovered fault, or the random fallback when `fell_back` is `true`. `reason` is the `repr` of the exception. `reply` is the agent's raw reply when the attempt was rejected with an [`InvalidMoveError`](../reference/exceptions.md#tyrant.exceptions.InvalidMoveError) that carried one, as [`LLMAgent`](../reference/llm.md#tyrant.llm.agent.LLMAgent) does, so bad JSON, an option number that wasn't offered and an empty speech can be told apart. It is `null` for timeouts, provider errors and agents that don't fill it in.
+
+## Older versions
+
+[`read_replay`](../reference/engine.md#tyrant.engine.read_replay) returns the file as stored, so older files still load; check `version` before reading newer fields. Version 2 files have no `faults`. Version 1 files have no `faults` and no step `fallback` field.
 
 ## Snapshots
 

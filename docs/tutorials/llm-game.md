@@ -67,7 +67,7 @@ The model may reason first, then ends its reply with a JSON object such as `{"ac
 
 ## A full LLM game
 
-`examples/llm_game.py` seats five `LLMAgent`s with discussion on and prints the winner, the faults, the token totals, the cost and each agent's final notes:
+`examples/llm_game.py` seats five `LLMAgent`s with discussion on and prints the winner, the faults with any rejected replies, the token totals, the cost and each agent's final notes:
 
 ```python
 --8<-- "examples/llm_game.py"
@@ -88,4 +88,4 @@ from tyrant import write_replay
 write_replay(runner.replay, "game.json.gz")
 ```
 
-See [Replays](../guides/replays.md) for the file format.
+The replay also keeps every fault with the raw text of a rejected reply. See [Replays](../guides/replays.md) for the file format.

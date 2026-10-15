@@ -5,9 +5,21 @@ class TyrantError(Exception):
 
 
 class InvalidMoveError(TyrantError):
-    """Raised when an action is not legal in the current state."""
+    """Raised when an action is not legal in the current state.
 
-    pass
+    Attributes:
+        reply: The agent's raw reply that was rejected, or `None` if there was none.
+    """
+
+    def __init__(self, message: str, reply: str | None = None):
+        """Creates the error.
+
+        Args:
+            message: Why the action was rejected.
+            reply: The agent's raw reply that was rejected, if any.
+        """
+        super().__init__(message)
+        self.reply = reply
 
 
 class AgentError(TyrantError):

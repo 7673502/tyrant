@@ -23,7 +23,11 @@ async def main():
     print(f"Winner: {end_state.winner}")
     print(f"Faults: {len(runner.faults)} ({fallbacks} fell back to a random action)")
     for fault in runner.faults:
-        print(f"  Player {fault.uid} in {fault.phase}: {fault.reason}")
+        print(
+            f"  Step {fault.step}, Player {fault.uid} in {fault.phase}: {fault.reason}"
+        )
+        if fault.reply is not None:
+            print(f"    Rejected reply: {fault.reply!r}")
     print(f"Prompt tokens: {prompt_tokens} ({cached_tokens} cached)")
     print(f"Completion tokens: {completion_tokens}")
     print(f"Cost: ${sum(agent.cost for agent in agents):.4f}")

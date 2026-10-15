@@ -71,7 +71,7 @@ class LLMAgent:
             The offered action the model chose.
 
         Raises:
-            InvalidMoveError: If the reply has no usable choice.
+            InvalidMoveError: If the reply has no usable choice; its `reply` holds the raw reply.
             AgentError: If the provider call fails.
         """
         messages = [
@@ -102,8 +102,9 @@ class LLMAgent:
         try:
             action = parse_action(reply, valid_actions)
         except InvalidMoveError as e:
-            self._rejected = (state, reply, e)
-            raise
+            error = InvalidMoveError(str(e), reply=reply)
+            self._rejected = (state, reply, error)
+            raise error from e
         notes = parse_notes(reply)
         if notes is not None:
             self.notes = notes
