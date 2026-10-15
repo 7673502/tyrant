@@ -9,7 +9,7 @@ except ImportError as e:
 
 from frozendict import frozendict
 
-from tyrant.exceptions import InvalidMoveError
+from tyrant.exceptions import AgentError, InvalidMoveError
 from tyrant.llm.prompt import build_prompt, parse_action, parse_notes, system_prompt
 from tyrant.models.action import Action
 from tyrant.models.game_state import GameState
@@ -18,7 +18,7 @@ from tyrant.models.game_state import GameState
 class LLMAgent:
     """An agent that plays through any model litellm supports.
 
-    Each turn it sends `SYSTEM_PROMPT`, followed by the persona if one is set, as the system message and `build_prompt` as the user message, then reads the reply with `parse_action` and `parse_notes`. When a reply is rejected, the next call adds that reply and the reason to the conversation.
+    Each turn it sends `SYSTEM_PROMPT`, followed by the persona if one is set, as the system message and `build_prompt` as the user message, then reads the reply with `parse_action` and `parse_notes`. When a reply is rejected, the next call for the same state adds that reply and the reason to the conversation. Provider and network errors are raised as `AgentError`.
 
     Attributes:
         uid: The player's unique ID.
@@ -56,7 +56,7 @@ class LLMAgent:
         self.completion_tokens = 0
         self.cached_tokens = 0
         self.cost = 0.0
-        self._rejected: tuple[str, InvalidMoveError] | None = None
+        self._rejected: tuple[GameState, str, InvalidMoveError] | None = None
 
     async def choose_action(
         self, state: GameState, valid_actions: tuple[Action, ...]
@@ -72,6 +72,7 @@ class LLMAgent:
 
         Raises:
             InvalidMoveError: If the reply has no usable choice.
+            AgentError: If the provider call fails.
         """
         messages = [
             {"role": "system", "content": system_prompt(self.persona)},
@@ -80,8 +81,8 @@ class LLMAgent:
                 "content": build_prompt(state, self.uid, valid_actions, self.notes),
             },
         ]
-        if self._rejected is not None:
-            reply, error = self._rejected
+        if self._rejected is not None and self._rejected[0] == state:
+            _, reply, error = self._rejected
             messages.append({"role": "assistant", "content": reply})
             messages.append(
                 {
@@ -90,15 +91,18 @@ class LLMAgent:
                     "Choose again from Your Options above.",
                 }
             )
-        response = await litellm.acompletion(
-            model=self.model, messages=messages, **self.completion_kwargs
-        )
+        try:
+            response = await litellm.acompletion(
+                model=self.model, messages=messages, **self.completion_kwargs
+            )
+        except Exception as e:
+            raise AgentError(f"Provider call failed: {e!r}") from e
         self._record_usage(response)
         reply = response.choices[0].message.content or ""
         try:
             action = parse_action(reply, valid_actions)
         except InvalidMoveError as e:
-            self._rejected = (reply, e)
+            self._rejected = (state, reply, e)
             raise
         notes = parse_notes(reply)
         if notes is not None:
