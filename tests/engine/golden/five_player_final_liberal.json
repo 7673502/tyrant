@@ -508,6 +508,16 @@
       ]
     },
     {
+      "type": "president_discard",
+      "uid": 4,
+      "chancellor_uid": 3,
+      "discarded": "liberal",
+      "passed": [
+        "fascist",
+        "liberal"
+      ]
+    },
+    {
       "type": "chancellor_receive",
       "uid": 4,
       "president_uid": 3,
@@ -531,6 +541,16 @@
       "chancellor_uid": 1,
       "policies": [
         "fascist",
+        "fascist",
+        "fascist"
+      ]
+    },
+    {
+      "type": "president_discard",
+      "uid": 4,
+      "chancellor_uid": 1,
+      "discarded": "fascist",
+      "passed": [
         "fascist",
         "fascist"
       ]

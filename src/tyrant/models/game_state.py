@@ -53,6 +53,7 @@ from tyrant.models.knowledge import (
     InvestigationKnowledge,
     Knowledge,
     PeekKnowledge,
+    PresidentDiscardKnowledge,
     PresidentDrawKnowledge,
 )
 from tyrant.models.player import Player
@@ -593,6 +594,12 @@ def president_discard(state: GameState, discard_index: int) -> GameState:
         deck_shuffled_last_action=False,
         knowledge=state.knowledge
         + (
+            PresidentDiscardKnowledge(
+                uid=state.players[state.president_index].uid,
+                chancellor_uid=state.chancellor,
+                discarded=discarded_tile,
+                passed=remaining_policies,
+            ),
             ChancellorReceiveKnowledge(
                 uid=state.chancellor,
                 president_uid=state.players[state.president_index].uid,

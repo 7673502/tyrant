@@ -5,9 +5,12 @@ What each player learned in secret is kept in `GameState.knowledge`, so it survi
 | Knowledge | Recorded when |
 |---|---|
 | [`PresidentDrawKnowledge`](../reference/models.md#tyrant.models.PresidentDrawKnowledge) | A president draws 3 policies after a passed election |
+| [`PresidentDiscardKnowledge`](../reference/models.md#tyrant.models.PresidentDiscardKnowledge) | The president discards 1 policy and passes the other 2 to the chancellor |
 | [`ChancellorReceiveKnowledge`](../reference/models.md#tyrant.models.ChancellorReceiveKnowledge) | A chancellor receives 2 policies from the president |
 | [`PeekKnowledge`](../reference/models.md#tyrant.models.PeekKnowledge) | A president peeks at the top 3 policies |
 | [`InvestigationKnowledge`](../reference/models.md#tyrant.models.InvestigationKnowledge) | A president learns the party of an investigated player |
+
+[`render_text`](../reference/engine.md#tyrant.engine.render_text) shows a draw and the discard that follows it as one line, such as "As president with Chancellor Player 2, you drew fascist, fascist, liberal, discarded fascist, passed fascist, liberal." Nothing extra is recorded for a veto. The vetoed policies are the two the president passed, and the public `veto` event in the timeline shows that the veto was approved.
 
 [`scrub_state`](../reference/models.md#tyrant.models.scrub_state) keeps only the viewer's own entries, so an agent never sees what another player learned.
 

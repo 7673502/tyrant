@@ -76,7 +76,7 @@ class TestReplayDict(unittest.TestCase):
 
     def test_replay_dict_format(self):
         """Verifies the exact format of the header, initial snapshot, and first step."""
-        self.assertEqual(self.view["version"], 2)
+        self.assertEqual(self.view["version"], 3)
         self.assertEqual(
             self.view["settings"],
             {

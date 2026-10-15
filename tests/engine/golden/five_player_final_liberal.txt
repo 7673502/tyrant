@@ -16,10 +16,10 @@ In seat order:
 - Player 2: party unknown, role unknown, alive
 
 ## Private Knowledge
-- As president with Chancellor Player 3, you drew liberal, fascist, liberal.
+- As president with Chancellor Player 3, you drew liberal, fascist, liberal, discarded liberal, passed fascist, liberal.
 - As chancellor under President Player 3, you received liberal, liberal.
 - As chancellor under President Player 5, you received liberal, fascist.
-- As president with Chancellor Player 1, you drew fascist, fascist, fascist.
+- As president with Chancellor Player 1, you drew fascist, fascist, fascist, discarded fascist, passed fascist, fascist.
 - As chancellor under President Player 1, you received fascist, fascist.
 
 ## Timeline

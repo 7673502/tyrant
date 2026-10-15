@@ -28,6 +28,21 @@ class PresidentDrawKnowledge(Knowledge):
 
 
 @dataclass(frozen=True)
+class PresidentDiscardKnowledge(Knowledge):
+    """A president discarded one drawn policy and passed the other two to the chancellor.
+
+    Attributes:
+        chancellor_uid: UID of the chancellor in that government.
+        discarded: The discarded policy.
+        passed: The policies passed to the chancellor.
+    """
+
+    chancellor_uid: int
+    discarded: PolicyTile
+    passed: tuple[PolicyTile, PolicyTile]
+
+
+@dataclass(frozen=True)
 class ChancellorReceiveKnowledge(Knowledge):
     """A chancellor received two policies from the president.
 

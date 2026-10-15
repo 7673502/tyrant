@@ -18,7 +18,7 @@ In seat order:
 - Player 2: party unknown, role unknown, alive
 
 ## Private Knowledge
-- As president with Chancellor Player 3, you drew liberal, fascist, fascist.
+- As president with Chancellor Player 3, you drew liberal, fascist, fascist, discarded liberal, passed fascist, fascist.
 
 ## Timeline
 1. President Player 4 nominated Player 7 for chancellor.

@@ -17,6 +17,7 @@ from tyrant.models.knowledge import (
     ChancellorReceiveKnowledge,
     InvestigationKnowledge,
     PeekKnowledge,
+    PresidentDiscardKnowledge,
     PresidentDrawKnowledge,
 )
 
@@ -54,6 +55,21 @@ class TestPrivateKnowledge(unittest.TestCase):
                     chancellor_uid=state.chancellor,
                     policies=state.drawn_policies,
                 ),
+            ),
+        )
+
+    def test_president_discard_records_president_discard(self):
+        """Verifies that a president discard records the discarded card and the two passed cards for the president."""
+        elected = _elected(self.state)
+        drawn = elected.drawn_policies
+        state = president_discard(elected, 1)
+        self.assertEqual(
+            state.knowledge[-2],
+            PresidentDiscardKnowledge(
+                uid=_president(state),
+                chancellor_uid=state.chancellor,
+                discarded=drawn[1],
+                passed=(drawn[0], drawn[2]),
             ),
         )
 
@@ -158,6 +174,7 @@ class TestPrivateKnowledgeLeaks(unittest.TestCase):
             recorded,
             {
                 PresidentDrawKnowledge,
+                PresidentDiscardKnowledge,
                 ChancellorReceiveKnowledge,
                 PeekKnowledge,
                 InvestigationKnowledge,
