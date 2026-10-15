@@ -2,15 +2,17 @@ import asyncio
 import importlib.util
 import json
 import unittest
+from dataclasses import replace
 from unittest.mock import patch
 
 from frozendict import frozendict
 
 from tyrant.engine.game_runner import GameRunner
 from tyrant.engine.router import get_legal_actions
-from tyrant.exceptions import InvalidMoveError
+from tyrant.exceptions import AgentError, InvalidMoveError
 from tyrant.llm.prompt import MAX_NOTES_LENGTH, SYSTEM_PROMPT, build_prompt
-from tyrant.models.enums import GamePhase
+from tyrant.models.enums import DiscussionContext, GamePhase
+from tyrant.models.event import SpeechEvent
 from tyrant.models.game_state import create_game
 
 HAS_LITELLM = importlib.util.find_spec("litellm") is not None
@@ -135,6 +137,65 @@ class TestLLMAgent(unittest.TestCase):
         self.assertIn("rejected", retry[3]["content"])
         self.assertIn(f"between 1 and {len(self.actions)}", retry[3]["content"])
         self.assertEqual(len(scripted.calls[3]["messages"]), 2)
+
+    def test_rejection_not_replayed_for_new_state_with_same_options(self):
+        """Verifies that a rejected reply is not fed back when the next decision has a different state but the same options."""
+        scripted = ScriptedCompletion(_reply(99), _reply(1))
+        later_state = replace(
+            self.state,
+            events=self.state.events
+            + (
+                SpeechEvent(
+                    uid=self.uid, text=None, context=DiscussionContext.AFTER_NOMINATION
+                ),
+            ),
+        )
+
+        async def choose():
+            with self.assertRaises(InvalidMoveError):
+                await self.agent.choose_action(self.state, self.actions)
+            return await self.agent.choose_action(later_state, self.actions)
+
+        with patch.object(litellm, "acompletion", scripted):
+            action = asyncio.run(choose())
+        self.assertIs(action, self.actions[0])
+        self.assertEqual(len(scripted.calls[1]["messages"]), 2)
+
+    def test_rejection_replayed_for_same_state_after_provider_error(self):
+        """Verifies that a rejection survives a provider error and is fed back when the same state is asked again."""
+        replies = iter((_reply(99), None, _reply(1)))
+        calls = []
+        acompletion = litellm.acompletion
+
+        async def flaky(**kwargs):
+            calls.append(kwargs)
+            reply = next(replies)
+            if reply is None:
+                raise ConnectionError("Connection reset")
+            return await acompletion(**kwargs, mock_response=reply)
+
+        async def choose():
+            with self.assertRaises(InvalidMoveError):
+                await self.agent.choose_action(self.state, self.actions)
+            with self.assertRaises(AgentError):
+                await self.agent.choose_action(self.state, self.actions)
+            return await self.agent.choose_action(self.state, self.actions)
+
+        with patch.object(litellm, "acompletion", flaky):
+            action = asyncio.run(choose())
+        self.assertIs(action, self.actions[0])
+        self.assertEqual(len(calls[2]["messages"]), 4)
+
+    def test_provider_error_raises_agent_error(self):
+        """Verifies that an exception from the provider call is raised as an AgentError with the original as its cause."""
+
+        async def failing(**kwargs):
+            raise ConnectionError("Connection reset")
+
+        with patch.object(litellm, "acompletion", failing):
+            with self.assertRaises(AgentError) as raised:
+                asyncio.run(self.agent.choose_action(self.state, self.actions))
+        self.assertIsInstance(raised.exception.__cause__, ConnectionError)
 
     def test_notes_are_capped_and_collapsed(self):
         """Verifies that saved notes have collapsed whitespace and at most MAX_NOTES_LENGTH characters."""

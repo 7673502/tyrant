@@ -5,7 +5,7 @@ from dataclasses import replace
 from tyrant.agents.random_agent import RandomAgent
 from tyrant.engine.game_runner import GameRunner, _is_offered
 from tyrant.engine.router import apply_action, get_legal_actions
-from tyrant.exceptions import InvalidMoveError, TyrantError
+from tyrant.exceptions import AgentError, InvalidMoveError, TyrantError
 from tyrant.models.action import (
     Action,
     ChancellorEnactAction,
@@ -61,7 +61,19 @@ class RaisingAgent:
         self, state: GameState, valid_actions: tuple[Action, ...]
     ) -> Action:
         self.calls += 1
-        raise RuntimeError("Agent failure")
+        raise AgentError("Agent failure")
+
+
+class CrashingAgent:
+    def __init__(self, uid: int):
+        self.uid = uid
+        self.calls = 0
+
+    async def choose_action(
+        self, state: GameState, valid_actions: tuple[Action, ...]
+    ) -> Action:
+        self.calls += 1
+        raise KeyError("missing")
 
 
 class SlowAgent:
@@ -242,6 +254,25 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn(action, self.valid_actions)
         self.assertEqual(agent.calls, 5)
+
+    async def test_query_agent_unexpected_exception_propagates(self):
+        """Verifies that an exception other than the expected agent failures is raised without retries or faults."""
+        agent = CrashingAgent(uid=self.president_uid)
+        runner = GameRunner(agents=[agent], initial_state=self.state)
+
+        with self.assertRaises(KeyError):
+            await runner._query_agent(agent, self.valid_actions)
+
+        self.assertEqual(agent.calls, 1)
+        self.assertEqual(runner.faults, ())
+
+    async def test_run_crashes_on_unexpected_exception(self):
+        """Verifies that a game stops with the agent's exception when it raises an unexpected error."""
+        agents = [CrashingAgent(uid=i) for i in range(1, 6)]
+        runner = GameRunner(agents=agents, seed=42)
+
+        with self.assertRaises(KeyError):
+            await runner.run()
 
     async def test_query_agent_falls_back_after_timeouts(self):
         """Verifies that an agent that exceeds the timeout is retried and then falls back."""

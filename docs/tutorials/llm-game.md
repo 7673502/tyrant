@@ -63,7 +63,7 @@ Each turn the agent sends two messages:
 1. [`SYSTEM_PROMPT`](../reference/llm.md#tyrant.llm.SYSTEM_PROMPT), with the rules and the reply format. It's the same for every game, so providers can cache it. A `persona` is appended after it under `## Your Personality`, so the cached prefix still matches.
 2. [`build_prompt`](../reference/llm.md#tyrant.llm.build_prompt), with the player's [rendered view](../guides/rendering.md), their private notes, and their numbered options.
 
-The model may reason first, then ends its reply with a JSON object such as `{"action": 3, "message": "...", "notes": "..."}`. [`parse_action`](../reference/llm.md#tyrant.llm.parse_action) turns that into one of the offered actions. If the reply can't be used, the agent raises, and on the retry it shows the model its rejected reply and the reason. The [prompting guide](../guides/prompting.md) covers this in detail.
+The model may reason first, then ends its reply with a JSON object such as `{"action": 3, "message": "...", "notes": "..."}`. [`parse_action`](../reference/llm.md#tyrant.llm.parse_action) turns that into one of the offered actions. If the reply can't be used, the agent raises, and on the retry for the same decision it shows the model its rejected reply and the reason. The [prompting guide](../guides/prompting.md) covers this in detail.
 
 ## A full LLM game
 

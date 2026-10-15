@@ -8,11 +8,13 @@
 
 ## Retries and fallback
 
-If an agent returns an action that was not offered, raises an exception, or takes longer than `timeout` seconds, the runner asks it again. After `max_retries` failed retries, it plays a random legal action on the agent's behalf. The fallback is drawn from a generator seeded with the runner's `seed`, so seeded games stay reproducible.
+If an agent returns an action that was not offered, raises [`InvalidMoveError`](../reference/exceptions.md#tyrant.exceptions.InvalidMoveError) or [`AgentError`](../reference/exceptions.md#tyrant.exceptions.AgentError), or takes longer than `timeout` seconds, the runner asks it again. After `max_retries` failed retries, it plays a random legal action on the agent's behalf. The fallback is drawn from a generator seeded with the runner's `seed`, so seeded games stay reproducible.
 
 ```python
 runner = GameRunner(agents, max_retries=2, timeout=60.0)
 ```
+
+Any other exception is treated as a bug and ends the game: a `KeyError` in an agent's own code is raised from `runner.run()` instead of being hidden behind a random move. An agent that calls an outside service should wrap the failures it expects, such as network or provider errors, in `AgentError`. [`LLMAgent`](../reference/llm.md#tyrant.llm.agent.LLMAgent) does this for every error from its provider call.
 
 By default `max_retries=2` and `timeout=120.0`, so a well-behaved agent is queried exactly once and a hung call is abandoned after two minutes. Pass `timeout=None` to disable the limit, for example when a human is playing.
 

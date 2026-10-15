@@ -6,7 +6,7 @@ from random import Random
 from typing import Final
 
 from tyrant.engine.router import apply_action, get_legal_actions
-from tyrant.exceptions import InvalidMoveError, TyrantError
+from tyrant.exceptions import AgentError, InvalidMoveError, TyrantError
 from tyrant.models.action import Action
 from tyrant.models.agent import Agent
 from tyrant.models.agent_fault import AgentFault
@@ -39,7 +39,7 @@ def _is_offered(action: Action, valid_actions: tuple[Action, ...]) -> bool:
 class GameRunner:
     """Plays a game by asking agents for actions until it ends.
 
-    Each iteration, every agent with legal actions is asked at the same time, with the state scrubbed for that agent. A failed attempt is retried, and after `max_retries` failed retries the runner plays a random legal action for the agent.
+    Each iteration, every agent with legal actions is asked at the same time, with the state scrubbed for that agent. An attempt that raises `InvalidMoveError`, `TimeoutError` or `AgentError` is retried, and after `max_retries` failed retries the runner plays a random legal action for the agent. Any other exception ends the game.
 
     Attributes:
         state: The current, unscrubbed game state.
@@ -104,6 +104,7 @@ class GameRunner:
 
         Raises:
             TyrantError: If no player has a legal action.
+            Exception: Any exception an agent raises other than `InvalidMoveError`, `TimeoutError` or `AgentError`.
         """
         while self.state.phase != GamePhase.GAME_OVER:
             await self._run_iteration()
@@ -145,7 +146,7 @@ class GameRunner:
             try:
                 action = await self._attempt(agent, scrubbed_state, valid_actions)
                 return agent.uid, action
-            except Exception as e:
+            except (InvalidMoveError, TimeoutError, AgentError) as e:
                 self._record_fault(agent.uid, repr(e), attempt == attempts - 1)
         return agent.uid, self.rng.choice(valid_actions)
 
