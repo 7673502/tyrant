@@ -17,6 +17,7 @@ class Discussion:
         speaker_order: UIDs of the speakers, in turn order.
         rounds: How many times the table goes around.
         turn: Number of turns taken so far.
+        consecutive_passes: Number of passes in a row since the last speech.
     """
 
     context: DiscussionContext
@@ -24,6 +25,7 @@ class Discussion:
     speaker_order: tuple[int, ...]
     rounds: int = 1
     turn: int = 0
+    consecutive_passes: int = 0
 
     @property
     def current_speaker(self) -> int:
@@ -37,5 +39,7 @@ class Discussion:
 
     @property
     def is_complete(self) -> bool:
-        """Whether every speaker has taken all their turns."""
-        return self.turn >= self.rounds * len(self.speaker_order)
+        """Whether every speaker has taken all their turns, or every speaker has passed in a row."""
+        return self.turn >= self.rounds * len(
+            self.speaker_order
+        ) or self.consecutive_passes >= len(self.speaker_order)

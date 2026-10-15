@@ -25,6 +25,8 @@ class TestDiscussion(unittest.TestCase):
             discussion.rounds = 2
         with self.assertRaises(FrozenInstanceError):
             discussion.turn = 1
+        with self.assertRaises(FrozenInstanceError):
+            discussion.consecutive_passes = 1
 
     def test_discussion_current_speaker(self):
         """Test that current_speaker follows the turn index through the speaker order."""
@@ -71,6 +73,18 @@ class TestDiscussion(unittest.TestCase):
         self.assertFalse(discussion.is_complete)
         self.assertFalse(replace(discussion, turn=5).is_complete)
         self.assertTrue(replace(discussion, turn=6).is_complete)
+
+    def test_discussion_is_complete_after_a_lap_of_passes(self):
+        """Test that is_complete is true once every speaker has passed in a row."""
+        discussion = Discussion(
+            context=DiscussionContext.AFTER_NOMINATION,
+            resume_phase=GamePhase.VOTING,
+            speaker_order=(3, 1, 2),
+            rounds=2,
+            turn=4,
+        )
+        self.assertFalse(replace(discussion, consecutive_passes=2).is_complete)
+        self.assertTrue(replace(discussion, consecutive_passes=3).is_complete)
 
 
 if __name__ == "__main__":

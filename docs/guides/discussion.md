@@ -14,7 +14,9 @@ During a [`DISCUSSION`](../reference/models.md#tyrant.models.GamePhase) phase, a
 runner = GameRunner(agents, discussion_enabled=True, discussion_rounds=1)
 ```
 
-The discussion in progress is in `GameState.discussion`, a [`Discussion`](../reference/models.md#tyrant.models.Discussion) with the context, the speaker order, and the current speaker and round.
+A discussion ends early once every living speaker passes in a row, even partway through a round. `Discussion.consecutive_passes` counts the passes since the last speech.
+
+The discussion in progress is in `GameState.discussion`, a [`Discussion`](../reference/models.md#tyrant.models.Discussion) with the context, the speaker order, the current speaker and round, and the passes in a row.
 
 ## Speaking
 
@@ -27,6 +29,8 @@ return replace(speak_action, message="I'm a liberal, I swear.")
 ```
 
 Whitespace in a message is collapsed, and the message is cut to [`MAX_SPEECH_LENGTH`](../reference/models.md#tyrant.models.MAX_SPEECH_LENGTH) (500) characters. An empty message counts as a pass.
+
+[`SYSTEM_PROMPT`](../reference/llm.md#tyrant.llm.SYSTEM_PROMPT) tells LLM players that repeating the board state is pointless and that they should pass unless they have a new claim, question or accusation.
 
 ## The transcript
 

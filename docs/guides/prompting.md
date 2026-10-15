@@ -4,7 +4,7 @@
 
 ## Building prompts
 
-[`SYSTEM_PROMPT`](../reference/llm.md#tyrant.llm.SYSTEM_PROMPT) explains the rules and asks the model to end its reply with `{"action": N, "message": "...", "notes": "..."}`. It is the same for every game, so send it first to benefit from prompt caching. [`build_prompt`](../reference/llm.md#tyrant.llm.build_prompt) renders the viewer's state followed by their numbered options, and [`parse_action`](../reference/llm.md#tyrant.llm.parse_action) turns the reply back into one of the offered actions:
+[`SYSTEM_PROMPT`](../reference/llm.md#tyrant.llm.SYSTEM_PROMPT) explains the rules and asks the model to end its reply with `{"action": N, "message": "...", "notes": "..."}`. It is the same for every game, so send it first to benefit from prompt caching. Its discussion rules tell the model that repeating the board state is pointless and that it should stay silent unless it has a new claim, question or accusation, so discussions stay short. [`build_prompt`](../reference/llm.md#tyrant.llm.build_prompt) renders the viewer's state followed by their numbered options, and [`parse_action`](../reference/llm.md#tyrant.llm.parse_action) turns the reply back into one of the offered actions:
 
 ```python
 from tyrant.llm import SYSTEM_PROMPT, build_prompt, parse_action

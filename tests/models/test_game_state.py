@@ -2549,11 +2549,11 @@ class TestDiscussionPhase(BaseGameStateTest):
         state = self._discussing_state()
         for _ in range(2):
             for uid in (1, 2, 3, 4, 5):
-                state = speak(state, uid, None)
+                state = speak(state, uid, "Hello")
         self.assertEqual(state.phase, GamePhase.DISCUSSION)
         self.assertEqual(state.discussion.current_speaker, 1)
         for uid in (1, 2, 3, 4, 5):
-            state = speak(state, uid, None)
+            state = speak(state, uid, "Hello")
         self.assertEqual(state.phase, GamePhase.VOTING)
         self.assertIsNone(state.discussion)
         self.assertEqual(len(self._speeches(state)), 15)
@@ -2566,9 +2566,35 @@ class TestDiscussionPhase(BaseGameStateTest):
                 for _ in range(rounds):
                     for uid in (1, 2, 3, 4, 5):
                         self.assertEqual(state.phase, GamePhase.DISCUSSION)
-                        state = speak(state, uid, None)
+                        state = speak(state, uid, "Hello")
                 self.assertEqual(state.phase, GamePhase.VOTING)
                 self.assertEqual(len(self._speeches(state)), 5 * rounds)
+
+    def test_speak_counts_consecutive_passes(self):
+        """Verifies that a pass adds to the consecutive pass count and a speech resets it."""
+        state = speak(self._discussing_state(), 1, None)
+        self.assertEqual(state.discussion.consecutive_passes, 1)
+        state = speak(state, 2, None)
+        self.assertEqual(state.discussion.consecutive_passes, 2)
+        state = speak(state, 3, "Hello")
+        self.assertEqual(state.discussion.consecutive_passes, 0)
+
+    def test_speak_whitespace_counts_as_pass(self):
+        """Verifies that a whitespace-only speech adds to the consecutive pass count."""
+        state = speak(self._discussing_state(), 1, " \n\t ")
+        self.assertEqual(state.discussion.consecutive_passes, 1)
+
+    def test_speak_ends_discussion_after_a_lap_of_passes(self):
+        """Verifies that the resume phase is restored once every speaker passes in a row."""
+        state = speak(self._discussing_state(), 1, "Hello")
+        for uid in (2, 3, 4, 5):
+            state = speak(state, uid, None)
+        self.assertEqual(state.phase, GamePhase.DISCUSSION)
+        self.assertEqual(state.discussion.current_round, 2)
+        state = speak(state, 1, None)
+        self.assertEqual(state.phase, GamePhase.VOTING)
+        self.assertIsNone(state.discussion)
+        self.assertEqual(len(self._speeches(state)), 6)
 
     def test_speak_collapses_newlines(self):
         """Verifies that line breaks and whitespace runs in a speech collapse to single spaces."""
