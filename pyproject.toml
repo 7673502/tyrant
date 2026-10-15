@@ -24,4 +24,8 @@ build-backend = "uv_build"
 dev = [
     "ruff>=0.15.18",
 ]
+docs = [
+    "mkdocs-material>=9.7.7",
+    "mkdocstrings[python]>=1.0.7",
+]
 
