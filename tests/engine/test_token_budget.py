@@ -4,7 +4,7 @@ from dataclasses import replace
 from random import Random
 
 from tyrant.engine.game_runner import GameRunner
-from tyrant.engine.prompt import SYSTEM_PROMPT, build_prompt
+from tyrant.llm.prompt import SYSTEM_PROMPT, build_prompt
 from tyrant.models.action import Action, SpeakAction
 from tyrant.models.discussion import MAX_SPEECH_LENGTH
 from tyrant.models.game_state import GameState

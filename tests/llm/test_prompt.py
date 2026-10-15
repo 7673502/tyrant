@@ -4,7 +4,11 @@ import json
 import unittest
 from random import Random
 
-from tyrant.engine.prompt import (
+from tyrant.engine.game_runner import GameRunner
+from tyrant.engine.renderer import render_text
+from tyrant.engine.router import apply_action, get_legal_actions
+from tyrant.exceptions import InvalidMoveError
+from tyrant.llm.prompt import (
     RESPONSE_FORMAT,
     RULES,
     SYSTEM_PROMPT,
@@ -12,10 +16,6 @@ from tyrant.engine.prompt import (
     parse_action,
     render_actions,
 )
-from tyrant.engine.game_runner import GameRunner
-from tyrant.engine.renderer import render_text
-from tyrant.engine.router import apply_action, get_legal_actions
-from tyrant.exceptions import InvalidMoveError
 from tyrant.models.action import Action, PassAction, SpeakAction, VoteAction
 from tyrant.models.discussion import MAX_SPEECH_LENGTH
 from tyrant.models.enums import GamePhase, Vote, WinCondition
