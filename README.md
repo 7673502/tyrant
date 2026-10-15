@@ -6,16 +6,16 @@ Tyrant is a Python package that implements the social-deduction board-game [Secr
 
 ## Install
 
-Tyrant needs Python 3.13 or newer. It is not on PyPI yet, so install it from GitHub:
+Tyrant needs Python 3.13 or newer:
 
 ```sh
-pip install "tyrant @ git+https://github.com/7673502/tyrant"
+pip install tyrant
 ```
 
 LLM support is an optional extra that adds [litellm](https://docs.litellm.ai/):
 
 ```sh
-pip install "tyrant[llm] @ git+https://github.com/7673502/tyrant"
+pip install "tyrant[llm]"
 ```
 
 ## Quick start

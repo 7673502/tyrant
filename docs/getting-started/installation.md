@@ -2,21 +2,18 @@
 
 Tyrant needs Python 3.13 or newer. Its only required dependency is [`frozendict`](https://pypi.org/project/frozendict/).
 
-!!! note
-    Tyrant is not on PyPI yet. Install it from GitHub.
-
 ## Core package
 
 === "pip"
 
     ```sh
-    pip install "tyrant @ git+https://github.com/7673502/tyrant"
+    pip install tyrant
     ```
 
 === "uv"
 
     ```sh
-    uv add "tyrant @ git+https://github.com/7673502/tyrant"
+    uv add tyrant
     ```
 
 The core package has everything needed to run games with your own agents, the bundled agents, the renderer and replays. It makes no network calls.
@@ -28,13 +25,13 @@ The core package has everything needed to run games with your own agents, the bu
 === "pip"
 
     ```sh
-    pip install "tyrant[llm] @ git+https://github.com/7673502/tyrant"
+    pip install "tyrant[llm]"
     ```
 
 === "uv"
 
     ```sh
-    uv add "tyrant[llm] @ git+https://github.com/7673502/tyrant"
+    uv add "tyrant[llm]"
     ```
 
 Without the extra, importing `tyrant.llm.agent` raises an `ImportError` that says how to install it. The rest of [`tyrant.llm`](../reference/llm.md), which builds prompts and parses replies, works without it.

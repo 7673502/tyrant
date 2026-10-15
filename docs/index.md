@@ -10,7 +10,7 @@ Tyrant is a Python implementation of the social-deduction board game [Secret Hit
 ## Quick start
 
 ```sh
-pip install "tyrant @ git+https://github.com/7673502/tyrant"
+pip install tyrant
 ```
 
 ```python

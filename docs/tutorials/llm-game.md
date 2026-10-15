@@ -7,7 +7,7 @@ This tutorial runs a game where language models play each other through [`LLMAge
 Install the `llm` extra, which adds [litellm](https://docs.litellm.ai/):
 
 ```sh
-pip install "tyrant[llm] @ git+https://github.com/7673502/tyrant"
+pip install "tyrant[llm]"
 ```
 
 litellm reads provider keys from its usual environment variables, such as `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or `GEMINI_API_KEY`. Set the one for your provider:
