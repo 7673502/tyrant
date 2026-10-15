@@ -28,6 +28,8 @@ return replace(speak_action, message="I'm a liberal, I swear.")
 
 Whitespace in a message is collapsed, and the message is cut to [`MAX_SPEECH_LENGTH`](../reference/models.md#tyrant.models.MAX_SPEECH_LENGTH) (500) characters. An empty message counts as a pass.
 
+[`SYSTEM_PROMPT`](../reference/llm.md#tyrant.llm.SYSTEM_PROMPT) tells LLM players that repeating the board state is pointless and that they should pass unless they have a new claim, question or accusation.
+
 ## The transcript
 
 The full public transcript is kept as [`SpeechEvent`](../reference/models.md#tyrant.models.SpeechEvent)s in `GameState.events`. Each one is tagged with the [`DiscussionContext`](../reference/models.md#tyrant.models.DiscussionContext) that triggered it, and a pass is recorded with `text=None`. See `examples/discussion.py`.

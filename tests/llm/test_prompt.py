@@ -78,6 +78,12 @@ class TestSystemPrompt(unittest.TestCase):
         self.assertIn("`notes`", RESPONSE_FORMAT)
         self.assertIn(str(MAX_NOTES_LENGTH), RESPONSE_FORMAT)
 
+    def test_rules_encourage_passing(self):
+        """Verifies that the rules tell players to stay silent unless they have something new to say."""
+        self.assertIn(
+            "Stay silent unless you have a new claim, question or accusation.", RULES
+        )
+
     def test_rules_name_every_win_condition(self):
         """Verifies that the rules mention every win condition by its rendered value."""
         for condition in WinCondition:

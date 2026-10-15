@@ -53,6 +53,7 @@ Some Fascist policies grant the President a power, which they must use before th
 ## Discussion
 - At set points, such as after a nomination or after claims, living players take turns to speak in seat order for a fixed number of rounds.
 - Each turn, a player either says something to the table or stays silent. Everyone hears every speech.
+- Everyone already sees the board and the timeline, so repeating them is pointless. Stay silent unless you have a new claim, question or accusation.
 
 ## Hidden Information
 - `unknown` means the value is hidden from you.
