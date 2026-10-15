@@ -90,7 +90,7 @@ The file holds the setup with every hidden role, then one entry per applied acti
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "settings": {"player_count": 7, "discussion_enabled": false,
                "discussion_rounds": 2, "fascist_track": ["none", "investigate_loyalty", ...]},
   "players": [{"uid": 3, "seat": 0, "role": "hitler", "party": "fascist"}, ...],
@@ -98,6 +98,7 @@ The file holds the setup with every hidden role, then one entry per applied acti
   "steps": [
     {"index": 0, "uid": 3,
      "action": {"type": "nominate", "target_uid": 5},
+     "fallback": false,
      "events": [{"type": "nomination", "president_uid": 3, "chancellor_uid": 5}],
      "knowledge": [],
      "state": { <snapshot> }}
@@ -106,7 +107,7 @@ The file holds the setup with every hidden role, then one entry per applied acti
 }
 ```
 
-Each step lists the events and private knowledge its action produced. Actions leave out `description` and `message`; speech text is in the step's `speech` event. `result` is `null` if the game has not ended.
+Each step lists the events and private knowledge its action produced. `fallback` is `true` when the agent failed every attempt and the runner played a random legal action for it, so a step with `fallback: false` was the agent's own choice. Version 1 files have no `fallback` field and can't tell the two apart. Actions leave out `description` and `message`; speech text is in the step's `speech` event. `result` is `null` if the game has not ended.
 
 Each `state` is a complete board snapshot: `phase`, `president`, `chancellor`, `previous_president`, `previous_chancellor`, `alive`, `liberal_policies`, `fascist_policies`, `election_tracker`, `draw_pile` and `discard_pile` (counts), `hand`, `votes`, `active_power`, and `discussion` (`null` or `{context, round, rounds, speaker}`). A viewer can jump straight to any step without replaying the rules.
 
@@ -167,4 +168,4 @@ If an agent returns an action that was not offered, raises an exception, or take
 runner = GameRunner(agents, max_retries=2, timeout=60.0)
 ```
 
-By default `max_retries=2` and `timeout=120.0`, so a well-behaved agent is queried exactly once and a hung call is abandoned after two minutes. Pass `timeout=None` to disable the limit, for example when a human is playing. Every failed attempt is logged as a warning and recorded in `runner.faults` as an `AgentFault` with the player's `uid`, the `phase`, the `reason`, and whether it triggered the fallback (`fell_back`).
+By default `max_retries=2` and `timeout=120.0`, so a well-behaved agent is queried exactly once and a hung call is abandoned after two minutes. Pass `timeout=None` to disable the limit, for example when a human is playing. Every failed attempt is logged as a warning and recorded in `runner.faults` as an `AgentFault` with the player's `uid`, the `phase`, the `reason`, and whether it triggered the fallback (`fell_back`). The replay marks each fallback step with `fallback: true`.

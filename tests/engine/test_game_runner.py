@@ -482,6 +482,41 @@ class TestGameRunnerReplay(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(_replayed(runner.replay), final_state)
 
+    async def test_run_replay_marks_fallback_steps(self):
+        """Verifies that only steps played on a failing agent's behalf are marked as fallbacks."""
+        agents = [RaisingAgent(uid=1)] + [RandomAgent(uid=i) for i in range(2, 6)]
+        runner = GameRunner(agents=agents, seed=42, max_retries=0)
+
+        with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
+            await runner.run()
+
+        self.assertTrue(any(step.uid == 1 for step in runner.replay.steps))
+        for step in runner.replay.steps:
+            self.assertEqual(step.fallback, step.uid == 1)
+
+    async def test_run_iteration_recovered_fault_not_fallback(self):
+        """Verifies that a step the agent got right on a retry is not marked as a fallback."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        president_uid = state.players[state.president_index].uid
+        bad_action = NominateAction(description="Nominate", target_uid=president_uid)
+        good_action = get_legal_actions(state, president_uid)[0]
+        agents = [
+            StubAgent(
+                uid=p.uid,
+                actions_to_play=[bad_action, good_action]
+                if p.uid == president_uid
+                else [],
+            )
+            for p in state.players
+        ]
+        runner = GameRunner(agents=agents, initial_state=state)
+
+        with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
+            await runner._run_iteration()
+
+        self.assertEqual(len(runner.faults), 1)
+        self.assertFalse(runner.replay.steps[0].fallback)
+
 
 if __name__ == "__main__":
     unittest.main()

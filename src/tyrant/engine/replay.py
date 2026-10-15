@@ -12,7 +12,7 @@ from tyrant.models.event import GameOverEvent
 from tyrant.models.game_state import GameState
 from tyrant.models.replay import Replay
 
-REPLAY_VERSION: Final = 1
+REPLAY_VERSION: Final = 2
 
 
 def _action(action: Action) -> dict:
@@ -74,6 +74,7 @@ def replay_dict(replay: Replay) -> dict:
                 "index": index,
                 "uid": step.uid,
                 "action": _action(step.action),
+                "fallback": step.fallback,
                 "events": [
                     to_json(e, "Event") for e in next_state.events[len(state.events) :]
                 ],

@@ -8,6 +8,7 @@ from tyrant.models.game_state import GameState
 class ReplayStep:
     uid: int
     action: Action
+    fallback: bool = False
 
 
 @dataclass(frozen=True)
@@ -16,5 +17,8 @@ class Replay:
     steps: tuple[ReplayStep, ...] = ()
 
 
-def record_step(replay: Replay, uid: int, action: Action) -> Replay:
-    return replace(replay, steps=replay.steps + (ReplayStep(uid=uid, action=action),))
+def record_step(
+    replay: Replay, uid: int, action: Action, fallback: bool = False
+) -> Replay:
+    step = ReplayStep(uid=uid, action=action, fallback=fallback)
+    return replace(replay, steps=replay.steps + (step,))

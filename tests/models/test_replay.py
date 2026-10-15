@@ -54,6 +54,13 @@ class TestReplay(unittest.TestCase):
             (ReplayStep(uid=1, action=NOMINATE), ReplayStep(uid=3, action=VOTE)),
         )
 
+    def test_record_step_fallback(self):
+        """Verifies that record_step marks a step as a fallback only when asked."""
+        replay = record_step(Replay(initial_state=self.state), 1, NOMINATE)
+        replay = record_step(replay, 3, VOTE, fallback=True)
+
+        self.assertEqual(tuple(step.fallback for step in replay.steps), (False, True))
+
 
 if __name__ == "__main__":
     unittest.main()
