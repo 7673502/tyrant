@@ -1,3 +1,5 @@
+"""Immutable game models, actions, events and state transitions."""
+
 from tyrant.models.action import (
     Action,
     CallSpecialElectionAction,

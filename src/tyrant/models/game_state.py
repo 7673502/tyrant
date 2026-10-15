@@ -88,6 +88,40 @@ PRESIDENT_SPEAKS_LAST_CONTEXTS: Final[frozenset[DiscussionContext]] = frozenset(
 
 @dataclass(frozen=True)
 class GameState:
+    """The complete state of a game.
+
+    Attributes:
+        players: Every player, in seat order.
+        board: The policy tracks.
+        deck: The draw and discard piles.
+        election_tracker: The count of consecutive failed elections.
+        phase: The current phase.
+        president_index: Seat index of the current president.
+        chancellor: UID of the nominated or elected chancellor, or `None`.
+        ballot_box: The votes cast in the current election.
+        drawn_policies: The policies in the president's or chancellor's hand, or shown by a policy peek.
+        previous_president: UID of the last elected president, or `None`.
+        previous_chancellor: UID of the last elected chancellor, or `None`.
+        winner: The winning party, or `None` while the game is running.
+        special_election_president: UID of the player picked by a special election, or `None`.
+        rng_state: State of the random generator that shuffles the deck, or `HIDDEN` in a scrubbed state.
+        veto_denied_this_term: Whether the president has refused a veto in the current legislative session.
+        investigations: Each investigated player's UID mapped to the UID of the president who investigated them.
+        deck_shuffled_last_action: Whether the last action shuffled the discard pile back into the draw pile.
+        active_power: The presidential power being used, or `PresidentialPower.NONE`.
+        current_investigation_result: The party found by the pending investigation, `HIDDEN` for other viewers, or `None`.
+        claims: Every claim made, in order.
+        pending_president_enact_claim: Whether the president still has to claim the drawn policies.
+        pending_chancellor_enact_claim: Whether the chancellor still has to claim the received policies.
+        pending_power: The power to grant once both policy claims are made.
+        special_election_caller_index: Seat index of the president who called the special election, or `None`.
+        discussion_enabled: Whether discussions are held.
+        discussion_rounds: How many times the table goes around in each discussion.
+        discussion: The discussion in progress, or `None`.
+        events: Every public event, in order.
+        knowledge: What each player learned in secret, in order.
+    """
+
     players: tuple[Player, ...]
     board: Board
     deck: Deck
@@ -127,6 +161,22 @@ def create_game(
     discussion_enabled: bool = False,
     discussion_rounds: int = 2,
 ) -> GameState:
+    """Creates a new game, ready for the first nomination.
+
+    Args:
+        uids: Unique IDs of the 5 to 10 players.
+        seed: Seed for dealing roles, seating players and shuffling the deck, or `None` for a random game.
+        roles: Fixed role for each UID, or `None` to deal roles at random.
+        shuffle_players: Whether to shuffle the seating order; otherwise players sit in `uids` order.
+        discussion_enabled: Whether to hold discussions.
+        discussion_rounds: How many times the table goes around in each discussion.
+
+    Returns:
+        The initial game state.
+
+    Raises:
+        TyrantError: If the player count, the UIDs, `roles` or `discussion_rounds` are invalid.
+    """
     player_count = len(uids)
     if not (5 <= player_count <= 10):
         raise TyrantError(f"Player count must be between 5 and 10, got {player_count}")
@@ -200,6 +250,7 @@ def create_game(
 
 
 def _end_game(state: GameState, winner: Party, condition: WinCondition) -> GameState:
+    """Ends the game with the given winner and records a `GameOverEvent`."""
     return replace(
         state,
         winner=winner,
@@ -209,6 +260,7 @@ def _end_game(state: GameState, winner: Party, condition: WinCondition) -> GameS
 
 
 def _advance_to_nomination(state: GameState) -> GameState:
+    """Moves the presidency to the next president and starts a nomination."""
     new_special = state.special_election_president
     new_caller = state.special_election_caller_index
     new_president_index = state.president_index
@@ -252,6 +304,7 @@ def _advance_to_nomination(state: GameState) -> GameState:
 
 
 def _begin_discussion(state: GameState, context: DiscussionContext) -> GameState:
+    """Starts a discussion with the given context if discussions are enabled and the game is not over."""
     if not state.discussion_enabled or state.phase == GamePhase.GAME_OVER:
         return state
 
@@ -274,6 +327,19 @@ def _begin_discussion(state: GameState, context: DiscussionContext) -> GameState
 
 
 def speak(state: GameState, uid: int, text: str | None) -> GameState:
+    """Records a speech or a pass from the current speaker.
+
+    Args:
+        state: The current game state.
+        uid: UID of the speaker.
+        text: What the player says, or `None` to pass. Whitespace is collapsed and the text is cut to `MAX_SPEECH_LENGTH` characters.
+
+    Returns:
+        The new game state, back in the interrupted phase once the discussion is complete.
+
+    Raises:
+        InvalidMoveError: If no discussion is running or it is not this player's turn.
+    """
     if state.phase != GamePhase.DISCUSSION or state.discussion is None:
         raise InvalidMoveError(f"Cannot speak in phase {state.phase}")
 
@@ -299,6 +365,18 @@ def speak(state: GameState, uid: int, text: str | None) -> GameState:
 
 
 def nominate_chancellor(state: GameState, chancellor_uid: int) -> GameState:
+    """Nominates a chancellor for the current president.
+
+    Args:
+        state: The current game state.
+        chancellor_uid: UID of the nominee.
+
+    Returns:
+        The new game state, in the voting phase or in a discussion before it.
+
+    Raises:
+        InvalidMoveError: If the phase is wrong or the nominee is the president, unknown, dead or term-limited.
+    """
     if state.phase != GamePhase.NOMINATION:
         raise InvalidMoveError(f"Cannot nominate chancellor in phase {state.phase}")
 
@@ -340,6 +418,7 @@ def nominate_chancellor(state: GameState, chancellor_uid: int) -> GameState:
 
 
 def _ensure_deck_ready(state: GameState) -> GameState:
+    """Shuffles the discard pile into the draw pile if fewer than three policies remain."""
     if len(state.deck.draw_pile) < 3:
         rng = Random()
         rng.setstate(state.rng_state)
@@ -355,6 +434,7 @@ def _ensure_deck_ready(state: GameState) -> GameState:
 
 
 def _resolve_election(state: GameState) -> GameState:
+    """Records the election result, then starts the legislative session or advances the election tracker."""
     ja_votes = sum(1 for v in state.ballot_box.votes.values() if v == Vote.JA)
     nein_votes = sum(1 for v in state.ballot_box.votes.values() if v == Vote.NEIN)
 
@@ -444,6 +524,19 @@ def _resolve_election(state: GameState) -> GameState:
 
 
 def cast_vote(state: GameState, uid: int, vote: Vote) -> GameState:
+    """Records a player's vote and resolves the election once every living player has voted.
+
+    Args:
+        state: The current game state.
+        uid: UID of the voter.
+        vote: The vote cast.
+
+    Returns:
+        The new game state.
+
+    Raises:
+        InvalidMoveError: If the phase is wrong or the voter is unknown or dead.
+    """
     if state.phase != GamePhase.VOTING:
         raise InvalidMoveError(f"Cannot cast vote in phase {state.phase}")
 
@@ -467,6 +560,18 @@ def cast_vote(state: GameState, uid: int, vote: Vote) -> GameState:
 
 
 def president_discard(state: GameState, discard_index: int) -> GameState:
+    """Discards one of the president's three drawn policies and passes the rest to the chancellor.
+
+    Args:
+        state: The current game state.
+        discard_index: Index of the policy to discard in `drawn_policies`.
+
+    Returns:
+        The new game state, waiting for the chancellor to enact a policy.
+
+    Raises:
+        InvalidMoveError: If the phase or the index is invalid.
+    """
     if state.phase != GamePhase.PRESIDENT_DISCARD:
         raise InvalidMoveError(f"Cannot discard in phase {state.phase}")
 
@@ -498,6 +603,18 @@ def president_discard(state: GameState, discard_index: int) -> GameState:
 
 
 def chancellor_enact(state: GameState, enact_index: int) -> GameState:
+    """Enacts one of the chancellor's two policies and discards the other.
+
+    Args:
+        state: The current game state.
+        enact_index: Index of the policy to enact in `drawn_policies`.
+
+    Returns:
+        The new game state, either over or waiting for policy claims.
+
+    Raises:
+        InvalidMoveError: If the phase or the index is invalid.
+    """
     if state.phase != GamePhase.CHANCELLOR_ENACT:
         raise InvalidMoveError(f"Cannot enact in phase {state.phase}")
 
@@ -544,6 +661,20 @@ def chancellor_enact(state: GameState, enact_index: int) -> GameState:
 def claim_enact(
     state: GameState, claim: PresidentEnactClaim | ChancellorEnactClaim
 ) -> GameState:
+    """Records the president's or chancellor's claim about the policies they saw.
+
+    Once both have claimed, the game moves on to the granted power or the next nomination.
+
+    Args:
+        state: The current game state.
+        claim: The claim to record.
+
+    Returns:
+        The new game state.
+
+    Raises:
+        InvalidMoveError: If the phase is wrong, the claimant is not in the government, or they have already claimed.
+    """
     if state.phase != GamePhase.CLAIM_POLICIES:
         raise InvalidMoveError(f"Cannot claim enact in phase {state.phase}")
 
@@ -601,6 +732,17 @@ def claim_enact(
 
 
 def chancellor_veto(state: GameState) -> GameState:
+    """Proposes a veto of the chancellor's two policies.
+
+    Args:
+        state: The current game state.
+
+    Returns:
+        The new game state, waiting for the president's response.
+
+    Raises:
+        InvalidMoveError: If the phase is wrong, veto power is locked, or the president already refused a veto this term.
+    """
     if state.phase != GamePhase.CHANCELLOR_ENACT:
         raise InvalidMoveError(f"Cannot veto in phase {state.phase}")
 
@@ -616,6 +758,20 @@ def chancellor_veto(state: GameState) -> GameState:
 
 
 def president_veto_response(state: GameState, approve: bool) -> GameState:
+    """Approves or refuses the chancellor's veto proposal.
+
+    An approved veto discards both policies and advances the election tracker.
+
+    Args:
+        state: The current game state.
+        approve: Whether the president agrees to the veto.
+
+    Returns:
+        The new game state: waiting for policy claims after an approval, or back with the chancellor after a refusal.
+
+    Raises:
+        InvalidMoveError: If the phase is wrong or veto power is locked.
+    """
     if state.phase != GamePhase.PRESIDENT_VETO_RESPONSE:
         raise InvalidMoveError(f"Cannot respond to veto in phase {state.phase}")
 
@@ -690,6 +846,18 @@ def president_veto_response(state: GameState, approve: bool) -> GameState:
 
 
 def investigate_loyalty(state: GameState, target_uid: int) -> GameState:
+    """Shows the president another player's party.
+
+    Args:
+        state: The current game state.
+        target_uid: UID of the player to investigate.
+
+    Returns:
+        The new game state, waiting for the president's investigation claim.
+
+    Raises:
+        InvalidMoveError: If the phase is wrong or the target is the president, unknown or dead.
+    """
     if state.phase != GamePhase.PRESIDENTIAL_POWER:
         raise InvalidMoveError(f"Cannot investigate loyalty in phase {state.phase}")
 
@@ -725,6 +893,18 @@ def investigate_loyalty(state: GameState, target_uid: int) -> GameState:
 
 
 def claim_investigation(state: GameState, claim: InvestigationClaim) -> GameState:
+    """Records the president's claim about the investigated player's party.
+
+    Args:
+        state: The current game state.
+        claim: The claim to record.
+
+    Returns:
+        The new game state at the next nomination, or in a discussion before it.
+
+    Raises:
+        InvalidMoveError: If the phase is wrong or the claimant is not the president.
+    """
     if state.phase != GamePhase.CLAIM_INVESTIGATION:
         raise InvalidMoveError(f"Cannot claim investigation in phase {state.phase}")
 
@@ -753,6 +933,18 @@ def claim_investigation(state: GameState, claim: InvestigationClaim) -> GameStat
 
 
 def call_special_election(state: GameState, target_uid: int) -> GameState:
+    """Makes another player the next president.
+
+    Args:
+        state: The current game state.
+        target_uid: UID of the player who becomes the next president.
+
+    Returns:
+        The new game state at that player's nomination, or in a discussion before it.
+
+    Raises:
+        InvalidMoveError: If the phase is wrong or the target is the president, unknown or dead.
+    """
     if state.phase != GamePhase.PRESIDENTIAL_POWER:
         raise InvalidMoveError(f"Cannot call special election in phase {state.phase}")
 
@@ -782,6 +974,17 @@ def call_special_election(state: GameState, target_uid: int) -> GameState:
 
 
 def policy_peek(state: GameState) -> GameState:
+    """Shows the president the top three policies of the draw pile.
+
+    Args:
+        state: The current game state.
+
+    Returns:
+        The new game state, waiting for the president's peek claim.
+
+    Raises:
+        InvalidMoveError: If the phase is wrong.
+    """
     if state.phase != GamePhase.PRESIDENTIAL_POWER:
         raise InvalidMoveError(f"Cannot peek policies in phase {state.phase}")
 
@@ -801,6 +1004,18 @@ def policy_peek(state: GameState) -> GameState:
 
 
 def claim_peek(state: GameState, claim: PeekClaim) -> GameState:
+    """Records the president's claim about the peeked policies.
+
+    Args:
+        state: The current game state.
+        claim: The claim to record.
+
+    Returns:
+        The new game state at the next nomination, or in a discussion before it.
+
+    Raises:
+        InvalidMoveError: If the phase is wrong or the claimant is not the president.
+    """
     if state.phase != GamePhase.CLAIM_POLICY_PEEK:
         raise InvalidMoveError(f"Cannot claim peek in phase {state.phase}")
 
@@ -830,6 +1045,18 @@ def claim_peek(state: GameState, claim: PeekClaim) -> GameState:
 
 
 def execute_player(state: GameState, target_uid: int) -> GameState:
+    """Executes a player.
+
+    Args:
+        state: The current game state.
+        target_uid: UID of the player to execute.
+
+    Returns:
+        The new game state: over if the target was Hitler, otherwise at the next nomination or in a discussion before it.
+
+    Raises:
+        InvalidMoveError: If the phase is wrong or the target is the president, unknown or already dead.
+    """
     if state.phase != GamePhase.PRESIDENTIAL_POWER:
         raise InvalidMoveError(f"Cannot execute player in phase {state.phase}")
 
@@ -870,6 +1097,20 @@ def execute_player(state: GameState, target_uid: int) -> GameState:
 
 
 def scrub_state(state: GameState, viewer_uid: int) -> GameState:
+    """Hides everything the viewer is not allowed to see.
+
+    Other players' parties and roles are hidden unless the viewer's role or an investigation reveals them. The deck contents, other players' hands, votes still being cast, the shuffle state and other players' knowledge are hidden too. Public events pass through unchanged.
+
+    Args:
+        state: The full game state.
+        viewer_uid: UID of the player who will see the state.
+
+    Returns:
+        A new game state that is safe to show to the viewer.
+
+    Raises:
+        TyrantError: If the viewer is not in the game.
+    """
     viewer = next((p for p in state.players if p.uid == viewer_uid), None)
     if viewer is None:
         raise TyrantError(f"Viewer with UID {viewer_uid} not found")
