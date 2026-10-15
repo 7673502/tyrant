@@ -11,7 +11,7 @@ class AgentFault:
         uid: UID of the agent that failed.
         phase: Phase the game was in.
         reason: The `repr` of the exception raised.
-        fell_back: Whether this failure made the runner play a random legal action.
+        fell_back: Whether this failure made the runner play a fallback action: a pass when one is offered, otherwise a random legal action.
         step: Index of the replay step the agent's action becomes; the fault happens before that step is recorded.
         reply: The agent's raw rejected reply, from `InvalidMoveError.reply`, or `None`.
     """

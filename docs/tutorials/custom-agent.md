@@ -59,7 +59,7 @@ Notes on the code:
 
 - Actions are frozen dataclasses, so `match` with class patterns is the easiest way to read them. The [models reference](../reference/models.md) lists every action type.
 - When discussion is on, a [`SpeakAction`](../reference/models.md#tyrant.models.SpeakAction) is offered with an empty `message`. Fill it in with `dataclasses.replace`. The runner ignores changes to `message` and `description` when it checks that an action was offered.
-- If `choose_action` raises `InvalidMoveError` or `AgentError`, times out, or returns an action that wasn't offered, the runner asks again and eventually plays a random action for the agent. Any other exception ends the game, so bugs in your agent surface right away. See [Agent resilience](../guides/agent-resilience.md).
+- If `choose_action` raises `InvalidMoveError` or `AgentError`, times out, or returns an action that wasn't offered, the runner asks again and eventually plays a fallback for the agent: a pass during discussion, otherwise a random legal action. Any other exception ends the game, so bugs in your agent surface right away. See [Agent resilience](../guides/agent-resilience.md).
 
 Mix it with random players and run a game with discussion:
 

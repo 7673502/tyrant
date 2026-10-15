@@ -7,7 +7,7 @@ from typing import Final
 
 from tyrant.engine.router import apply_action, get_legal_actions
 from tyrant.exceptions import AgentError, InvalidMoveError, TyrantError
-from tyrant.models.action import Action
+from tyrant.models.action import Action, PassAction
 from tyrant.models.agent import Agent
 from tyrant.models.agent_fault import AgentFault
 from tyrant.models.enums import GamePhase, Role
@@ -39,7 +39,7 @@ def _is_offered(action: Action, valid_actions: tuple[Action, ...]) -> bool:
 class GameRunner:
     """Plays a game by asking agents for actions until it ends.
 
-    Each iteration, every agent with legal actions is asked at the same time, with the state scrubbed for that agent. An attempt that raises `InvalidMoveError`, `TimeoutError` or `AgentError` is retried, and after `max_retries` failed retries the runner plays a random legal action for the agent. Any other exception ends the game.
+    Each iteration, every agent with legal actions is asked at the same time, with the state scrubbed for that agent. An attempt that raises `InvalidMoveError`, `TimeoutError` or `AgentError` is retried, and after `max_retries` failed retries the runner plays a fallback action for the agent: a pass when one is offered, otherwise a random legal action. Any other exception ends the game.
 
     Attributes:
         state: The current, unscrubbed game state.
@@ -47,7 +47,7 @@ class GameRunner:
         agents: Each agent, keyed by UID.
         max_retries: Retries allowed after an agent's first failed attempt.
         timeout: Seconds allowed for each attempt, or `None` for no limit.
-        rng: Random generator that picks fallback actions.
+        rng: Random generator that picks fallback actions when no pass is offered.
         faults: Every failed attempt, in order.
     """
 
@@ -140,7 +140,7 @@ class GameRunner:
     async def _query_agent(
         self, agent: Agent, valid_actions: tuple[Action, ...], step: int
     ) -> tuple[int, Action]:
-        """Asks an agent for an action, retrying on failure and falling back to a random legal action; faults are recorded against `step`."""
+        """Asks an agent for an action, retrying on failure and then falling back; faults are recorded against `step`."""
         scrubbed_state = scrub_state(self.state, agent.uid)
         attempts = self.max_retries + 1
         for attempt in range(attempts):
@@ -155,7 +155,14 @@ class GameRunner:
                     step,
                     e.reply if isinstance(e, InvalidMoveError) else None,
                 )
-        return agent.uid, self.rng.choice(valid_actions)
+        return agent.uid, self._fallback(valid_actions)
+
+    def _fallback(self, valid_actions: tuple[Action, ...]) -> Action:
+        """Returns the offered pass, or a random legal action when no pass is offered."""
+        for action in valid_actions:
+            if isinstance(action, PassAction):
+                return action
+        return self.rng.choice(valid_actions)
 
     def _record_fault(
         self, uid: int, reason: str, fell_back: bool, step: int, reply: str | None
@@ -176,7 +183,7 @@ class GameRunner:
             uid,
             fault.phase,
             reason,
-            " (falling back to a random legal action)" if fell_back else "",
+            " (falling back to a pass or a random legal action)" if fell_back else "",
         )
 
     async def _attempt(

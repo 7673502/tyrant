@@ -12,7 +12,7 @@ class ReplayStep:
     Attributes:
         uid: UID of the player who acted.
         action: The action applied.
-        fallback: Whether the runner played the action at random after the agent failed.
+        fallback: Whether the runner played the action, a pass or a random legal one, after the agent failed.
     """
 
     uid: int
@@ -44,7 +44,7 @@ def record_step(
         replay: The current replay.
         uid: UID of the player who acted.
         action: The action applied.
-        fallback: Whether the runner played the action at random after the agent failed.
+        fallback: Whether the runner played the action, a pass or a random legal one, after the agent failed.
 
     Returns:
         A new replay with the step added.

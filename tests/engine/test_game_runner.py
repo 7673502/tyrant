@@ -364,6 +364,38 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(agent.calls, 1)
 
+    async def test_query_agent_discussion_fallback_passes(self):
+        """Verifies that a failing agent in a discussion falls back to the offered pass."""
+        agent = RaisingAgent(uid=self.president_uid)
+        runner = GameRunner(agents=[agent], initial_state=self.state, max_retries=0)
+        options = (SpeakAction(description="Speak"), PassAction(description="Pass"))
+
+        with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
+            picks = [
+                (await runner._query_agent(agent, options, 0))[1] for _ in range(5)
+            ]
+
+        self.assertEqual(picks, [options[1]] * 5)
+
+    async def test_run_failing_agent_only_passes_in_discussion(self):
+        """Verifies that every discussion turn a failing agent falls back on is a pass."""
+        agents = [RaisingAgent(uid=1)] + [RandomAgent(uid=i) for i in range(2, 6)]
+        runner = GameRunner(
+            agents=agents, seed=42, max_retries=0, discussion_enabled=True
+        )
+
+        with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
+            await runner.run()
+
+        turns = [
+            step.action
+            for step in runner.replay.steps
+            if step.uid == 1 and isinstance(step.action, (SpeakAction, PassAction))
+        ]
+        self.assertTrue(turns)
+        for action in turns:
+            self.assertIsInstance(action, PassAction)
+
     async def test_query_agent_seeded_fallback_is_deterministic(self):
         """Verifies that fallback choices are reproducible for the same seed."""
         chosen = []
