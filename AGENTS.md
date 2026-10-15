@@ -6,8 +6,8 @@
 - This project implements the popular board game "Secret Hitler" as a Python package.
 - It is intended for LLMs, other models such as MCTS, and people to be able to play the game.
 - The design is a functional, stateful approach.
-- There is an optional dependency for an MCP server.
-- Keep the core game logic completely decoupled from the MCP server routing.
+- There is an optional dependency for LLM players.
+- Keep the core game logic completely decoupled from the LLM server routing.
 - This project uses Python 3.13 and the `frozendict` package to ensure strict immutability.
 
 ## Testing & Code Standards Rules
