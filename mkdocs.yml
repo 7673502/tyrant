@@ -48,3 +48,28 @@ markdown_extensions:
       alternate_style: true
   - toc:
       permalink: true
+
+nav:
+  - Home:
+      - index.md
+      - Design: concepts.md
+  - Getting started:
+      - getting-started/installation.md
+      - tutorials/first-game.md
+      - tutorials/custom-agent.md
+      - tutorials/llm-game.md
+  - Guides:
+      - guides/discussion.md
+      - guides/events.md
+      - guides/knowledge.md
+      - guides/rendering.md
+      - guides/replays.md
+      - guides/prompting.md
+      - guides/agent-resilience.md
+  - API reference:
+      - reference/index.md
+      - reference/models.md
+      - reference/engine.md
+      - reference/agents.md
+      - reference/llm.md
+      - reference/exceptions.md
