@@ -44,4 +44,6 @@ In seat order:
 ...
 ```
 
+When a president's and chancellor's policy claims for the same government follow each other in the timeline and disagree, `render_text` adds a sentence to the second claim pointing out the conflict, for example "These claims conflict: President Player 1 claims passing liberal, fascist, but Chancellor Player 2 claims receiving fascist, fascist." The president's claimed passed policies are the claimed draw minus the claimed discard, and order doesn't matter.
+
 To keep prompts small, `render_text` shows speeches from only the last two discussions; older ones collapse into one line each. `render_dict` keeps every speech.

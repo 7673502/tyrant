@@ -965,10 +965,40 @@ class TestGetLegalActionsEnactClaims(unittest.TestCase):
             pending_chancellor_enact_claim=True,
         )
         actions = get_legal_actions(state, president_uid)
-        self.assertEqual(len(actions), 5)
+        self.assertEqual(len(actions), 7)
         self.assertTrue(
             isinstance(actions[-1], ClaimPresidentEnactAction)
             and actions[-1].claim_policies is None
+            and actions[-1].claim_discarded is None
+        )
+
+    def test_enact_claims_president_discard_options(self):
+        """Verifies that each drawn-policy claim is offered once for every distinct discarded policy in it."""
+        state = create_game(tuple(range(5)))
+        president_uid = state.players[state.president_index].uid
+        other_uid = next(p.uid for p in state.players if p.uid != president_uid)
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_POLICIES,
+            chancellor=other_uid,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+        )
+        L, F = PolicyTile.LIBERAL, PolicyTile.FASCIST
+        options = [
+            (a.claim_policies, a.claim_discarded)
+            for a in get_legal_actions(state, president_uid)[:-1]
+        ]
+        self.assertEqual(
+            options,
+            [
+                ((L, L, L), L),
+                ((L, L, F), L),
+                ((L, L, F), F),
+                ((L, F, F), L),
+                ((L, F, F), F),
+                ((F, F, F), F),
+            ],
         )
 
     def test_enact_claims_chancellor(self):
@@ -1013,6 +1043,7 @@ class TestGetLegalActionsEnactClaims(unittest.TestCase):
         action = ClaimPresidentEnactAction(
             description="",
             claim_policies=(PolicyTile.FASCIST, PolicyTile.FASCIST, PolicyTile.FASCIST),
+            claim_discarded=PolicyTile.FASCIST,
         )
         apply_action(state, action, president_uid)
         from tyrant.models.claim import PresidentEnactClaim
@@ -1022,6 +1053,7 @@ class TestGetLegalActionsEnactClaims(unittest.TestCase):
             PresidentEnactClaim(
                 uid=president_uid,
                 policies=(PolicyTile.FASCIST, PolicyTile.FASCIST, PolicyTile.FASCIST),
+                discarded=PolicyTile.FASCIST,
             ),
         )
 

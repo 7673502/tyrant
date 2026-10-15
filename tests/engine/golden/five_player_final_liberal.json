@@ -106,7 +106,8 @@
           "liberal",
           "liberal",
           "liberal"
-        ]
+        ],
+        "discarded": "liberal"
       },
       "president_uid": 4,
       "chancellor_uid": 3,
@@ -173,7 +174,8 @@
           "liberal",
           "liberal",
           "liberal"
-        ]
+        ],
+        "discarded": "liberal"
       },
       "president_uid": 3,
       "chancellor_uid": 4,
@@ -226,7 +228,8 @@
           "liberal",
           "liberal",
           "liberal"
-        ]
+        ],
+        "discarded": "liberal"
       },
       "president_uid": 1,
       "chancellor_uid": 3,
@@ -279,7 +282,8 @@
           "liberal",
           "liberal",
           "liberal"
-        ]
+        ],
+        "discarded": "liberal"
       },
       "president_uid": 5,
       "chancellor_uid": 4,
@@ -332,7 +336,8 @@
           "liberal",
           "liberal",
           "liberal"
-        ]
+        ],
+        "discarded": "liberal"
       },
       "president_uid": 2,
       "chancellor_uid": 3,
@@ -386,7 +391,8 @@
           "liberal",
           "liberal",
           "liberal"
-        ]
+        ],
+        "discarded": "liberal"
       },
       "president_uid": 4,
       "chancellor_uid": 1,
@@ -457,7 +463,8 @@
           "liberal",
           "liberal",
           "liberal"
-        ]
+        ],
+        "discarded": "liberal"
       },
       "president_uid": 1,
       "chancellor_uid": 4,

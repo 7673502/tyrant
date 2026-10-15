@@ -127,7 +127,8 @@
           "liberal",
           "liberal",
           "liberal"
-        ]
+        ],
+        "discarded": "liberal"
       },
       "president_uid": 4,
       "chancellor_uid": 7,
@@ -182,7 +183,8 @@
           "liberal",
           "liberal",
           "liberal"
-        ]
+        ],
+        "discarded": "liberal"
       },
       "president_uid": 7,
       "chancellor_uid": 3,
@@ -251,7 +253,8 @@
           "liberal",
           "liberal",
           "liberal"
-        ]
+        ],
+        "discarded": "liberal"
       },
       "president_uid": 3,
       "chancellor_uid": 4,

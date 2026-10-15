@@ -16,13 +16,15 @@ class Claim:
 
 @dataclass(frozen=True)
 class PresidentEnactClaim(Claim):
-    """The president's claim about the three policies they drew.
+    """The president's claim about the three policies they drew and the one they discarded.
 
     Attributes:
         policies: The claimed policies, or `None` if the president declined.
+        discarded: The claimed discarded policy, or `None` if the president declined.
     """
 
     policies: tuple[PolicyTile, PolicyTile, PolicyTile] | None
+    discarded: PolicyTile | None = None
 
 
 @dataclass(frozen=True)

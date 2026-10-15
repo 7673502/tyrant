@@ -44,7 +44,9 @@ class TestClaim(unittest.TestCase):
     def test_president_enact_claim_immutability(self):
         """Test that PresidentEnactClaim dataclass is frozen."""
         claim = PresidentEnactClaim(
-            uid=1, policies=(PolicyTile.LIBERAL, PolicyTile.LIBERAL, PolicyTile.LIBERAL)
+            uid=1,
+            policies=(PolicyTile.LIBERAL, PolicyTile.LIBERAL, PolicyTile.LIBERAL),
+            discarded=PolicyTile.LIBERAL,
         )
         self.assertTrue(is_dataclass(claim))
         with self.assertRaises(FrozenInstanceError):
@@ -54,6 +56,8 @@ class TestClaim(unittest.TestCase):
                 PolicyTile.FASCIST,
                 PolicyTile.FASCIST,
             )
+        with self.assertRaises(FrozenInstanceError):
+            claim.discarded = PolicyTile.FASCIST
 
     def test_chancellor_enact_claim_immutability(self):
         """Test that ChancellorEnactClaim dataclass is frozen."""

@@ -267,11 +267,13 @@ def _get_legal_actions_enact_claims(
     if player_uid == president_uid and state.pending_president_enact_claim:
         for claim in itertools.combinations_with_replacement(("Liberal", "Fascist"), 3):
             policies = tuple(TILE_MAP[char[0]] for char in claim)
-            action = ClaimPresidentEnactAction(
-                description=f"Claim that the 3 drawn policies were: {claim[0]}, {claim[1]}, {claim[2]}",
-                claim_policies=policies,
-            )
-            actions.append(action)
+            for discarded in dict.fromkeys(claim):
+                action = ClaimPresidentEnactAction(
+                    description=f"Claim that the 3 drawn policies were: {claim[0]}, {claim[1]}, {claim[2]}, and that you discarded {discarded}",
+                    claim_policies=policies,
+                    claim_discarded=TILE_MAP[discarded[0]],
+                )
+                actions.append(action)
         actions.append(
             ClaimPresidentEnactAction(
                 description="Decline to share the drawn policies", claim_policies=None
@@ -395,8 +397,12 @@ def apply_action(state: GameState, action: Action, player_uid: int) -> GameState
         case ClaimPolicyPeekAction(claim_policies=policies):
             claim = PeekClaim(uid=player_uid, policies=policies)
             return claim_peek(state, claim)
-        case ClaimPresidentEnactAction(claim_policies=policies):
-            claim = PresidentEnactClaim(uid=player_uid, policies=policies)
+        case ClaimPresidentEnactAction(
+            claim_policies=policies, claim_discarded=discarded
+        ):
+            claim = PresidentEnactClaim(
+                uid=player_uid, policies=policies, discarded=discarded
+            )
             return claim_enact(state, claim)
         case ClaimChancellorEnactAction(claim_policies=policies):
             claim = ChancellorEnactClaim(uid=player_uid, policies=policies)
