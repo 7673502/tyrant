@@ -1,6 +1,6 @@
 [project]
 name = "tyrant"
-version = "0.1.0"
+version = "0.2.0"
 description = "Secret Hitler board game implementation"
 readme = "README.md"
 authors = [
