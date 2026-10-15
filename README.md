@@ -15,8 +15,9 @@ Each subpackage exports its full vocabulary:
 | Package | Exports |
 |---|---|
 | `tyrant.models` | Every model, action, event, claim, knowledge and enum type, plus `create_game` and `scrub_state` |
-| `tyrant.engine` | `GameRunner`, `get_legal_actions`, `apply_action`, the renderer, the prompt helpers and the replay functions |
+| `tyrant.engine` | `GameRunner`, `get_legal_actions`, `apply_action`, the renderer and the replay functions |
 | `tyrant.agents` | `RandomAgent` and `BiasedRandomAgent` |
+| `tyrant.llm` | `SYSTEM_PROMPT`, `build_prompt` and `parse_action` |
 
 Anything not listed in a package's `__all__` is internal and may change.
 
@@ -137,10 +138,16 @@ payload = render_dict(state, uid)
 
 ## Prompting LLM agents
 
-`tyrant.engine.prompt` holds the pieces every LLM agent needs, with no provider calls. `SYSTEM_PROMPT` explains the rules and asks the model to end its reply with `{"action": N, "message": "..."}`; it is the same for every game, so send it first to benefit from prompt caching. `build_prompt` renders the viewer's state followed by their numbered options, and `parse_action` turns the reply back into one of the offered actions:
+LLM support is optional. Install it with the `llm` extra, which adds `litellm`:
+
+```sh
+pip install "tyrant[llm]"
+```
+
+`tyrant.llm` holds the pieces every LLM agent needs, with no provider calls. `SYSTEM_PROMPT` explains the rules and asks the model to end its reply with `{"action": N, "message": "..."}`; it is the same for every game, so send it first to benefit from prompt caching. `build_prompt` renders the viewer's state followed by their numbered options, and `parse_action` turns the reply back into one of the offered actions:
 
 ```python
-from tyrant import SYSTEM_PROMPT, build_prompt, parse_action
+from tyrant.llm import SYSTEM_PROMPT, build_prompt, parse_action
 
 async def choose_action(self, state, valid_actions):
     prompt = build_prompt(state, self.uid, valid_actions)

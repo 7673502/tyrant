@@ -1248,6 +1248,10 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "frozendict" },
+]
+
+[package.optional-dependencies]
+llm = [
     { name = "litellm" },
 ]
 
@@ -1259,8 +1263,9 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "frozendict", specifier = ">=2.4.7" },
-    { name = "litellm", specifier = ">=1.91.0" },
+    { name = "litellm", marker = "extra == 'llm'", specifier = ">=1.91.0" },
 ]
+provides-extras = ["llm"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "ruff", specifier = ">=0.15.18" }]
