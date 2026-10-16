@@ -6,7 +6,7 @@ from dataclasses import replace
 from frozendict import frozendict
 
 from tests.scripted_game import play_first_legal_actions
-from tyrant.engine.renderer import render_dict, render_text
+from tyrant.engine.renderer import format_hand, render_dict, render_text
 from tyrant.exceptions import TyrantError
 from tyrant.models.claim import (
     ChancellorEnactClaim,
@@ -517,7 +517,7 @@ class TestRenderText(unittest.TestCase):
         )
         text = render_text(scrub_state(state, 1), 1)
         expected = [
-            "- As president with Chancellor Player 2, you drew liberal, fascist, fascist.",
+            "- As president with Chancellor Player 2, you drew fascist, fascist, liberal.",
             "- As chancellor under President Player 3, you received fascist, fascist.",
             "- You peeked at the top 3 policies, from the top: liberal, liberal, fascist.",
             "- You investigated Player 4: liberal party.",
@@ -545,6 +545,29 @@ class TestRenderText(unittest.TestCase):
         )
         self.assertEqual(text.count("As president"), 1)
 
+    def test_render_text_knowledge_canonical_order(self):
+        """Verifies that drawn, passed and received policies render fascist first while a peek keeps its order."""
+        state = replace(
+            self.state,
+            knowledge=(
+                PresidentDrawKnowledge(uid=1, chancellor_uid=2, policies=(L, F, L)),
+                PresidentDiscardKnowledge(
+                    uid=1, chancellor_uid=2, discarded=L, passed=(L, F)
+                ),
+                ChancellorReceiveKnowledge(uid=1, president_uid=3, policies=(L, F)),
+                PeekKnowledge(uid=1, policies=(L, F, L)),
+            ),
+        )
+        text = render_text(scrub_state(state, 1), 1)
+        expected = [
+            "- As president with Chancellor Player 2, you drew fascist, liberal, "
+            "liberal, discarded liberal, passed fascist, liberal.",
+            "- As chancellor under President Player 3, you received fascist, liberal.",
+            "- You peeked at the top 3 policies, from the top: liberal, fascist, liberal.",
+        ]
+        for line in expected:
+            self.assertIn(line + "\n", text)
+
     def test_render_text_liberal_raw_state_hides_others(self):
         """Verifies that a liberal viewer's raw-state text shows no other role or knowledge."""
         viewer = _uid_with_role(self.state, Role.LIBERAL)
@@ -561,6 +584,23 @@ class TestRenderText(unittest.TestCase):
                 )
         self.assertNotIn("fascist, fascist, fascist", text)
         self.assertIn("## Private Knowledge\n- None.\n", text)
+
+
+class TestFormatHand(unittest.TestCase):
+    def test_format_hand_immutability(self):
+        """Verifies that format_hand returns a new string and leaves its input unchanged."""
+        policies = (L, F, L)
+        result = format_hand(policies)
+        self.assertIsInstance(result, str)
+        self.assertEqual(policies, (L, F, L))
+
+    def test_format_hand_fascist_first(self):
+        """Verifies that format_hand lists fascist policies before liberal ones."""
+        self.assertEqual(format_hand((L, F, L)), "fascist, liberal, liberal")
+
+    def test_format_hand_json_values(self):
+        """Verifies that format_hand accepts the policies' JSON values."""
+        self.assertEqual(format_hand(["liberal", "fascist"]), "fascist, liberal")
 
 
 if __name__ == "__main__":

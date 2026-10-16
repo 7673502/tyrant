@@ -124,7 +124,7 @@
         "type": "president_enact",
         "uid": 4,
         "policies": [
-          "liberal",
+          "fascist",
           "liberal",
           "liberal"
         ],
@@ -140,7 +140,7 @@
         "type": "chancellor_enact",
         "uid": 7,
         "policies": [
-          "liberal",
+          "fascist",
           "liberal"
         ]
       },
@@ -180,8 +180,8 @@
         "type": "president_enact",
         "uid": 7,
         "policies": [
-          "liberal",
-          "liberal",
+          "fascist",
+          "fascist",
           "liberal"
         ],
         "discarded": "liberal"
@@ -196,8 +196,8 @@
         "type": "chancellor_enact",
         "uid": 3,
         "policies": [
-          "liberal",
-          "liberal"
+          "fascist",
+          "fascist"
         ]
       },
       "president_uid": 7,
@@ -236,8 +236,8 @@
         "type": "chancellor_enact",
         "uid": 4,
         "policies": [
-          "liberal",
-          "liberal"
+          "fascist",
+          "fascist"
         ]
       },
       "president_uid": 3,
@@ -250,11 +250,11 @@
         "type": "president_enact",
         "uid": 3,
         "policies": [
-          "liberal",
-          "liberal",
-          "liberal"
+          "fascist",
+          "fascist",
+          "fascist"
         ],
-        "discarded": "liberal"
+        "discarded": "fascist"
       },
       "president_uid": 3,
       "chancellor_uid": 4,
@@ -270,7 +270,7 @@
       "claim": {
         "type": "investigation",
         "uid": 3,
-        "party": "liberal"
+        "party": "fascist"
       },
       "president_uid": 3,
       "chancellor_uid": null,
