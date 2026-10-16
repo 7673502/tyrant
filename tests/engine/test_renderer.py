@@ -324,7 +324,7 @@ class TestRenderText(unittest.TestCase):
         self.assertNotIn("Your hand", other)
 
     def test_render_text_public_events(self):
-        """Verifies that each public event renders as a numbered one-line entry."""
+        """Verifies that each public event renders as a one-line bullet."""
         text = self.render_events(
             NominationEvent(president_uid=1, chancellor_uid=2),
             ElectionEvent(
@@ -346,18 +346,18 @@ class TestRenderText(unittest.TestCase):
             GameOverEvent(winner=Party.LIBERAL, condition=WinCondition.HITLER_EXECUTED),
         )
         expected = [
-            "1. President Player 1 nominated Player 2 for chancellor.",
-            "2. Election of President Player 1 and Chancellor Player 2 passed "
+            "- President Player 1 nominated Player 2 for chancellor.",
+            "- Election of President Player 1 and Chancellor Player 2 passed "
             "(ja: Player 1, Player 2; nein: Player 3).",
-            "3. President Player 1 and Chancellor Player 2 enacted a fascist policy.",
-            "4. A liberal policy was top-decked.",
-            "5. Chancellor Player 2 proposed a veto and President Player 1 denied it.",
-            "6. President Player 1 investigated Player 3.",
-            "7. President Player 1 called a special election for Player 4.",
-            "8. President Player 1 executed Player 5.",
-            '9. Player 2 said: "Trust me."',
-            "10. Player 3 passed.",
-            "11. Game over: liberal win by hitler_executed.",
+            "- President Player 1 and Chancellor Player 2 enacted a fascist policy.",
+            "- A liberal policy was top-decked.",
+            "- Chancellor Player 2 proposed a veto and President Player 1 denied it.",
+            "- President Player 1 investigated Player 3.",
+            "- President Player 1 called a special election for Player 4.",
+            "- President Player 1 executed Player 5.",
+            '- Player 2 said: "Trust me."',
+            "- Player 3 passed.",
+            "- Game over: liberal win by hitler_executed.",
         ]
         for line in expected:
             self.assertIn(line + "\n", text)
@@ -372,7 +372,7 @@ class TestRenderText(unittest.TestCase):
             ),
         )
         self.assertIn(
-            '1. Player 1 said: "Hi\\" 2. Fake event.\\n## Private Knowledge'
+            '- Player 1 said: "Hi\\" 2. Fake event.\\n## Private Knowledge'
             '\\n- You investigated Player 3: fascist party."\n',
             text,
         )
@@ -396,18 +396,74 @@ class TestRenderText(unittest.TestCase):
             SpeechEvent(uid=2, text="Current.", context=nomination),
         )
         expected = [
-            "1. Earlier discussion (after_policy_claims) omitted.",
-            "2. President Player 1 nominated Player 2 for chancellor.",
-            "3. Earlier discussion (after_nomination) omitted.",
-            "4. President Player 1 and Chancellor Player 2 enacted a liberal policy.",
-            '5. Player 1 said: "Previous."',
-            "6. President Player 2 nominated Player 3 for chancellor.",
-            '7. Player 2 said: "Current."',
+            "- Earlier discussion (after_policy_claims) omitted.",
+            "- President Player 1 nominated Player 2 for chancellor.",
+            "- Earlier discussion (after_nomination) omitted.",
+            "- President Player 1 and Chancellor Player 2 enacted a liberal policy.",
+            '- Player 1 said: "Previous."',
+            "- President Player 2 nominated Player 3 for chancellor.",
+            '- Player 2 said: "Current."',
         ]
         for line in expected:
             self.assertIn(line + "\n", text)
         for speech in ("Oldest.", "Older.", "Player 2 passed."):
             self.assertNotIn(speech, text)
+
+    def test_render_text_groups_timeline_by_government(self):
+        """Verifies that the timeline lists each government's events under its own heading without line numbers."""
+        text = self.render_events(
+            SpeechEvent(
+                uid=1, text="Before.", context=DiscussionContext.AFTER_POLICY_CLAIMS
+            ),
+            *_government(1, 2, Vote.NEIN),
+            SpeechEvent(
+                uid=3, text="Failed.", context=DiscussionContext.AFTER_FAILED_ELECTION
+            ),
+            *_government(2, 3),
+            PolicyEnactedEvent(policy=F, president_uid=2, chancellor_uid=3),
+            ExecutionEvent(president_uid=2, target_uid=4),
+        )
+        timeline = text.split("## Timeline\n")[1].split("\n## Board")[0]
+        self.assertEqual(
+            timeline,
+            '- Player 1 said: "Before."\n'
+            "\n"
+            "### Gov 1 (P1→P2)\n"
+            "- President Player 1 nominated Player 2 for chancellor.\n"
+            "- Election of President Player 1 and Chancellor Player 2 failed "
+            "(ja: none; nein: Player 1, Player 2).\n"
+            '- Player 3 said: "Failed."\n'
+            "\n"
+            "### Gov 2 (P2→P3)\n"
+            "- President Player 2 nominated Player 3 for chancellor.\n"
+            "- Election of President Player 2 and Chancellor Player 3 passed "
+            "(ja: Player 2, Player 3; nein: none).\n"
+            "- President Player 2 and Chancellor Player 3 enacted a fascist policy.\n"
+            "- President Player 2 executed Player 4.\n",
+        )
+
+    def test_render_text_government_headings_survive_collapse(self):
+        """Verifies that government headings stay the same when a new discussion collapses an older one."""
+        claims = DiscussionContext.AFTER_POLICY_CLAIMS
+        events = (
+            *_government(1, 2),
+            SpeechEvent(uid=1, text="First.", context=claims),
+            *_government(2, 3),
+            SpeechEvent(uid=2, text="Second.", context=claims),
+        )
+        later = (
+            *events,
+            *_government(3, 4),
+            SpeechEvent(uid=3, text="Third.", context=claims),
+        )
+
+        def headings(text: str) -> list[str]:
+            return [line for line in text.splitlines() if line.startswith("### ")]
+
+        before, after = self.render_events(*events), self.render_events(*later)
+        self.assertNotIn("First.", after)
+        self.assertEqual(headings(after)[:2], headings(before))
+        self.assertEqual(headings(after)[2], "### Gov 3 (P3→P4)")
 
     def test_render_dict_keeps_old_discussions(self):
         """Verifies that render_dict keeps every speech in the timeline."""
@@ -431,7 +487,7 @@ class TestRenderText(unittest.TestCase):
             ),
         )
         self.assertIn(
-            "1. President Player 1 claimed drawing liberal, fascist, fascist "
+            "- President Player 1 claimed drawing liberal, fascist, fascist "
             "and discarding liberal.\n",
             text,
         )
@@ -453,7 +509,7 @@ class TestRenderText(unittest.TestCase):
             ),
         )
         self.assertIn(
-            "2. Chancellor Player 2 claimed receiving fascist, fascist. These claims "
+            "- Chancellor Player 2 claimed receiving fascist, fascist. These claims "
             "conflict: President Player 1 claims passing liberal, fascist, but "
             "Chancellor Player 2 claims receiving fascist, fascist.\n",
             text,
@@ -512,12 +568,12 @@ class TestRenderText(unittest.TestCase):
             ),
         )
         expected = [
-            "1. President Player 1 claimed drawing liberal, fascist, fascist.",
-            "2. Chancellor Player 2 declined to share the 2 received policies.",
-            "3. President Player 1 claimed the top 3 policies are, from the top, "
+            "- President Player 1 claimed drawing liberal, fascist, fascist.",
+            "- Chancellor Player 2 declined to share the 2 received policies.",
+            "- President Player 1 claimed the top 3 policies are, from the top, "
             "fascist, fascist, liberal.",
-            "4. President Player 1 claimed Player 3 is fascist.",
-            "5. President Player 1 declined to share Player 4's party.",
+            "- President Player 1 claimed Player 3 is fascist.",
+            "- President Player 1 declined to share Player 4's party.",
         ]
         for line in expected:
             self.assertIn(line + "\n", text)

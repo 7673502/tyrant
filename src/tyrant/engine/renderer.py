@@ -371,21 +371,24 @@ def _claim_conflict(first: dict, second: dict) -> str | None:
 
 
 def _timeline_lines(timeline: list[dict]) -> list[str]:
-    """Returns the timeline sentences, collapsing speeches from all but the last few discussions."""
+    """Returns the timeline as bullets under a heading per government, collapsing speeches from all but the last few discussions."""
     starts = [
         i
         for i, entry in enumerate(timeline)
         if entry["type"] == "speech" and (i == 0 or timeline[i - 1]["type"] != "speech")
     ]
     cutoff = starts[-DISCUSSIONS_SHOWN] if len(starts) > DISCUSSIONS_SHOWN else 0
+    labels = _government_labels(timeline)
     lines = []
     for i, entry in enumerate(timeline):
+        if entry["type"] == "nomination":
+            lines += ["", f"### {labels[entry['government']]}"]
         if entry["type"] != "speech" or i >= cutoff:
             line = _timeline_line(entry)
             conflict = _claim_conflict(timeline[i - 1], entry) if i > 0 else None
-            lines.append(line if conflict is None else f"{line} {conflict}")
+            lines.append(f"- {line}" if conflict is None else f"- {line} {conflict}")
         elif i in starts:
-            lines.append(f"Earlier discussion ({entry['context']}) omitted.")
+            lines.append(f"- Earlier discussion ({entry['context']}) omitted.")
     return lines
 
 
@@ -482,10 +485,7 @@ def render_text(state: GameState, viewer_uid: int) -> str:
     ]
 
     lines += ["", "## Timeline"]
-    lines += [
-        f"{i}. {line}"
-        for i, line in enumerate(_timeline_lines(view["timeline"]), start=1)
-    ] or ["No events yet."]
+    lines += _timeline_lines(view["timeline"]) or ["No events yet."]
 
     lines += [
         "",
