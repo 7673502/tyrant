@@ -368,17 +368,23 @@ def speak(state: GameState, uid: int, text: str | None) -> GameState:
     if text is not None:
         text = " ".join(text.split())[:MAX_SPEECH_LENGTH] or None
 
+    return _advance_discussion(
+        state, SpeechEvent(uid=uid, text=text, context=discussion.context)
+    )
+
+
+def _advance_discussion(state: GameState, event: Event) -> GameState:
+    """Records the current speaker's turn as the given event and moves the discussion to the next speaker, ending it when complete."""
+    discussion = state.discussion
+    passed = isinstance(event, SpeechEvent) and event.text is None
     new_state = replace(
-        state,
-        events=state.events
-        + (SpeechEvent(uid=uid, text=text, context=discussion.context),),
-        deck_shuffled_last_action=False,
+        state, events=state.events + (event,), deck_shuffled_last_action=False
     )
 
     next_discussion = replace(
         discussion,
         turn=discussion.turn + 1,
-        consecutive_passes=0 if text is not None else discussion.consecutive_passes + 1,
+        consecutive_passes=discussion.consecutive_passes + 1 if passed else 0,
     )
     if next_discussion.is_complete:
         return replace(new_state, phase=discussion.resume_phase, discussion=None)
