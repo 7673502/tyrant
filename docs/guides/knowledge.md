@@ -10,7 +10,11 @@ What each player learned in secret is kept in `GameState.knowledge`, so it survi
 | [`PeekKnowledge`](../reference/models.md#tyrant.models.PeekKnowledge) | A president peeks at the top 3 policies |
 | [`InvestigationKnowledge`](../reference/models.md#tyrant.models.InvestigationKnowledge) | A president learns the party of an investigated player |
 
-[`render_text`](../reference/engine.md#tyrant.engine.render_text) shows a draw and the discard that follows it as one line, such as "As president with Chancellor Player 2, you drew fascist, fascist, liberal, discarded fascist, passed fascist, liberal." Nothing extra is recorded for a veto. The vetoed policies are the two the president passed, and the public `veto` event in the timeline shows that the veto was approved.
+[`render_text`](../reference/engine.md#tyrant.engine.render_text) shows a draw and the discard that follows it as one line, such as "As president with Chancellor Player 2, you drew fascist, fascist, liberal, discarded fascist, passed fascist, liberal." Nothing extra is recorded for a veto. The vetoed policies are the two the president passed, and the public `veto` event in the timeline shows that the veto was approved. Drawn, passed and received policies are always listed fascist first; a peek keeps its top-to-bottom order.
+
+## Claim options
+
+[`get_legal_actions`](../reference/engine.md#tyrant.engine.get_legal_actions) reads the claimant's knowledge to put the truthful claim first, labelled "Tell the truth", for example "Tell the truth: you drew fascist, fascist, liberal and discarded fascist, so you passed fascist, liberal." Every other claim is labelled as a lie, such as "Lie: claim you drew fascist, liberal, liberal and discarded fascist, so you passed liberal, liberal.", and the decline comes last. A president's truth is their latest discard, a chancellor's is the latest policies they received, a peek's is the policies in hand and an investigation's is the party found. The claim options list policies in the same order as the knowledge lines, so an agent can match its hand to an option word for word.
 
 [`scrub_state`](../reference/models.md#tyrant.models.scrub_state) keeps only the viewer's own entries, so an agent never sees what another player learned.
 

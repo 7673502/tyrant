@@ -2,7 +2,12 @@ import unittest
 from dataclasses import replace
 from unittest.mock import patch
 
-from tyrant.engine.router import apply_action, get_legal_actions
+from tyrant.engine.router import (
+    _claim_description,
+    _president_claim,
+    apply_action,
+    get_legal_actions,
+)
 from tyrant.exceptions import TyrantError
 from tyrant.models.action import (
     Action,
@@ -27,6 +32,10 @@ from tyrant.models.claim import InvestigationClaim
 from tyrant.models.election_tracker import ElectionTracker
 from tyrant.models.enums import GamePhase, Party, PolicyTile, PresidentialPower, Vote
 from tyrant.models.game_state import cast_vote, create_game, nominate_chancellor
+from tyrant.models.knowledge import (
+    ChancellorReceiveKnowledge,
+    PresidentDiscardKnowledge,
+)
 
 
 class TestGetLegalActionsNomination(unittest.TestCase):
@@ -648,6 +657,57 @@ class TestGetLegalActionsInvestigation(unittest.TestCase):
             and actions[2].claim_party is None
         )
 
+    def test__get_legal_actions_investigation_truth_first(self):
+        """Verifies that the investigated player's real party is the first option and the only truthful one."""
+        state = create_game(tuple(range(5)))
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_INVESTIGATION,
+            current_investigation_result=Party.FASCIST,
+        )
+        actions = get_legal_actions(state, state.players[state.president_index].uid)
+        self.assertEqual(
+            [a.claim_party for a in actions], [Party.FASCIST, Party.LIBERAL, None]
+        )
+        self.assertEqual(
+            [a.description for a in actions[:2]],
+            [
+                "Tell the truth: the investigated player is a Fascist.",
+                "Lie: claim the investigated player is a Liberal.",
+            ],
+        )
+
+
+class TestClaimDescriptions(unittest.TestCase):
+    def test__claim_description_immutability(self):
+        """Verifies that _claim_description returns a new string and leaves its input unchanged."""
+        claim = "you received fascist, liberal"
+        result = _claim_description(claim, True)
+        self.assertIsInstance(result, str)
+        self.assertEqual(claim, "you received fascist, liberal")
+
+    def test__claim_description_labels(self):
+        """Verifies that _claim_description labels the truth and the lies."""
+        self.assertEqual(_claim_description("x", True), "Tell the truth: x.")
+        self.assertEqual(_claim_description("x", False), "Lie: claim x.")
+
+    def test__president_claim_immutability(self):
+        """Verifies that _president_claim returns a new string and leaves its input unchanged."""
+        F, L = PolicyTile.FASCIST, PolicyTile.LIBERAL
+        policies = (L, F, L)
+        result = _president_claim(policies, L)
+        self.assertIsInstance(result, str)
+        self.assertEqual(policies, (L, F, L))
+
+    def test__president_claim_implied_pass(self):
+        """Verifies that _president_claim names the two policies the claim implies were passed."""
+        F, L = PolicyTile.FASCIST, PolicyTile.LIBERAL
+        self.assertEqual(
+            _president_claim((L, F, L), L),
+            "you drew fascist, liberal, liberal and discarded liberal, "
+            "so you passed fascist, liberal",
+        )
+
 
 class TestGetLegalActionsPolicyPeek(unittest.TestCase):
     def test__get_legal_actions_policy_peek_immutability(self):
@@ -681,6 +741,22 @@ class TestGetLegalActionsPolicyPeek(unittest.TestCase):
             and actions[0].claim_policies
             == (PolicyTile.LIBERAL, PolicyTile.LIBERAL, PolicyTile.LIBERAL)
         )
+
+    def test__get_legal_actions_policy_peek_truth_first(self):
+        """Verifies that the peeked policies in top-to-bottom order are the first option and the only truthful one."""
+        F, L = PolicyTile.FASCIST, PolicyTile.LIBERAL
+        state = create_game(tuple(range(5)))
+        state = replace(
+            state, phase=GamePhase.CLAIM_POLICY_PEEK, drawn_policies=(L, F, F)
+        )
+        actions = get_legal_actions(state, state.players[state.president_index].uid)
+        self.assertEqual(len(actions), 9)
+        self.assertEqual(actions[0].claim_policies, (L, F, F))
+        self.assertEqual(
+            actions[0].description,
+            "Tell the truth: the top 3 policies are, from the top, liberal, fascist, fascist.",
+        )
+        self.assertTrue(all(a.description.startswith("Lie: ") for a in actions[1:-1]))
 
     def test__get_legal_actions_policy_peek_silence(self):
         """Ensure that player can choose to be silent when claiming."""
@@ -992,12 +1068,12 @@ class TestGetLegalActionsEnactClaims(unittest.TestCase):
         self.assertEqual(
             options,
             [
-                ((L, L, L), L),
-                ((L, L, F), L),
-                ((L, L, F), F),
-                ((L, F, F), L),
-                ((L, F, F), F),
                 ((F, F, F), F),
+                ((F, F, L), F),
+                ((F, F, L), L),
+                ((F, L, L), F),
+                ((F, L, L), L),
+                ((L, L, L), L),
             ],
         )
 
@@ -1035,6 +1111,91 @@ class TestGetLegalActionsEnactClaims(unittest.TestCase):
         )
         actions = get_legal_actions(state, unrelated_uid)
         self.assertEqual(actions, tuple())
+
+    def _claims_state(self):
+        """Returns a claims-phase state where the president drew F, F, L, discarded F and the chancellor received F, L."""
+        state = create_game(tuple(range(5)))
+        president_uid = state.players[state.president_index].uid
+        other_uid = next(p.uid for p in state.players if p.uid != president_uid)
+        F, L = PolicyTile.FASCIST, PolicyTile.LIBERAL
+        return replace(
+            state,
+            phase=GamePhase.CLAIM_POLICIES,
+            chancellor=other_uid,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+            knowledge=(
+                PresidentDiscardKnowledge(
+                    uid=president_uid,
+                    chancellor_uid=other_uid,
+                    discarded=F,
+                    passed=(L, F),
+                ),
+                ChancellorReceiveKnowledge(
+                    uid=other_uid, president_uid=president_uid, policies=(L, F)
+                ),
+            ),
+        )
+
+    def test_enact_claims_president_truth_first(self):
+        """Verifies that the president's truthful claim comes first and is the only one labelled as the truth."""
+        state = self._claims_state()
+        F, L = PolicyTile.FASCIST, PolicyTile.LIBERAL
+        actions = get_legal_actions(state, state.players[state.president_index].uid)
+        self.assertEqual(len(actions), 7)
+        self.assertEqual(
+            (actions[0].claim_policies, actions[0].claim_discarded), ((F, F, L), F)
+        )
+        self.assertEqual(
+            actions[0].description,
+            "Tell the truth: you drew fascist, fascist, liberal and discarded "
+            "fascist, so you passed fascist, liberal.",
+        )
+        self.assertEqual(
+            [a.description.startswith("Tell the truth:") for a in actions].count(True),
+            1,
+        )
+        self.assertTrue(all(a.description.startswith("Lie: ") for a in actions[1:-1]))
+
+    def test_enact_claims_president_latest_knowledge(self):
+        """Verifies that the president's truth comes from their latest discard."""
+        state = self._claims_state()
+        president_uid = state.players[state.president_index].uid
+        L = PolicyTile.LIBERAL
+        state = replace(
+            state,
+            knowledge=state.knowledge
+            + (
+                PresidentDiscardKnowledge(
+                    uid=president_uid,
+                    chancellor_uid=state.chancellor,
+                    discarded=L,
+                    passed=(L, L),
+                ),
+            ),
+        )
+        actions = get_legal_actions(state, president_uid)
+        self.assertEqual(
+            (actions[0].claim_policies, actions[0].claim_discarded), ((L, L, L), L)
+        )
+
+    def test_enact_claims_chancellor_truth_first(self):
+        """Verifies that the chancellor's truthful claim comes first and is the only one labelled as the truth."""
+        state = self._claims_state()
+        F, L = PolicyTile.FASCIST, PolicyTile.LIBERAL
+        actions = get_legal_actions(state, state.chancellor)
+        self.assertEqual(len(actions), 4)
+        self.assertEqual(actions[0].claim_policies, (F, L))
+        self.assertEqual(
+            actions[0].description, "Tell the truth: you received fascist, liberal."
+        )
+        self.assertEqual(
+            [a.description for a in actions[1:3]],
+            [
+                "Lie: claim you received fascist, fascist.",
+                "Lie: claim you received liberal, liberal.",
+            ],
+        )
 
     @patch("tyrant.engine.router.claim_enact")
     def test_apply_action_president_enact_claim(self, mock_claim):

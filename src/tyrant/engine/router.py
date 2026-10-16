@@ -1,6 +1,6 @@
 import itertools
-from typing import Final
 
+from tyrant.engine.renderer import format_hand
 from tyrant.exceptions import TyrantError
 from tyrant.models.action import (
     Action,
@@ -45,8 +45,10 @@ from tyrant.models.game_state import (
     president_veto_response,
     speak,
 )
-
-TILE_MAP: Final = {"L": PolicyTile.LIBERAL, "F": PolicyTile.FASCIST}
+from tyrant.models.knowledge import (
+    ChancellorReceiveKnowledge,
+    PresidentDiscardKnowledge,
+)
 
 
 def _get_legal_actions_nomination(
@@ -207,19 +209,38 @@ def _get_legal_actions_presidential_power(
             )
 
 
+def _claim_description(claim: str, is_truth: bool) -> str:
+    """Returns an option's description, labelled as the truth or as a lie."""
+    return f"Tell the truth: {claim}." if is_truth else f"Lie: claim {claim}."
+
+
+def _president_claim(
+    policies: tuple[PolicyTile, PolicyTile, PolicyTile], discarded: PolicyTile
+) -> str:
+    """Returns what a president's enact claim says, including the two policies it implies were passed."""
+    passed = list(policies)
+    passed.remove(discarded)
+    return (
+        f"you drew {format_hand(policies)} and discarded {discarded}, "
+        f"so you passed {format_hand(passed)}"
+    )
+
+
 def _get_legal_actions_claim_investigation(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
-    """Returns the president's liberal, fascist and decline claims about an investigation."""
+    """Returns the president's truthful party claim about an investigation first, then the lie, then a decline."""
     if player_uid != state.players[state.president_index].uid:
         return tuple()
+    truth = state.current_investigation_result
     actions: list[Action] = []
-    for party in ("Liberal", "Fascist"):
-        party_enum = Party.LIBERAL if party == "Liberal" else Party.FASCIST
+    for party in sorted((Party.LIBERAL, Party.FASCIST), key=lambda p: p != truth):
         actions.append(
             ClaimInvestigationAction(
-                description=f"Claim that the investigated player is a {party}",
-                claim_party=party_enum,
+                description=_claim_description(
+                    f"the investigated player is a {party.title()}", party == truth
+                ),
+                claim_party=party,
             )
         )
     actions.append(
@@ -235,18 +256,23 @@ def _get_legal_actions_claim_investigation(
 def _get_legal_actions_claim_peek(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
-    """Returns every ordered peek claim for the president, plus a decline."""
+    """Returns every ordered peek claim for the president, the truthful one first, plus a decline."""
     if player_uid != state.players[state.president_index].uid:
         return tuple()
 
+    truth = state.drawn_policies
+    claims = itertools.product((PolicyTile.LIBERAL, PolicyTile.FASCIST), repeat=3)
     actions: list[Action] = []
-    for claim in itertools.product(("Liberal", "Fascist"), repeat=3):
-        policies = tuple(TILE_MAP[char[0]] for char in claim)
-        action = ClaimPolicyPeekAction(
-            description=f"For the peeked top 3 policies, claim that the top is {claim[0]}, middle is {claim[1]}, bottom is {claim[2]}",
-            claim_policies=policies,
+    for policies in sorted(claims, key=lambda c: c != truth):
+        actions.append(
+            ClaimPolicyPeekAction(
+                description=_claim_description(
+                    f"the top 3 policies are, from the top, {', '.join(policies)}",
+                    policies == truth,
+                ),
+                claim_policies=policies,
+            )
         )
-        actions.append(action)
     actions.append(
         ClaimPolicyPeekAction(
             description="Decline to share the contents of the peeked top 3 cards",
@@ -260,20 +286,36 @@ def _get_legal_actions_claim_peek(
 def _get_legal_actions_enact_claims(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
-    """Returns the pending policy claims for the president or chancellor, each with a decline."""
+    """Returns the pending policy claims for the president or chancellor, the truthful one first and a decline last."""
     actions: list[Action] = []
+    tiles = (PolicyTile.FASCIST, PolicyTile.LIBERAL)
 
     president_uid = state.players[state.president_index].uid
     if player_uid == president_uid and state.pending_president_enact_claim:
-        for claim in itertools.combinations_with_replacement(("Liberal", "Fascist"), 3):
-            policies = tuple(TILE_MAP[char[0]] for char in claim)
-            for discarded in dict.fromkeys(claim):
-                action = ClaimPresidentEnactAction(
-                    description=f"Claim that the 3 drawn policies were: {claim[0]}, {claim[1]}, {claim[2]}, and that you discarded {discarded}",
+        truth = next(
+            (
+                (tuple(sorted((k.discarded, *k.passed))), k.discarded)
+                for k in reversed(state.knowledge)
+                if isinstance(k, PresidentDiscardKnowledge) and k.uid == player_uid
+            ),
+            None,
+        )
+        claims = [
+            (policies, discarded)
+            for policies in itertools.combinations_with_replacement(tiles, 3)
+            for discarded in dict.fromkeys(policies)
+        ]
+        for policies, discarded in sorted(claims, key=lambda c: c != truth):
+            actions.append(
+                ClaimPresidentEnactAction(
+                    description=_claim_description(
+                        _president_claim(policies, discarded),
+                        (policies, discarded) == truth,
+                    ),
                     claim_policies=policies,
-                    claim_discarded=TILE_MAP[discarded[0]],
+                    claim_discarded=discarded,
                 )
-                actions.append(action)
+            )
         actions.append(
             ClaimPresidentEnactAction(
                 description="Decline to share the drawn policies", claim_policies=None
@@ -282,13 +324,24 @@ def _get_legal_actions_enact_claims(
 
     chancellor_uid = state.chancellor
     if player_uid == chancellor_uid and state.pending_chancellor_enact_claim:
-        for claim in itertools.combinations_with_replacement(("Liberal", "Fascist"), 2):
-            policies = tuple(TILE_MAP[char[0]] for char in claim)
-            action = ClaimChancellorEnactAction(
-                description=f"Claim that the 2 received policies were: {claim[0]}, {claim[1]}",
-                claim_policies=policies,
+        truth = next(
+            (
+                tuple(sorted(k.policies))
+                for k in reversed(state.knowledge)
+                if isinstance(k, ChancellorReceiveKnowledge) and k.uid == player_uid
+            ),
+            None,
+        )
+        claims = itertools.combinations_with_replacement(tiles, 2)
+        for policies in sorted(claims, key=lambda c: c != truth):
+            actions.append(
+                ClaimChancellorEnactAction(
+                    description=_claim_description(
+                        f"you received {format_hand(policies)}", policies == truth
+                    ),
+                    claim_policies=policies,
+                )
             )
-            actions.append(action)
         actions.append(
             ClaimChancellorEnactAction(
                 description="Decline to share the received policies",
