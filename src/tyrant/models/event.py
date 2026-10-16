@@ -93,12 +93,14 @@ class ClaimEvent(Event):
         president_uid: UID of the president of the government or power the claim is about.
         chancellor_uid: UID of the chancellor for a policy claim, otherwise `None`.
         target_uid: UID of the investigated player for an investigation claim, otherwise `None`.
+        correction: Whether the claim replaces the player's earlier claim about the same government.
     """
 
     claim: Claim
     president_uid: int
     chancellor_uid: int | None
     target_uid: int | None
+    correction: bool = False
 
 
 @dataclass(frozen=True)
