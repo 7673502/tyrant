@@ -1,5 +1,6 @@
 import json
 import re
+from collections import Counter
 from collections.abc import Iterable
 from dataclasses import fields, is_dataclass
 from enum import Enum
@@ -72,6 +73,58 @@ def format_hand(policies: Iterable[str]) -> str:
     return ", ".join(sorted(policies))
 
 
+def _government_numbers(timeline: list[dict]) -> list[int | None]:
+    """Returns the government number of each timeline entry, counting every nomination as a new government."""
+    numbers: list[int | None] = []
+    count = 0
+    for entry in timeline:
+        if entry["type"] == "nomination":
+            count += 1
+        numbers.append(count or None)
+    return numbers
+
+
+def _knowledge_governments(
+    knowledge: list[dict], timeline: list[dict]
+) -> list[int | None]:
+    """Returns the government number of each knowledge entry, matching the k-th draw, discard or receive to the k-th passed election in which the player held that office."""
+    offices = {
+        "president_draw": "president_uid",
+        "president_discard": "president_uid",
+        "chancellor_receive": "chancellor_uid",
+    }
+    seen: Counter[tuple[str, int]] = Counter()
+    numbers: list[int | None] = []
+    for entry in knowledge:
+        office = offices.get(entry["type"])
+        if office is None:
+            numbers.append(None)
+            continue
+        governments = [
+            e["government"]
+            for e in timeline
+            if e["type"] == "election"
+            and e["result"] == "ja"
+            and e[office] == entry["uid"]
+        ]
+        k = seen[entry["type"], entry["uid"]]
+        seen[entry["type"], entry["uid"]] += 1
+        numbers.append(governments[k] if k < len(governments) else None)
+    return numbers
+
+
+def _government_labels(timeline: list[dict]) -> dict[int, str]:
+    """Returns each government's label, such as `Gov 3 (P2→P4)`, keyed by its number."""
+    return {
+        entry["government"]: (
+            f"Gov {entry['government']} "
+            f"(P{entry['president_uid']}→P{entry['chancellor_uid']})"
+        )
+        for entry in timeline
+        if entry["type"] == "nomination"
+    }
+
+
 def _awaiting(state: GameState) -> list[int]:
     """Returns the UIDs of the players the game is waiting on."""
     president_uid = state.players[state.president_index].uid
@@ -115,6 +168,16 @@ def render_dict(state: GameState, viewer_uid: int) -> dict:
     viewer = next((p for p in state.players if p.uid == viewer_uid), None)
     if viewer is None:
         raise TyrantError(f"Viewer with UID {viewer_uid} not found")
+    timeline = [to_json(e, "Event") for e in state.events]
+    timeline = [
+        entry | {"government": number}
+        for entry, number in zip(timeline, _government_numbers(timeline))
+    ]
+    knowledge = [to_json(k, "Knowledge") for k in state.knowledge]
+    knowledge = [
+        entry | {"government": number}
+        for entry, number in zip(knowledge, _knowledge_governments(knowledge, timeline))
+    ]
 
     return {
         "viewer": {
@@ -170,8 +233,8 @@ def render_dict(state: GameState, viewer_uid: int) -> dict:
                 "rounds": state.discussion.rounds,
             },
         },
-        "timeline": [to_json(e, "Event") for e in state.events],
-        "knowledge": [to_json(k, "Knowledge") for k in state.knowledge],
+        "timeline": timeline,
+        "knowledge": knowledge,
     }
 
 
@@ -326,24 +389,20 @@ def _timeline_lines(timeline: list[dict]) -> list[str]:
     return lines
 
 
-def _knowledge_line(entry: dict) -> str:
-    """Returns the sentence for one piece of private knowledge."""
+def _knowledge_line(entry: dict, labels: dict[int, str]) -> str:
+    """Returns the sentence for one piece of private knowledge, naming its government when known."""
+    label = labels.get(entry["government"])
+    you = f"In {label} you" if label else "You"
     match entry["type"]:
         case "president_draw":
-            return (
-                f"As president with Chancellor {_player(entry['chancellor_uid'])}, "
-                f"you drew {format_hand(entry['policies'])}."
-            )
+            return f"{you} drew {format_hand(entry['policies'])}."
         case "president_discard":
             return (
-                f"As president with Chancellor {_player(entry['chancellor_uid'])}, "
-                f"you discarded {entry['discarded']}, passed {format_hand(entry['passed'])}."
+                f"{you} discarded {entry['discarded']}, "
+                f"passed {format_hand(entry['passed'])}."
             )
         case "chancellor_receive":
-            return (
-                f"As chancellor under President {_player(entry['president_uid'])}, "
-                f"you received {format_hand(entry['policies'])}."
-            )
+            return f"{you} received {format_hand(entry['policies'])}."
         case "peek":
             return (
                 "You peeked at the top 3 policies, from the top: "
@@ -356,7 +415,7 @@ def _knowledge_line(entry: dict) -> str:
             )
 
 
-def _knowledge_lines(knowledge: list[dict]) -> list[str]:
+def _knowledge_lines(knowledge: list[dict], labels: dict[int, str]) -> list[str]:
     """Returns the knowledge sentences, joining each discard onto the draw before it."""
     lines = []
     for i, entry in enumerate(knowledge):
@@ -370,7 +429,7 @@ def _knowledge_lines(knowledge: list[dict]) -> list[str]:
                 f"passed {format_hand(entry['passed'])}."
             )
         else:
-            lines.append(_knowledge_line(entry))
+            lines.append(_knowledge_line(entry, labels))
     return lines
 
 
@@ -417,7 +476,8 @@ def render_text(state: GameState, viewer_uid: int) -> str:
         for p in view["players"]
     ]
     lines += ["", "## Private Knowledge"]
-    lines += [f"- {line}" for line in _knowledge_lines(view["knowledge"])] or [
+    labels = _government_labels(view["timeline"])
+    lines += [f"- {line}" for line in _knowledge_lines(view["knowledge"], labels)] or [
         "- None."
     ]
 
