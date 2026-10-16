@@ -4,7 +4,7 @@
 
 ## Building prompts
 
-[`SYSTEM_PROMPT`](../reference/llm.md#tyrant.llm.SYSTEM_PROMPT) explains the rules and asks the model to end its reply with `{"action": N, "message": "...", "notes": "..."}`. It is the same for every game, so send it first to benefit from prompt caching. Its discussion rules tell the model that repeating the board state is pointless and that it should stay silent unless it has a new claim, question or accusation, so discussions stay short. [`build_prompt`](../reference/llm.md#tyrant.llm.build_prompt) renders the viewer's state followed by their numbered options, and [`parse_action`](../reference/llm.md#tyrant.llm.parse_action) turns the reply back into one of the offered actions:
+[`SYSTEM_PROMPT`](../reference/llm.md#tyrant.llm.SYSTEM_PROMPT) explains the rules and asks the model to end its reply with `{"action": N, "message": "...", "notes": "..."}`. It is the same for every game, so send it first to benefit from prompt caching. Its discussion rules tell the model that repeating the board state is pointless and that it should stay silent unless it has a new claim, question or accusation, so discussions stay short. [`build_prompt`](../reference/llm.md#tyrant.llm.build_prompt) renders the viewer's state, a `## Your Goal` line stating when their role wins and loses, and their numbered options, and [`parse_action`](../reference/llm.md#tyrant.llm.parse_action) turns the reply back into one of the offered actions:
 
 ```python
 from tyrant.llm import SYSTEM_PROMPT, build_prompt, parse_action
@@ -17,7 +17,7 @@ async def choose_action(self, state, valid_actions):
 
 `parse_action` reads the last JSON object in the reply, so the model may reason before it. It raises [`InvalidMoveError`](../reference/exceptions.md#tyrant.exceptions.InvalidMoveError) when the reply has no usable choice, which [`GameRunner`](../reference/engine.md#tyrant.engine.GameRunner) treats like any other [agent failure](agent-resilience.md).
 
-`build_prompt` also takes optional `notes`, rendered as a `## Your Notes` section between the state and the options. [`parse_notes`](../reference/llm.md#tyrant.llm.parse_notes) reads them back from the same JSON object as `parse_action`. See [Notes](#notes).
+`build_prompt` also takes optional `notes`, rendered as a `## Your Notes` section between the goal and the options. [`parse_notes`](../reference/llm.md#tyrant.llm.parse_notes) reads them back from the same JSON object as `parse_action`. See [Notes](#notes).
 
 ## How `LLMAgent` uses them
 
