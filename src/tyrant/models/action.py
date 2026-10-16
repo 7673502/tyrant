@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Final
 
+from tyrant.models.claim import ChancellorEnactClaim, PresidentEnactClaim
 from tyrant.models.enums import Party, PolicyTile, Vote
 
 AGENT_FILLED_FIELDS: Final = frozenset({"description", "message"})
@@ -163,6 +164,17 @@ class ClaimInvestigationAction(Action):
     """
 
     claim_party: Party | None
+
+
+@dataclass(frozen=True)
+class CorrectClaimAction(Action):
+    """A president or chancellor replaces their policy claim during the discussion that follows it.
+
+    Attributes:
+        claim: The new claim.
+    """
+
+    claim: PresidentEnactClaim | ChancellorEnactClaim
 
 
 @dataclass(frozen=True)

@@ -26,7 +26,7 @@ from tyrant.models.enums import (
     Role,
     Vote,
 )
-from tyrant.models.event import SpeechEvent
+from tyrant.models.event import ClaimEvent, SpeechEvent
 from tyrant.models.game_state import (
     DEFAULT_DISCUSSION_CONTEXTS,
     GameState,
@@ -41,6 +41,8 @@ from tyrant.models.game_state import (
     claim_enact,
     claim_investigation,
     claim_peek,
+    correct_claim,
+    correctable_claim,
     create_game,
     execute_player,
     investigate_loyalty,
@@ -2681,6 +2683,152 @@ class TestDiscussionPhase(BaseGameStateTest):
         state = _resolve_election(self._failed_vote_state(self._state(False), 0))
         new_state = nominate_chancellor(state, 3)
         self.assertEqual(new_state.ballot_box, BallotBox())
+
+
+class TestCorrectClaim(BaseGameStateTest):
+    PRESIDENT_CLAIM = PresidentEnactClaim(
+        uid=1,
+        policies=(PolicyTile.FASCIST, PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        discarded=PolicyTile.LIBERAL,
+    )
+    CHANCELLOR_CLAIM = ChancellorEnactClaim(
+        uid=2, policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL)
+    )
+    CORRECTION = PresidentEnactClaim(
+        uid=1,
+        policies=(PolicyTile.FASCIST, PolicyTile.FASCIST, PolicyTile.LIBERAL),
+        discarded=PolicyTile.FASCIST,
+    )
+
+    def _discussion_after_claims(self) -> GameState:
+        state = create_game(
+            (1, 2, 3, 4, 5),
+            42,
+            shuffle_players=False,
+            discussion_enabled=True,
+            discussion_rounds=2,
+        )
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_POLICIES,
+            chancellor=2,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+        )
+        state = claim_enact(state, self.PRESIDENT_CLAIM)
+        return claim_enact(state, self.CHANCELLOR_CLAIM)
+
+    def _president_turn(self) -> GameState:
+        state = self._discussion_after_claims()
+        while state.discussion.current_speaker != 1:
+            state = speak(state, state.discussion.current_speaker, None)
+        return state
+
+    def test_correct_claim_immutability(self):
+        """Verifies that correct_claim returns a new instance without mutating the input state."""
+        state = self._president_turn()
+        events_before = state.events
+        new_state = correct_claim(state, 1, self.CORRECTION)
+        self.assert_pure_transition(state, new_state)
+        self.assertEqual(state.events, events_before)
+        self.assertEqual(state.claims, (self.PRESIDENT_CLAIM, self.CHANCELLOR_CLAIM))
+
+    def test_correctable_claim_immutability(self):
+        """Verifies that correctable_claim leaves the input state unchanged."""
+        state = self._president_turn()
+        events_before = state.events
+        correctable_claim(state, 1)
+        self.assertEqual(state.events, events_before)
+
+    def test_correct_claim_records_correction_event(self):
+        """Verifies that a correction is recorded as a claim event marked as a correction for the same government."""
+        new_state = correct_claim(self._president_turn(), 1, self.CORRECTION)
+        self.assertEqual(
+            new_state.events[-1],
+            ClaimEvent(
+                claim=self.CORRECTION,
+                president_uid=1,
+                chancellor_uid=2,
+                target_uid=None,
+                correction=True,
+            ),
+        )
+        self.assertEqual(new_state.claims[-1], self.CORRECTION)
+
+    def test_correct_claim_advances_turn_and_counts_as_speaking(self):
+        """Verifies that a correction uses the speaker's turn and resets the run of passes."""
+        state = self._president_turn()
+        self.assertGreater(state.discussion.consecutive_passes, 0)
+        new_state = correct_claim(state, 1, self.CORRECTION)
+        self.assertEqual(new_state.discussion.turn, state.discussion.turn + 1)
+        self.assertEqual(new_state.discussion.consecutive_passes, 0)
+
+    def test_correctable_claim_returns_latest_claim(self):
+        """Verifies that correctable_claim returns the player's latest claim event, including a correction."""
+        state = self._president_turn()
+        self.assertEqual(correctable_claim(state, 1).claim, self.PRESIDENT_CLAIM)
+        state = correct_claim(state, 1, self.CORRECTION)
+        self.assertEqual(correctable_claim(state, 1).claim, self.CORRECTION)
+        self.assertEqual(correctable_claim(state, 2).claim, self.CHANCELLOR_CLAIM)
+        self.assertIsNone(correctable_claim(state, 3))
+
+    def test_correct_claim_rejects_wrong_phase(self):
+        """Verifies that a correction outside a discussion raises an error."""
+        state = replace(self._president_turn(), phase=GamePhase.NOMINATION)
+        with self.assertRaises(InvalidMoveError):
+            correct_claim(state, 1, self.CORRECTION)
+
+    def test_correct_claim_rejects_non_speaker(self):
+        """Verifies that a claimant cannot correct their claim out of turn."""
+        state = self._discussion_after_claims()
+        self.assertNotEqual(state.discussion.current_speaker, 1)
+        with self.assertRaises(InvalidMoveError):
+            correct_claim(state, 1, self.CORRECTION)
+
+    def test_correct_claim_rejects_player_outside_government(self):
+        """Verifies that a player who made no claim in the government cannot correct one."""
+        state = self._discussion_after_claims()
+        while state.discussion.current_speaker != 3:
+            state = speak(state, state.discussion.current_speaker, None)
+        claim = PresidentEnactClaim(
+            uid=3,
+            policies=(PolicyTile.FASCIST, PolicyTile.FASCIST, PolicyTile.LIBERAL),
+            discarded=PolicyTile.FASCIST,
+        )
+        with self.assertRaises(InvalidMoveError):
+            correct_claim(state, 3, claim)
+
+    def test_correct_claim_rejects_decline(self):
+        """Verifies that a correction cannot decline to share the policies."""
+        with self.assertRaises(InvalidMoveError):
+            correct_claim(
+                self._president_turn(), 1, PresidentEnactClaim(uid=1, policies=None)
+            )
+
+    def test_correct_claim_rejects_other_claim_type(self):
+        """Verifies that a president cannot correct with a chancellor claim."""
+        claim = ChancellorEnactClaim(
+            uid=1, policies=(PolicyTile.LIBERAL, PolicyTile.LIBERAL)
+        )
+        with self.assertRaises(InvalidMoveError):
+            correct_claim(self._president_turn(), 1, claim)
+
+    def test_correct_claim_rejects_unchanged_claim(self):
+        """Verifies that a correction must differ from the claim it replaces."""
+        with self.assertRaises(InvalidMoveError):
+            correct_claim(self._president_turn(), 1, self.PRESIDENT_CLAIM)
+
+    def test_correct_claim_rejects_stale_government(self):
+        """Verifies that a claim cannot be corrected once the next government is nominated."""
+        state = self._discussion_after_claims()
+        while state.phase == GamePhase.DISCUSSION:
+            state = speak(state, state.discussion.current_speaker, None)
+        state = nominate_chancellor(state, 3)
+        while state.discussion.current_speaker != 1:
+            state = speak(state, state.discussion.current_speaker, None)
+        self.assertIsNone(correctable_claim(state, 1))
+        with self.assertRaises(InvalidMoveError):
+            correct_claim(state, 1, self.CORRECTION)
 
 
 if __name__ == "__main__":

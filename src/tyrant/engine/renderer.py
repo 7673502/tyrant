@@ -253,10 +253,28 @@ def _yes_no(value: bool) -> str:
     return "yes" if value else "no"
 
 
+def _correction_line(claim: dict) -> str:
+    """Returns the timeline sentence for a corrected policy claim."""
+    who = _player(claim["uid"])
+    if claim["type"] == "chancellor_enact":
+        return (
+            f"Chancellor {who} corrected their claim: received "
+            f"{', '.join(claim['policies'])}."
+        )
+    passed = list(claim["policies"])
+    passed.remove(claim["discarded"])
+    return (
+        f"President {who} corrected their claim: drew {', '.join(claim['policies'])}, "
+        f"discarded {claim['discarded']}, so passed {', '.join(passed)}."
+    )
+
+
 def _claim_line(entry: dict) -> str:
     """Returns the timeline sentence for a claim event."""
     claim = entry["claim"]
     who = _player(claim["uid"])
+    if entry["correction"]:
+        return _correction_line(claim)
     match claim["type"]:
         case "president_enact":
             if claim["policies"] is None:
@@ -343,20 +361,8 @@ def _timeline_line(entry: dict) -> str:
             return f"Game over: {entry['winner']} win by {entry['condition']}."
 
 
-def _claim_conflict(first: dict, second: dict) -> str | None:
-    """Returns a sentence pointing out a conflict between a government's two policy claims, or `None`."""
-    if first["type"] != "claim" or second["type"] != "claim":
-        return None
-    claims = {e["claim"]["type"]: e for e in (first, second)}
-    if claims.keys() != {"president_enact", "chancellor_enact"}:
-        return None
-    if (first["president_uid"], first["chancellor_uid"]) != (
-        second["president_uid"],
-        second["chancellor_uid"],
-    ):
-        return None
-    president = claims["president_enact"]["claim"]
-    chancellor = claims["chancellor_enact"]["claim"]
+def _claim_conflict(president: dict, chancellor: dict) -> str | None:
+    """Returns a sentence pointing out a conflict between a president's and a chancellor's policy claims, or `None`."""
     if president["discarded"] is None or chancellor["policies"] is None:
         return None
     passed = list(president["policies"])
@@ -370,25 +376,78 @@ def _claim_conflict(first: dict, second: dict) -> str | None:
     )
 
 
+def _claim_statuses(timeline: list[dict]) -> tuple[set[int], dict[int, str]]:
+    """Returns the indices of policy claims a later correction replaced, and each government's conflict sentence keyed by the index of its last policy claim."""
+    governments: dict[int | None, list[int]] = {}
+    for i, entry in enumerate(timeline):
+        if entry["type"] == "claim" and entry["claim"]["type"] in (
+            "president_enact",
+            "chancellor_enact",
+        ):
+            governments.setdefault(entry["government"], []).append(i)
+
+    superseded: set[int] = set()
+    statuses: dict[int, str] = {}
+    for indices in governments.values():
+        first: dict[str, dict] = {}
+        latest: dict[str, int] = {}
+        for i in indices:
+            claim = timeline[i]["claim"]
+            first.setdefault(claim["type"], claim)
+            if claim["type"] in latest:
+                superseded.add(latest[claim["type"]])
+            latest[claim["type"]] = i
+        if latest.keys() != {"president_enact", "chancellor_enact"}:
+            continue
+        conflict = _claim_conflict(
+            timeline[latest["president_enact"]]["claim"],
+            timeline[latest["chancellor_enact"]]["claim"],
+        )
+        last = timeline[indices[-1]]
+        if conflict is None and last["correction"]:
+            if _claim_conflict(first["president_enact"], first["chancellor_enact"]):
+                conflict = (
+                    "These claims conflicted until "
+                    f"{_player(last['claim']['uid'])} corrected their claim."
+                )
+        if conflict is not None:
+            statuses[indices[-1]] = conflict
+    return superseded, statuses
+
+
+def _in_discussion(entry: dict) -> bool:
+    """Returns whether an entry is a turn in a discussion: a speech, a pass or a claim correction."""
+    return entry["type"] == "speech" or (
+        entry["type"] == "claim" and entry["correction"]
+    )
+
+
 def _timeline_lines(timeline: list[dict]) -> list[str]:
     """Returns the timeline as bullets under a heading per government, collapsing speeches from all but the last few discussions."""
     starts = [
         i
         for i, entry in enumerate(timeline)
-        if entry["type"] == "speech" and (i == 0 or timeline[i - 1]["type"] != "speech")
+        if _in_discussion(entry) and (i == 0 or not _in_discussion(timeline[i - 1]))
     ]
     cutoff = starts[-DISCUSSIONS_SHOWN] if len(starts) > DISCUSSIONS_SHOWN else 0
     labels = _government_labels(timeline)
+    superseded, statuses = _claim_statuses(timeline)
     lines = []
+    omitted = False
     for i, entry in enumerate(timeline):
         if entry["type"] == "nomination":
             lines += ["", f"### {labels[entry['government']]}"]
-        if entry["type"] != "speech" or i >= cutoff:
-            line = _timeline_line(entry)
-            conflict = _claim_conflict(timeline[i - 1], entry) if i > 0 else None
-            lines.append(f"- {line}" if conflict is None else f"- {line} {conflict}")
-        elif i in starts:
-            lines.append(f"- Earlier discussion ({entry['context']}) omitted.")
+        if not _in_discussion(entry):
+            omitted = False
+        if entry["type"] == "speech" and i < cutoff:
+            if not omitted:
+                lines.append(f"- Earlier discussion ({entry['context']}) omitted.")
+                omitted = True
+            continue
+        line = _timeline_line(entry)
+        if i in superseded:
+            line = f"{line.removesuffix('.')} (corrected later in this government)."
+        lines.append(f"- {line}" if i not in statuses else f"- {line} {statuses[i]}")
     return lines
 
 

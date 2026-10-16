@@ -7,8 +7,10 @@ from frozendict import frozendict
 
 from tests.scripted_game import play_first_legal_actions
 from tyrant.engine.renderer import (
+    _claim_statuses,
     _government_labels,
     _government_numbers,
+    _in_discussion,
     _knowledge_governments,
     format_hand,
     render_dict,
@@ -537,6 +539,127 @@ class TestRenderText(unittest.TestCase):
         )
         self.assertNotIn("conflict", text)
 
+    def _claim(self, claim, correction: bool = False) -> ClaimEvent:
+        return ClaimEvent(
+            claim=claim,
+            president_uid=1,
+            chancellor_uid=2,
+            target_uid=None,
+            correction=correction,
+        )
+
+    def _corrected_government(self, correction) -> tuple:
+        return (
+            *_government(1, 2),
+            self._claim(PresidentEnactClaim(uid=1, policies=(F, L, L), discarded=F)),
+            self._claim(ChancellorEnactClaim(uid=2, policies=(F, L))),
+            SpeechEvent(
+                uid=3,
+                text="Those differ.",
+                context=DiscussionContext.AFTER_POLICY_CLAIMS,
+            ),
+            self._claim(correction, correction=True),
+        )
+
+    def test_render_text_resolved_conflict_is_reported_once(self):
+        """Verifies that a correction that resolves a conflict replaces the conflict line with one resolved note."""
+        text = self.render_events(
+            *self._corrected_government(
+                PresidentEnactClaim(uid=1, policies=(F, F, L), discarded=F)
+            )
+        )
+        self.assertIn(
+            "- President Player 1 claimed drawing fascist, liberal, liberal and "
+            "discarding fascist (corrected later in this government).\n",
+            text,
+        )
+        self.assertIn(
+            "- Chancellor Player 2 claimed receiving fascist, liberal.\n", text
+        )
+        self.assertIn(
+            "- President Player 1 corrected their claim: drew fascist, fascist, "
+            "liberal, discarded fascist, so passed fascist, liberal. These claims "
+            "conflicted until Player 1 corrected their claim.\n",
+            text,
+        )
+        self.assertNotIn("These claims conflict:", text)
+        self.assertEqual(text.count("conflicted"), 1)
+
+    def test_render_text_unresolved_conflict_follows_latest_claim(self):
+        """Verifies that a correction that still conflicts is flagged once, after the correction."""
+        text = self.render_events(
+            *self._corrected_government(
+                PresidentEnactClaim(uid=1, policies=(L, L, L), discarded=L)
+            )
+        )
+        self.assertIn(
+            "- President Player 1 corrected their claim: drew liberal, liberal, "
+            "liberal, discarded liberal, so passed liberal, liberal. These claims "
+            "conflict: President Player 1 claims passing liberal, liberal, but "
+            "Chancellor Player 2 claims receiving fascist, liberal.\n",
+            text,
+        )
+        self.assertEqual(text.count("conflict"), 1)
+
+    def test_render_text_chancellor_correction(self):
+        """Verifies that a chancellor's correction names the policies they now claim to have received."""
+        text = self.render_events(
+            *self._corrected_government(ChancellorEnactClaim(uid=2, policies=(L, L)))
+        )
+        self.assertIn(
+            "- Chancellor Player 2 claimed receiving fascist, liberal (corrected "
+            "later in this government).\n",
+            text,
+        )
+        self.assertIn(
+            "- Chancellor Player 2 corrected their claim: received liberal, liberal. "
+            "These claims conflicted until Player 2 corrected their claim.\n",
+            text,
+        )
+
+    def test_render_text_correction_does_not_split_discussion(self):
+        """Verifies that a correction inside a discussion keeps it counted as one discussion when old ones are collapsed."""
+        claims = DiscussionContext.AFTER_POLICY_CLAIMS
+        text = self.render_events(
+            *_government(1, 2),
+            self._claim(PresidentEnactClaim(uid=1, policies=(F, L, L), discarded=F)),
+            self._claim(ChancellorEnactClaim(uid=2, policies=(F, L))),
+            SpeechEvent(uid=3, text="Before the correction.", context=claims),
+            self._claim(
+                PresidentEnactClaim(uid=1, policies=(F, F, L), discarded=F),
+                correction=True,
+            ),
+            SpeechEvent(uid=4, text="After the correction.", context=claims),
+            NominationEvent(president_uid=2, chancellor_uid=3),
+            SpeechEvent(
+                uid=2, text="Current.", context=DiscussionContext.AFTER_NOMINATION
+            ),
+        )
+        for speech in ("Before the correction.", "After the correction.", "Current."):
+            self.assertIn(speech, text)
+        self.assertNotIn("omitted", text)
+
+    def test_render_text_collapsed_discussion_keeps_correction(self):
+        """Verifies that a collapsed discussion still shows its correction and one omitted line."""
+        claims = DiscussionContext.AFTER_POLICY_CLAIMS
+        nomination = DiscussionContext.AFTER_NOMINATION
+        text = self.render_events(
+            *self._corrected_government(
+                PresidentEnactClaim(uid=1, policies=(F, F, L), discarded=F)
+            ),
+            SpeechEvent(uid=4, text="Old.", context=claims),
+            NominationEvent(president_uid=2, chancellor_uid=3),
+            SpeechEvent(uid=2, text="Newer.", context=nomination),
+            NominationEvent(president_uid=3, chancellor_uid=4),
+            SpeechEvent(uid=3, text="Newest.", context=nomination),
+        )
+        self.assertNotIn("Those differ.", text)
+        self.assertNotIn("Old.", text)
+        self.assertIn("- President Player 1 corrected their claim:", text)
+        self.assertEqual(
+            text.count("Earlier discussion (after_policy_claims) omitted."), 1
+        )
+
     def test_render_text_claims(self):
         """Verifies that every claim type renders with its government or target."""
         text = self.render_events(
@@ -777,6 +900,47 @@ class TestFormatHand(unittest.TestCase):
     def test_format_hand_json_values(self):
         """Verifies that format_hand accepts the policies' JSON values."""
         self.assertEqual(format_hand(["liberal", "fascist"]), "fascist, liberal")
+
+
+class TestClaimStatuses(unittest.TestCase):
+    def _timeline(self) -> list[dict]:
+        state = create_game(UIDS, 42, shuffle_players=False)
+        events = (
+            *_government(1, 2),
+            ClaimEvent(
+                claim=PresidentEnactClaim(uid=1, policies=(F, L, L), discarded=F),
+                president_uid=1,
+                chancellor_uid=2,
+                target_uid=None,
+            ),
+            ClaimEvent(
+                claim=ChancellorEnactClaim(uid=2, policies=(F, L)),
+                president_uid=1,
+                chancellor_uid=2,
+                target_uid=None,
+            ),
+        )
+        return render_dict(replace(state, events=events), 1)["timeline"]
+
+    def test__claim_statuses_immutability(self):
+        """Verifies that _claim_statuses returns new collections and leaves the timeline unchanged."""
+        timeline = self._timeline()
+        before = copy.deepcopy(timeline)
+        self.assertEqual(_claim_statuses(timeline), _claim_statuses(timeline))
+        self.assertEqual(timeline, before)
+
+    def test__claim_statuses_flags_last_claim(self):
+        """Verifies that a conflict is attached only to the government's last policy claim."""
+        superseded, statuses = _claim_statuses(self._timeline())
+        self.assertEqual(superseded, set())
+        self.assertEqual(list(statuses), [3])
+
+    def test__in_discussion_immutability(self):
+        """Verifies that _in_discussion leaves the entry unchanged."""
+        entry = self._timeline()[2]
+        before = copy.deepcopy(entry)
+        self.assertFalse(_in_discussion(entry))
+        self.assertEqual(entry, before)
 
 
 if __name__ == "__main__":

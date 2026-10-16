@@ -8,7 +8,9 @@ Claims are matched to the private knowledge of the government they follow:
 a president claim is checked against that government's draw (and its
 discard, when the claim names one), and a chancellor claim against what the
 chancellor received. A Liberal claim that differs from the truth is a
-mis-claim rather than a lie.
+mis-claim rather than a lie. Lie rates count each player's first claim about
+a government; a v5 correction (a claim event with `correction` set) counts
+only towards resolving that government's claim conflict.
 
 A speech is repeated when at least REPEAT_THRESHOLD of its word 3-grams
 already appeared in the same player's earlier speeches. The threshold is a
@@ -94,6 +96,8 @@ def _enact_claims(replay: dict) -> list[tuple[dict, dict]]:
             if event["type"] != "claim":
                 continue
             claim = event["claim"]
+            if event.get("correction"):
+                continue
             if claim["type"] in ("president_enact", "chancellor_enact"):
                 claims.append((claim, dict(truth)))
     return claims
@@ -157,7 +161,7 @@ def claim_conflicts(replay: dict) -> tuple[int, int]:
 
     Returns:
         The governments whose first claims conflict, and how many of those
-        have consistent latest claims.
+        a correction made consistent.
     """
     order: list[list[dict]] = []
     for step in replay["steps"]:
@@ -165,20 +169,29 @@ def claim_conflicts(replay: dict) -> tuple[int, int]:
             if event["type"] == "policy_enacted":
                 order.append([])
             elif event["type"] == "claim" and order:
-                order[-1].append(event["claim"])
+                order[-1].append(event)
     raised = resolved = 0
-    for claims in order:
+    for events in order:
         presidents = [
-            c for c in claims if c["type"] == "president_enact" and c["policies"]
+            e
+            for e in events
+            if e["claim"]["type"] == "president_enact" and e["claim"]["policies"]
         ]
         chancellors = [
-            c for c in claims if c["type"] == "chancellor_enact" and c["policies"]
+            e
+            for e in events
+            if e["claim"]["type"] == "chancellor_enact" and e["claim"]["policies"]
         ]
         if not presidents or not chancellors:
             continue
-        if _conflict(presidents[0], chancellors[0]):
+        if _conflict(presidents[0]["claim"], chancellors[0]["claim"]):
             raised += 1
-            resolved += not _conflict(presidents[-1], chancellors[-1])
+            corrected = presidents[-1].get("correction") or chancellors[-1].get(
+                "correction"
+            )
+            resolved += bool(corrected) and not _conflict(
+                presidents[-1]["claim"], chancellors[-1]["claim"]
+            )
     return raised, resolved
 
 

@@ -129,6 +129,7 @@
       "president_uid": 4,
       "chancellor_uid": 7,
       "target_uid": null,
+      "correction": false,
       "government": 1
     },
     {
@@ -144,6 +145,7 @@
       "president_uid": 4,
       "chancellor_uid": 7,
       "target_uid": null,
+      "correction": false,
       "government": 1
     },
     {
@@ -190,6 +192,7 @@
       "president_uid": 7,
       "chancellor_uid": 3,
       "target_uid": null,
+      "correction": false,
       "government": 2
     },
     {
@@ -205,6 +208,7 @@
       "president_uid": 7,
       "chancellor_uid": 3,
       "target_uid": null,
+      "correction": false,
       "government": 2
     },
     {
@@ -249,6 +253,7 @@
       "president_uid": 3,
       "chancellor_uid": 4,
       "target_uid": null,
+      "correction": false,
       "government": 3
     },
     {
@@ -266,6 +271,7 @@
       "president_uid": 3,
       "chancellor_uid": 4,
       "target_uid": null,
+      "correction": false,
       "government": 3
     },
     {
@@ -284,6 +290,7 @@
       "president_uid": 3,
       "chancellor_uid": null,
       "target_uid": 4,
+      "correction": false,
       "government": 3
     },
     {
@@ -328,6 +335,7 @@
       "president_uid": 5,
       "chancellor_uid": 7,
       "target_uid": null,
+      "correction": false,
       "government": 4
     },
     {
@@ -345,6 +353,7 @@
       "president_uid": 5,
       "chancellor_uid": 7,
       "target_uid": null,
+      "correction": false,
       "government": 4
     },
     {
@@ -389,6 +398,7 @@
       "president_uid": 1,
       "chancellor_uid": 4,
       "target_uid": null,
+      "correction": false,
       "government": 5
     },
     {
@@ -406,6 +416,7 @@
       "president_uid": 1,
       "chancellor_uid": 4,
       "target_uid": null,
+      "correction": false,
       "government": 5
     },
     {
@@ -458,6 +469,7 @@
       "president_uid": 4,
       "chancellor_uid": 7,
       "target_uid": null,
+      "correction": false,
       "government": 6
     },
     {
@@ -473,6 +485,7 @@
       "president_uid": 4,
       "chancellor_uid": 7,
       "target_uid": null,
+      "correction": false,
       "government": 6
     },
     {
@@ -517,6 +530,7 @@
       "president_uid": 6,
       "chancellor_uid": 3,
       "target_uid": null,
+      "correction": false,
       "government": 7
     },
     {
@@ -534,6 +548,7 @@
       "president_uid": 6,
       "chancellor_uid": 3,
       "target_uid": null,
+      "correction": false,
       "government": 7
     },
     {
@@ -583,6 +598,7 @@
       "president_uid": 2,
       "chancellor_uid": 7,
       "target_uid": null,
+      "correction": false,
       "government": 8
     },
     {
@@ -600,6 +616,7 @@
       "president_uid": 2,
       "chancellor_uid": 7,
       "target_uid": null,
+      "correction": false,
       "government": 8
     },
     {

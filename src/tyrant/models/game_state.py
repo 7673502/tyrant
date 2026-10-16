@@ -368,22 +368,91 @@ def speak(state: GameState, uid: int, text: str | None) -> GameState:
     if text is not None:
         text = " ".join(text.split())[:MAX_SPEECH_LENGTH] or None
 
+    return _advance_discussion(
+        state, SpeechEvent(uid=uid, text=text, context=discussion.context)
+    )
+
+
+def _advance_discussion(state: GameState, event: Event) -> GameState:
+    """Records the current speaker's turn as the given event and moves the discussion to the next speaker, ending it when complete."""
+    discussion = state.discussion
+    passed = isinstance(event, SpeechEvent) and event.text is None
     new_state = replace(
-        state,
-        events=state.events
-        + (SpeechEvent(uid=uid, text=text, context=discussion.context),),
-        deck_shuffled_last_action=False,
+        state, events=state.events + (event,), deck_shuffled_last_action=False
     )
 
     next_discussion = replace(
         discussion,
         turn=discussion.turn + 1,
-        consecutive_passes=0 if text is not None else discussion.consecutive_passes + 1,
+        consecutive_passes=discussion.consecutive_passes + 1 if passed else 0,
     )
     if next_discussion.is_complete:
         return replace(new_state, phase=discussion.resume_phase, discussion=None)
 
     return replace(new_state, discussion=next_discussion)
+
+
+def correctable_claim(state: GameState, uid: int) -> ClaimEvent | None:
+    """Returns the player's latest policy claim event if they may correct it now.
+
+    A claim may be corrected only during the discussion that directly follows the government's policy claims, by that government's president or chancellor.
+
+    Args:
+        state: The current game state.
+        uid: UID of the player.
+
+    Returns:
+        The player's latest president or chancellor claim event for that government, or `None`.
+    """
+    if state.phase != GamePhase.DISCUSSION:
+        return None
+    for event in reversed(state.events):
+        if isinstance(event, SpeechEvent):
+            continue
+        if not isinstance(event, ClaimEvent) or not isinstance(
+            event.claim, (PresidentEnactClaim, ChancellorEnactClaim)
+        ):
+            return None
+        if event.claim.uid == uid:
+            return event
+    return None
+
+
+def correct_claim(
+    state: GameState, uid: int, claim: PresidentEnactClaim | ChancellorEnactClaim
+) -> GameState:
+    """Replaces the current speaker's policy claim, using their turn in the discussion that follows the claims.
+
+    Args:
+        state: The current game state.
+        uid: UID of the speaker.
+        claim: The new claim, of the same type as the one it replaces.
+
+    Returns:
+        The new game state, with the discussion moved to the next speaker.
+
+    Raises:
+        InvalidMoveError: If no discussion is running, it is not this player's turn, the claim is a decline or not theirs, or they have no claim of that type to correct in this discussion.
+    """
+    if state.phase != GamePhase.DISCUSSION or state.discussion is None:
+        raise InvalidMoveError(f"Cannot correct a claim in phase {state.phase}")
+    if uid != state.discussion.current_speaker:
+        raise InvalidMoveError(f"It is not Player {uid}'s turn to speak")
+    if claim.uid != uid:
+        raise InvalidMoveError("Players can only correct their own claims")
+    if claim.policies is None:
+        raise InvalidMoveError("A correction cannot decline to share the policies")
+
+    previous = correctable_claim(state, uid)
+    if previous is None or type(previous.claim) is not type(claim):
+        raise InvalidMoveError(f"Player {uid} has no claim of this type to correct")
+    if previous.claim == claim:
+        raise InvalidMoveError("A correction must change the claim")
+
+    return _advance_discussion(
+        replace(state, claims=state.claims + (claim,)),
+        replace(previous, claim=claim, correction=True),
+    )
 
 
 def nominate_chancellor(state: GameState, chancellor_uid: int) -> GameState:

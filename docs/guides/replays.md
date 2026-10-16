@@ -18,7 +18,7 @@ The file holds the setup with every hidden role, then one entry per applied acti
 
 ```json
 {
-  "version": 4,
+  "version": 5,
   "tyrant_version": "0.3.0",
   "settings": {"player_count": 7, "discussion_enabled": false,
                "discussion_rounds": 1, "discussion_contexts": ["after_execution", ...],
@@ -57,7 +57,7 @@ Each step lists the events and private knowledge its action produced. `fallback`
 
 ## Older versions
 
-[`read_replay`](../reference/engine.md#tyrant.engine.read_replay) returns the file as stored, so older files still load; check `version` before reading newer fields. Version 3 files have no `tyrant_version`, player `agent` or step `notes`. Version 2 files have no `faults`. Version 1 files have no `faults` and no step `fallback` field.
+[`read_replay`](../reference/engine.md#tyrant.engine.read_replay) returns the file as stored, so older files still load; check `version` before reading newer fields. Version 4 files have no `correction` field on `claim` events and no `correct_claim` actions. Version 3 files have no `tyrant_version`, player `agent` or step `notes`. Version 2 files have no `faults`. Version 1 files have no `faults` and no step `fallback` field.
 
 ## Live games
 

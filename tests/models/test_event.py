@@ -84,8 +84,17 @@ class TestEvent(unittest.TestCase):
                 president_uid=1,
                 chancellor_uid=None,
                 target_uid=3,
+                correction=True,
             )
         )
+
+    def test_claim_event_correction_defaults_to_false(self):
+        """Verifies that a ClaimEvent is not a correction unless marked as one."""
+        claim = InvestigationClaim(uid=1, party=Party.LIBERAL)
+        event = ClaimEvent(
+            claim=claim, president_uid=1, chancellor_uid=None, target_uid=3
+        )
+        self.assertFalse(event.correction)
 
     def test_investigation_event_immutability(self):
         """Verifies that InvestigationEvent is a frozen dataclass with immutable fields."""

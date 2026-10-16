@@ -44,7 +44,9 @@ In seat order:
 ...
 ```
 
-When a president's and chancellor's policy claims for the same government follow each other in the timeline and disagree, `render_text` adds a sentence to the second claim pointing out the conflict, for example "These claims conflict: President Player 1 claims passing liberal, fascist, but Chancellor Player 2 claims receiving fascist, fascist." The president's claimed passed policies are the claimed draw minus the claimed discard, and order doesn't matter.
+When a government's president and chancellor policy claims disagree, `render_text` adds a sentence to the government's last policy claim pointing out the conflict, for example "These claims conflict: President Player 1 claims passing liberal, fascist, but Chancellor Player 2 claims receiving fascist, fascist." The president's claimed passed policies are the claimed draw minus the claimed discard, and order doesn't matter.
+
+A [claim correction](discussion.md#correcting-a-claim) renders as "President Player 1 corrected their claim: drew fascist, fascist, liberal, discarded fascist, so passed fascist, liberal.", and the claim it replaced gains "(corrected later in this government)". The conflict check always uses each player's latest claim, and it is shown once per government. If a correction made the claims agree, the correction line instead ends with "These claims conflicted until Player 1 corrected their claim." A correction counts as part of its discussion, so it doesn't split the discussion in two when old discussions are collapsed, and it is never collapsed itself.
 
 To keep prompts small, `render_text` shows speeches from only the last two discussions; older ones collapse into one line each. `render_dict` keeps every speech.
 
