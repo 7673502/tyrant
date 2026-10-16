@@ -21,7 +21,7 @@ The file holds the setup with every hidden role, then one entry per applied acti
   "version": 5,
   "tyrant_version": "0.3.0",
   "settings": {"player_count": 7, "discussion_enabled": false,
-               "discussion_rounds": 1, "discussion_contexts": ["after_execution", ...],
+               "discussion_rounds": 2, "discussion_contexts": ["after_execution", ...],
                "fascist_track": ["none", "investigate_loyalty", ...]},
   "players": [{"uid": 3, "seat": 0, "role": "hitler", "party": "fascist",
                "agent": {"type": "LLMAgent", "model": "anthropic/claude-haiku-5-5",

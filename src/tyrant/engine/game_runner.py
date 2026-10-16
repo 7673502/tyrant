@@ -78,7 +78,7 @@ class GameRunner:
         roles: Mapping[int, Role] | None = None,
         shuffle_players: bool = True,
         discussion_enabled: bool = False,
-        discussion_rounds: int = 1,
+        discussion_rounds: int = 2,
         discussion_contexts: frozenset[DiscussionContext] = DEFAULT_DISCUSSION_CONTEXTS,
         max_retries: int = 2,
         timeout: float | None = 120.0,
