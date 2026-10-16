@@ -15,6 +15,7 @@ already appeared in the same player's earlier speeches. The threshold is a
 heuristic and stays fixed so that runs remain comparable.
 """
 
+import argparse
 import gzip
 import json
 import re
@@ -269,3 +270,66 @@ def faults(replay: dict) -> tuple[dict[str, int], int] | None:
     reasons = Counter(fault["reason"].split("(")[0] for fault in replay["faults"])
     fallbacks = sum(step["fallback"] for step in replay["steps"])
     return dict(sorted(reasons.items())), fallbacks
+
+
+def _fraction(part: int, whole: int) -> str:
+    if whole == 0:
+        return f"{part}/0"
+    return f"{part}/{whole} ({part / whole:.0%})"
+
+
+def _rows(replay: dict, notes_cap: int) -> list[tuple[str, str]]:
+    unanimous, all_ja, elections = unanimous_election_rate(replay)
+    lies = claim_lie_rates(replay)
+    raised, resolved = claim_conflicts(replay)
+    notes = notes_at_cap(replay, notes_cap)
+    discussion, speeches, steps = speech_share(replay)
+    fault_counts = faults(replay)
+    return [
+        ("Version", str(replay["version"])),
+        ("Steps", str(steps)),
+        ("Discussion share", _fraction(discussion, steps)),
+        ("Speech share", _fraction(speeches, steps)),
+        ("Unanimous elections", _fraction(unanimous, elections)),
+        ("All-ja elections", _fraction(all_ja, elections)),
+        ("Fascist claim lies", _fraction(lies["fascist"][0], lies["fascist"][2])),
+        ("Liberal mis-claims", _fraction(lies["liberal"][0], lies["liberal"][2])),
+        ("Declined claims", str(lies["fascist"][1] + lies["liberal"][1])),
+        ("Claim conflicts raised", str(raised)),
+        ("Claim conflicts resolved", str(resolved)),
+        ("Notes at cap", "n/a" if notes is None else _fraction(*notes)),
+        ("Repeated speeches", _fraction(*repeated_speech_rate(replay))),
+        ("Invented references", _fraction(*invented_references(replay))),
+        (
+            "Faults",
+            "n/a"
+            if fault_counts is None
+            else ", ".join(f"{k} {v}" for k, v in fault_counts[0].items()) or "0",
+        ),
+        ("Fallbacks", "n/a" if fault_counts is None else str(fault_counts[1])),
+    ]
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Prints a table of metrics with one column per replay file.
+
+    Args:
+        argv: The command-line arguments, or None to read them from sys.argv.
+    """
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("replays", nargs="+", type=Path)
+    parser.add_argument("--notes-cap", type=int, default=DEFAULT_NOTES_CAP)
+    args = parser.parse_args(argv)
+    columns = [_rows(load(path), args.notes_cap) for path in args.replays]
+    header = ["Metric", *(path.name for path in args.replays)]
+    table = [header] + [
+        [label, *(column[i][1] for column in columns)]
+        for i, (label, _) in enumerate(columns[0])
+    ]
+    widths = [max(len(row[i]) for row in table) for i in range(len(header))]
+    for row in table:
+        print("  ".join(cell.ljust(width) for cell, width in zip(row, widths)).rstrip())
+
+
+if __name__ == "__main__":
+    main()

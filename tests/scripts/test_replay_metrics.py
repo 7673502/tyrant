@@ -1,7 +1,10 @@
 import copy
 import gzip
 import json
+import re
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -11,6 +14,7 @@ from scripts.replay_metrics import (
     faults,
     invented_references,
     load,
+    main,
     notes_at_cap,
     repeated_speech_rate,
     speech_share,
@@ -266,3 +270,41 @@ class TestLoad(unittest.TestCase):
             path = Path(directory) / "game.json"
             path.write_text(json.dumps(_replay()), encoding="utf-8")
             self.assertIsNot(load(path), load(path))
+
+
+class TestMain(unittest.TestCase):
+    def _run(self, argv: list[str]) -> str:
+        output = StringIO()
+        with redirect_stdout(output):
+            main(argv)
+        return output.getvalue()
+
+    def test_main_table(self):
+        """Verifies that main prints one column per replay file."""
+        with TemporaryDirectory() as directory:
+            plain = Path(directory) / "a.json"
+            plain.write_text(json.dumps(_replay()), encoding="utf-8")
+            old = Path(directory) / "b.json"
+            old.write_text(json.dumps(_v2_replay()), encoding="utf-8")
+            output = self._run([str(plain), str(old)])
+        rows = [re.split(r"\s{2,}", line) for line in output.splitlines()]
+        self.assertEqual(rows[0], ["Metric", "a.json", "b.json"])
+        self.assertIn(["Unanimous elections", "3/4 (75%)", "3/4 (75%)"], rows)
+        self.assertIn(["Notes at cap", "1/15 (7%)", "n/a"], rows)
+
+    def test_main_notes_cap(self):
+        """Verifies that main passes the notes cap option to the notes metric."""
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "a.json"
+            path.write_text(json.dumps(_replay()), encoding="utf-8")
+            output = self._run([str(path), "--notes-cap", "700"])
+        self.assertIn("Notes at cap              0/15 (0%)", output)
+
+    def test_main_immutability(self):
+        """Verifies that main does not mutate its argument list."""
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "a.json"
+            path.write_text(json.dumps(_replay()), encoding="utf-8")
+            argv = [str(path)]
+            self._run(argv)
+            self.assertEqual(argv, [str(path)])
