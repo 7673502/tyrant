@@ -15,6 +15,7 @@ from tyrant.llm.prompt import (
     RULES,
     STRATEGY,
     SYSTEM_PROMPT,
+    _xml_choice,
     build_prompt,
     parse_action,
     parse_notes,
@@ -261,6 +262,20 @@ class TestBuildPrompt(unittest.TestCase):
         self.assertEqual(json.loads(notes_line), notes)
 
 
+XML_REPLY = (
+    "\n"
+    '<parameter name="action">1</parameter>\n'
+    "<parameter name=\"message\">Tracker is at 1/3 after that failed vote. I still have no verified information beyond the board, so I'll vote on the next nomination by weighing the discard explanations and the candidate's record, not by re-arguing old rounds. Please keep claims concrete if you post them.</parameter>\n"
+    '<parameter name="notes">L. R4 nominee P3 failed 1 ja(P1,P3)/3 nein. Tracker 1/3. 3F on board, Hitler-chancellor now wins for F. Voted nein on P3: P3 R2 discard unexplained. P2 peek L,L,F unverified. Stay cautious.</parameter>\n'
+    "</invoke>\n"
+    "\n"
+    '<invoke name="invoke">\n'
+    '<parameter name="name">nonexistent</parameter>\n'
+    '<parameter name="parameters">{}</parameter>\n'
+    "</invoke>"
+)
+
+
 class TestParseAction(unittest.TestCase):
     def test_parse_action_immutability(self):
         """Verifies that parse_action returns a new speak action without mutating the offered ones."""
@@ -329,6 +344,39 @@ class TestParseAction(unittest.TestCase):
             with self.subTest(response=response):
                 with self.assertRaises(InvalidMoveError):
                     parse_action(response, DISCUSSION_ACTIONS)
+
+
+class TestXmlChoice(unittest.TestCase):
+    def test__xml_choice_immutability(self):
+        """Verifies that _xml_choice returns a new dict for each call."""
+        self.assertIsNot(_xml_choice(XML_REPLY), _xml_choice(XML_REPLY))
+        self.assertEqual(_xml_choice(XML_REPLY), _xml_choice(XML_REPLY))
+
+    def test_xml_choice_without_action_is_none(self):
+        """Verifies that a reply without an action parameter gives None."""
+        self.assertIsNone(_xml_choice('<parameter name="notes">Hi</parameter>'))
+
+    def test_parse_action_reads_tool_call_reply(self):
+        """Verifies that the tool-call style reply from game-02 step 144 parses to its speech and notes."""
+        action = parse_action(XML_REPLY, DISCUSSION_ACTIONS)
+        self.assertIsInstance(action, SpeakAction)
+        self.assertTrue(action.message.startswith("Tracker is at 1/3"))
+        self.assertTrue(action.message.endswith("if you post them."))
+        self.assertTrue(parse_notes(XML_REPLY).startswith("L. R4 nominee P3"))
+
+    def test_parse_action_prefers_json_over_xml(self):
+        """Verifies that a JSON choice wins over tool-call parameters in the same reply."""
+        response = '<parameter name="action">1</parameter>\n{"action": 2}'
+        self.assertIs(parse_action(response, VOTE_ACTIONS), VOTE_ACTIONS[1])
+
+    def test_parse_action_rejects_non_numeric_xml_action(self):
+        """Verifies that a non-numeric tool-call action raises InvalidMoveError."""
+        for value in ("one", "1.0", "-1", "\u00b2"):
+            with self.subTest(value=value):
+                with self.assertRaises(InvalidMoveError):
+                    parse_action(
+                        f'<parameter name="action">{value}</parameter>', VOTE_ACTIONS
+                    )
 
 
 class TestParseNotes(unittest.TestCase):

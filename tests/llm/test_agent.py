@@ -144,6 +144,13 @@ class TestLLMAgent(unittest.TestCase):
         self.assertIn(f"between 1 and {len(self.actions)}", retry[3]["content"])
         self.assertEqual(len(scripted.calls[3]["messages"]), 2)
 
+    def test_retry_message_asks_for_plain_json(self):
+        """Verifies that the retry feedback asks for one trailing JSON object and no tool-call syntax."""
+        scripted, _ = self._play(_reply(99), _reply(1))
+        feedback = scripted.calls[1]["messages"][3]["content"]
+        self.assertIn('end with one JSON object like {"action": 2', feedback)
+        self.assertIn("Do not use tool-call or XML syntax.", feedback)
+
     def test_rejection_not_replayed_for_new_state_with_same_options(self):
         """Verifies that a rejected reply is not fed back when the next decision has a different state but the same options."""
         scripted = ScriptedCompletion(_reply(99), _reply(1))
