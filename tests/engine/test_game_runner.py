@@ -4,6 +4,7 @@ from dataclasses import replace
 
 from frozendict import frozendict
 
+from tests.scripted_game import play_first_legal_actions
 from tyrant.agents.random_agent import RandomAgent
 from tyrant.engine.game_runner import GameRunner, _is_offered
 from tyrant.engine.replay import replay_dict
@@ -12,14 +13,18 @@ from tyrant.exceptions import AgentError, InvalidMoveError, TyrantError
 from tyrant.models.action import (
     Action,
     ChancellorEnactAction,
+    ClaimChancellorEnactAction,
+    ClaimInvestigationAction,
+    ClaimPolicyPeekAction,
+    ClaimPresidentEnactAction,
     NominateAction,
     PassAction,
     SpeakAction,
     VoteAction,
 )
 from tyrant.models.agent_fault import AgentFault
-from tyrant.models.enums import HIDDEN, GamePhase, Vote
-from tyrant.models.event import SpeechEvent
+from tyrant.models.enums import HIDDEN, GamePhase, Party, PolicyTile, Vote
+from tyrant.models.event import ClaimEvent, SpeechEvent
 from tyrant.models.game_state import GameState, create_game
 from tyrant.models.replay import Replay, record_step
 
@@ -412,6 +417,50 @@ class TestGameRunnerResilience(unittest.IsolatedAsyncioTestCase):
         for action in turns:
             self.assertIsInstance(action, PassAction)
 
+    async def test_query_agent_claim_fallback_declines(self):
+        """Verifies that a failing agent asked for any claim falls back to declining it."""
+        claims_state = next(
+            s
+            for s in play_first_legal_actions(self.state)
+            if s.phase == GamePhase.CLAIM_POLICIES
+        )
+        president_uid = claims_state.players[claims_state.president_index].uid
+        menus = (
+            get_legal_actions(claims_state, president_uid),
+            get_legal_actions(claims_state, claims_state.chancellor),
+            get_legal_actions(
+                replace(
+                    self.state,
+                    phase=GamePhase.CLAIM_POLICY_PEEK,
+                    drawn_policies=(PolicyTile.FASCIST,) * 3,
+                ),
+                self.president_uid,
+            ),
+            get_legal_actions(
+                replace(
+                    self.state,
+                    phase=GamePhase.CLAIM_INVESTIGATION,
+                    current_investigation_result=Party.LIBERAL,
+                ),
+                self.president_uid,
+            ),
+        )
+        expected_types = (
+            ClaimPresidentEnactAction,
+            ClaimChancellorEnactAction,
+            ClaimPolicyPeekAction,
+            ClaimInvestigationAction,
+        )
+        agent = RaisingAgent(uid=self.president_uid)
+        runner = GameRunner(agents=[agent], initial_state=self.state, max_retries=0)
+
+        for options, expected_type in zip(menus, expected_types):
+            with self.subTest(claim=expected_type.__name__):
+                with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
+                    _, action = await runner._query_agent(agent, options, 0)
+                self.assertIs(action, options[-1])
+                self.assertIsInstance(action, expected_type)
+
     async def test_query_agent_seeded_fallback_is_deterministic(self):
         """Verifies that fallback choices are reproducible for the same seed."""
         chosen = []
@@ -498,6 +547,36 @@ class TestGameRunnerIteration(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(new_state.phase, GamePhase.VOTING)
         self.assertEqual(new_state.chancellor, target_uid)
+
+    async def test_run_iteration_claims_are_simultaneous(self):
+        """Verifies that the president and chancellor are both asked for claims before either claim is applied."""
+        state = next(
+            s
+            for s in play_first_legal_actions(create_game((1, 2, 3, 4, 5), 42))
+            if s.phase == GamePhase.CLAIM_POLICIES
+        )
+        president_uid = state.players[state.president_index].uid
+        agents = [CapturingAgent(uid=p.uid) for p in state.players]
+        runner = GameRunner(agents=agents, initial_state=state)
+
+        await runner._run_iteration()
+
+        claims_before = sum(isinstance(e, ClaimEvent) for e in state.events)
+        for agent in agents:
+            if agent.uid in (president_uid, state.chancellor):
+                captured = agent.captured_state
+                self.assertEqual(captured.phase, GamePhase.CLAIM_POLICIES)
+                self.assertEqual(
+                    sum(isinstance(e, ClaimEvent) for e in captured.events),
+                    claims_before,
+                )
+                self.assertEqual(captured.claims, state.claims)
+            else:
+                self.assertIsNone(agent.captured_state)
+        self.assertEqual(
+            sum(isinstance(e, ClaimEvent) for e in runner.state.events),
+            claims_before + 2,
+        )
 
     async def test_run_iteration_stalemate(self):
         """Verifies that a TyrantError is raised if no players have legal actions."""

@@ -9,7 +9,15 @@ from frozendict import frozendict
 from tyrant.engine.replay import fault_dict, replay_dict, result_dict, step_dict
 from tyrant.engine.router import apply_action, get_legal_actions
 from tyrant.exceptions import AgentError, InvalidMoveError, TyrantError
-from tyrant.models.action import AGENT_FILLED_FIELDS, Action, PassAction
+from tyrant.models.action import (
+    AGENT_FILLED_FIELDS,
+    Action,
+    ClaimChancellorEnactAction,
+    ClaimInvestigationAction,
+    ClaimPolicyPeekAction,
+    ClaimPresidentEnactAction,
+    PassAction,
+)
 from tyrant.models.agent import Agent
 from tyrant.models.agent_fault import AgentFault
 from tyrant.models.enums import GamePhase, Role
@@ -44,7 +52,7 @@ def _profile(agent: Agent) -> frozendict[str, str]:
 class GameRunner:
     """Plays a game by asking agents for actions until it ends.
 
-    Each iteration, every agent with legal actions is asked at the same time, with the state scrubbed for that agent. An attempt that raises `InvalidMoveError`, `TimeoutError` or `AgentError` is retried, and after `max_retries` failed retries the runner plays a fallback action for the agent: a pass when one is offered, otherwise a random legal action. Any other exception ends the game.
+    Each iteration, every agent with legal actions is asked at the same time, with the state scrubbed for that agent. An attempt that raises `InvalidMoveError`, `TimeoutError` or `AgentError` is retried, and after `max_retries` failed retries the runner plays a fallback action for the agent: a pass or a declined claim when one is offered, otherwise a random legal action. Any other exception ends the game.
 
     Attributes:
         state: The current, unscrubbed game state.
@@ -183,10 +191,17 @@ class GameRunner:
         return agent.uid, self._fallback(valid_actions)
 
     def _fallback(self, valid_actions: tuple[Action, ...]) -> Action:
-        """Returns the offered pass, or a random legal action when no pass is offered."""
+        """Returns the offered pass or declined claim, or a random legal action when neither is offered."""
         for action in valid_actions:
-            if isinstance(action, PassAction):
-                return action
+            match action:
+                case (
+                    PassAction()
+                    | ClaimPresidentEnactAction(claim_policies=None)
+                    | ClaimChancellorEnactAction(claim_policies=None)
+                    | ClaimPolicyPeekAction(claim_policies=None)
+                    | ClaimInvestigationAction(claim_party=None)
+                ):
+                    return action
         return self.rng.choice(valid_actions)
 
     def _record_fault(
@@ -210,7 +225,9 @@ class GameRunner:
             uid,
             fault.phase,
             reason,
-            " (falling back to a pass or a random legal action)" if fell_back else "",
+            " (falling back to a pass, a declined claim or a random legal action)"
+            if fell_back
+            else "",
         )
 
     async def _attempt(
