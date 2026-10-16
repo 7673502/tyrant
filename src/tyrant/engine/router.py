@@ -255,13 +255,15 @@ def _get_legal_actions_presidential_power(
 
 
 def _claim_description(claim: str, is_truth: bool) -> str:
-    """Returns an option's description, labelled as the truth or as a lie."""
-    return f"Tell the truth: {claim}." if is_truth else f"Lie: claim {claim}."
+    """Returns an option's description, marking the one that matches what the player saw."""
+    marker = " (matches what you saw)" if is_truth else ""
+    return f"Claim {claim}{marker}."
 
 
 def _correction_description(claim: str, is_truth: bool) -> str:
-    """Returns a correction option's description, labelled as the truth or as a lie."""
-    return f"Correct your claim ({'truth' if is_truth else 'lie'}): {claim}."
+    """Returns a correction option's description, marking the one that matches what the player saw."""
+    marker = " (matches what you saw)" if is_truth else ""
+    return f"Correct your claim: {claim}{marker}."
 
 
 def _president_truth(
