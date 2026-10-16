@@ -78,6 +78,10 @@ POLICY_CLAIMS_DISCUSSION_CONTEXTS: Final[
         PresidentialPower.EXECUTION: DiscussionContext.BEFORE_EXECUTION,
     }
 )
+DEFAULT_DISCUSSION_CONTEXTS: Final[frozenset[DiscussionContext]] = frozenset(
+    DiscussionContext
+) - {DiscussionContext.AFTER_FAILED_ELECTION}
+
 PRESIDENT_SPEAKS_LAST_CONTEXTS: Final[frozenset[DiscussionContext]] = frozenset(
     {
         DiscussionContext.BEFORE_INVESTIGATION,
@@ -149,8 +153,8 @@ class GameState:
     pending_power: PresidentialPower = PresidentialPower.NONE
     special_election_caller_index: int | None = None
     discussion_enabled: bool = False
-    discussion_rounds: int = 2
-    discussion_contexts: frozenset[DiscussionContext] = frozenset(DiscussionContext)
+    discussion_rounds: int = 1
+    discussion_contexts: frozenset[DiscussionContext] = DEFAULT_DISCUSSION_CONTEXTS
     discussion: Discussion | None = None
     events: tuple[Event, ...] = ()
     knowledge: tuple[Knowledge, ...] = ()
@@ -162,8 +166,8 @@ def create_game(
     roles: Mapping[int, Role] | None = None,
     shuffle_players: bool = True,
     discussion_enabled: bool = False,
-    discussion_rounds: int = 2,
-    discussion_contexts: frozenset[DiscussionContext] = frozenset(DiscussionContext),
+    discussion_rounds: int = 1,
+    discussion_contexts: frozenset[DiscussionContext] = DEFAULT_DISCUSSION_CONTEXTS,
 ) -> GameState:
     """Creates a new game, ready for the first nomination.
 
@@ -174,7 +178,7 @@ def create_game(
         shuffle_players: Whether to shuffle the seating order; otherwise players sit in `uids` order.
         discussion_enabled: Whether to hold discussions.
         discussion_rounds: How many times the table goes around in each discussion.
-        discussion_contexts: The events that start a discussion when discussions are enabled.
+        discussion_contexts: The events that start a discussion when discussions are enabled; every event except a failed election by default.
 
     Returns:
         The initial game state.

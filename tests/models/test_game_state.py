@@ -28,6 +28,7 @@ from tyrant.models.enums import (
 )
 from tyrant.models.event import SpeechEvent
 from tyrant.models.game_state import (
+    DEFAULT_DISCUSSION_CONTEXTS,
     GameState,
     _advance_to_nomination,
     _begin_discussion,
@@ -2450,9 +2451,18 @@ class TestDiscussionPhase(BaseGameStateTest):
         self.assertEqual(self._speeches(state), ())
 
     def test_create_game_discussion_rounds_default(self):
-        """Verifies that create_game defaults to two discussion rounds."""
+        """Verifies that create_game defaults to one discussion round."""
         state = create_game((1, 2, 3, 4, 5), 42)
-        self.assertEqual(state.discussion_rounds, 2)
+        self.assertEqual(state.discussion_rounds, 1)
+
+    def test_create_game_discussion_contexts_default(self):
+        """Verifies that create_game enables every discussion context except after a failed election."""
+        state = create_game((1, 2, 3, 4, 5), 42)
+        self.assertEqual(state.discussion_contexts, DEFAULT_DISCUSSION_CONTEXTS)
+        self.assertNotIn(
+            DiscussionContext.AFTER_FAILED_ELECTION, state.discussion_contexts
+        )
+        self.assertEqual(len(state.discussion_contexts), len(DiscussionContext) - 1)
 
     def test_create_game_invalid_discussion_rounds(self):
         """Verifies that an error is raised when discussion rounds is less than one."""
