@@ -24,7 +24,8 @@ import re
 from collections import Counter
 from pathlib import Path
 
-DEFAULT_NOTES_CAP = 200
+from tyrant.llm.prompt import MAX_NOTES_LENGTH
+
 NOTES_CAP_MARGIN = 10
 REPEAT_THRESHOLD = 0.5
 NGRAM_SIZE = 3
@@ -195,7 +196,7 @@ def claim_conflicts(replay: dict) -> tuple[int, int]:
     return raised, resolved
 
 
-def notes_at_cap(replay: dict, cap: int = DEFAULT_NOTES_CAP) -> tuple[int, int] | None:
+def notes_at_cap(replay: dict, cap: int = MAX_NOTES_LENGTH) -> tuple[int, int] | None:
     """Counts steps whose notes reach within NOTES_CAP_MARGIN of the cap.
 
     Args:
@@ -331,7 +332,7 @@ def main(argv: list[str] | None = None) -> None:
     """
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("replays", nargs="+", type=Path)
-    parser.add_argument("--notes-cap", type=int, default=DEFAULT_NOTES_CAP)
+    parser.add_argument("--notes-cap", type=int, default=MAX_NOTES_LENGTH)
     args = parser.parse_args(argv)
     columns = [_rows(load(path), args.notes_cap) for path in args.replays]
     header = ["Metric", *(path.name for path in args.replays)]

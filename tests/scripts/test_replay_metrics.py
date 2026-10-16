@@ -20,6 +20,7 @@ from scripts.replay_metrics import (
     speech_share,
     unanimous_election_rate,
 )
+from tyrant.llm.prompt import MAX_NOTES_LENGTH
 
 F = "fascist"
 L = "liberal"
@@ -210,8 +211,14 @@ class TestReplayMetrics(unittest.TestCase):
 
     def test_notes_at_cap(self):
         """Verifies that notes within the margin of the cap are counted."""
-        self.assertEqual(notes_at_cap(self.replay), (1, 15))
-        self.assertEqual(notes_at_cap(self.replay, cap=700), (0, 15))
+        self.assertEqual(notes_at_cap(self.replay), (0, 15))
+        self.assertEqual(notes_at_cap(self.replay, cap=200), (1, 15))
+
+    def test_notes_at_cap_defaults_to_max_notes_length(self):
+        """Verifies that notes_at_cap counts notes near MAX_NOTES_LENGTH when no cap is given."""
+        replay = _replay()
+        replay["steps"][3]["notes"] = "x" * (MAX_NOTES_LENGTH - 5)
+        self.assertEqual(notes_at_cap(replay), (1, 15))
 
     def test_speech_share(self):
         """Verifies that speak and pass steps are counted against all steps."""
@@ -323,15 +330,15 @@ class TestMain(unittest.TestCase):
         rows = [re.split(r"\s{2,}", line) for line in output.splitlines()]
         self.assertEqual(rows[0], ["Metric", "a.json", "b.json"])
         self.assertIn(["Unanimous elections", "3/4 (75%)", "3/4 (75%)"], rows)
-        self.assertIn(["Notes at cap", "1/15 (7%)", "n/a"], rows)
+        self.assertIn(["Notes at cap", "0/15 (0%)", "n/a"], rows)
 
     def test_main_notes_cap(self):
         """Verifies that main passes the notes cap option to the notes metric."""
         with TemporaryDirectory() as directory:
             path = Path(directory) / "a.json"
             path.write_text(json.dumps(_replay()), encoding="utf-8")
-            output = self._run([str(path), "--notes-cap", "700"])
-        self.assertIn("Notes at cap              0/15 (0%)", output)
+            output = self._run([str(path), "--notes-cap", "200"])
+        self.assertIn("Notes at cap              1/15 (7%)", output)
 
     def test_main_immutability(self):
         """Verifies that main does not mutate its argument list."""
