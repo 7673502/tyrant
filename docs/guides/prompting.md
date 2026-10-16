@@ -25,6 +25,14 @@ Each turn, `LLMAgent` sends `SYSTEM_PROMPT` as the system message and `build_pro
 
 Each agent keeps running totals of `prompt_tokens`, `completion_tokens`, `cached_tokens` and `cost`, in US dollars from `litellm.completion_cost`. A model litellm has no price for adds nothing to `cost`, and the move still goes through.
 
+## Inspecting exchanges
+
+To see exactly what a model was sent and what it sent back, pass `on_exchange` to `LLMAgent`. It is called once for each provider call with a plain JSON dict: the agent's `uid`, the `messages` sent (including the rejected reply and feedback on a retry), the raw `reply` (`None` when the provider call failed), that call's `prompt_tokens`, `completion_tokens`, `cached_tokens` and `cost`, and the `error` that rejected the call as its `repr`, or `None` when the reply became a move. A timed-out call is cancelled before it returns, so it sends nothing; `GameRunner` still records the timeout as a fault.
+
+```python
+agent = LLMAgent(0, "anthropic/claude-haiku-5-5", on_exchange=lambda e: print(e["reply"]))
+```
+
 ## Personas
 
 `LLMAgent` takes an optional `persona`, a short description of how that player plays:

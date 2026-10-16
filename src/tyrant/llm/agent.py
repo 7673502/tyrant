@@ -7,6 +7,8 @@ except ImportError as e:
         'LLMAgent requires litellm. Install it with: pip install "tyrant[llm]"'
     ) from e
 
+from collections.abc import Callable
+
 from frozendict import frozendict
 
 from tyrant.exceptions import AgentError, InvalidMoveError
@@ -14,11 +16,13 @@ from tyrant.llm.prompt import build_prompt, parse_action, parse_notes, system_pr
 from tyrant.models.action import Action
 from tyrant.models.game_state import GameState
 
+_NO_USAGE = frozendict(prompt_tokens=0, completion_tokens=0, cached_tokens=0, cost=0.0)
+
 
 class LLMAgent:
     """An agent that plays through any model litellm supports.
 
-    Each turn it sends `SYSTEM_PROMPT`, followed by the persona if one is set, as the system message and `build_prompt` as the user message, then reads the reply with `parse_action` and `parse_notes`. When a reply is rejected, the next call for the same state adds that reply and the reason to the conversation. Provider and network errors are raised as `AgentError`.
+    Each turn it sends `SYSTEM_PROMPT`, followed by the persona if one is set, as the system message and `build_prompt` as the user message, then reads the reply with `parse_action` and `parse_notes`. When a reply is rejected, the next call for the same state adds that reply and the reason to the conversation. Provider and network errors are raised as `AgentError`. When `on_exchange` is set, it is called once for each provider call with the messages sent and what came back.
 
     Attributes:
         uid: The player's unique ID.
@@ -31,6 +35,7 @@ class LLMAgent:
         cached_tokens: Total prompt tokens read from the provider's cache.
         cost: Total cost in US dollars, from `litellm.completion_cost`.
         profile: The model and persona, which replays show for the player.
+        on_exchange: Called with each provider call's messages, reply, usage and error, or `None`.
     """
 
     def __init__(
@@ -39,6 +44,7 @@ class LLMAgent:
         model: str,
         completion_kwargs: frozendict = frozendict(),
         persona: str = "",
+        on_exchange: Callable[[dict], None] | None = None,
     ):
         """Creates the agent.
 
@@ -47,6 +53,7 @@ class LLMAgent:
             model: A litellm model string, such as `anthropic/claude-haiku-5-5`.
             completion_kwargs: Extra arguments for `litellm.acompletion`, such as `temperature`.
             persona: A playing style, such as "cautious, rarely accuses without a contradiction", or empty for none.
+            on_exchange: Called once for each provider call with a plain JSON dict holding `uid`, the `messages` sent, the `reply` (`None` when the call failed), that call's `prompt_tokens`, `completion_tokens`, `cached_tokens` and `cost`, and the `error` that rejected the call, or `None`.
         """
         self.uid = uid
         self.model = model
@@ -57,6 +64,7 @@ class LLMAgent:
         self.completion_tokens = 0
         self.cached_tokens = 0
         self.cost = 0.0
+        self.on_exchange = on_exchange
         self._rejected: tuple[GameState, str, InvalidMoveError] | None = None
 
     @property
@@ -102,30 +110,62 @@ class LLMAgent:
                 model=self.model, messages=messages, **self.completion_kwargs
             )
         except Exception as e:
-            raise AgentError(f"Provider call failed: {e!r}") from e
-        self._record_usage(response)
+            error = AgentError(f"Provider call failed: {e!r}")
+            self._emit(messages, None, _NO_USAGE, error)
+            raise error from e
+        usage = self._record_usage(response)
         reply = response.choices[0].message.content or ""
         try:
             action = parse_action(reply, valid_actions)
         except InvalidMoveError as e:
             error = InvalidMoveError(str(e), reply=reply)
             self._rejected = (state, reply, error)
+            self._emit(messages, reply, usage, error)
             raise error from e
+        self._emit(messages, reply, usage, None)
         notes = parse_notes(reply)
         if notes is not None:
             self.notes = notes
         self._rejected = None
         return action
 
-    def _record_usage(self, response) -> None:
-        """Adds the response's token counts and cost to the running totals."""
+    def _record_usage(self, response) -> dict:
+        """Adds the response's token counts and cost to the running totals and returns them."""
         usage = response.usage
-        self.prompt_tokens += usage.prompt_tokens
-        self.completion_tokens += usage.completion_tokens
         details = usage.prompt_tokens_details
-        if details is not None and details.cached_tokens:
-            self.cached_tokens += details.cached_tokens
+        cached = details.cached_tokens if details is not None else 0
         try:
-            self.cost += litellm.completion_cost(completion_response=response)
+            cost = litellm.completion_cost(completion_response=response)
         except Exception:
-            pass
+            cost = 0.0
+        call = {
+            "prompt_tokens": usage.prompt_tokens,
+            "completion_tokens": usage.completion_tokens,
+            "cached_tokens": cached or 0,
+            "cost": cost,
+        }
+        self.prompt_tokens += call["prompt_tokens"]
+        self.completion_tokens += call["completion_tokens"]
+        self.cached_tokens += call["cached_tokens"]
+        self.cost += call["cost"]
+        return call
+
+    def _emit(
+        self,
+        messages: list[dict],
+        reply: str | None,
+        usage: dict,
+        error: Exception | None,
+    ) -> None:
+        """Passes one provider call to `on_exchange`, if it is set."""
+        if self.on_exchange is None:
+            return
+        self.on_exchange(
+            {
+                "uid": self.uid,
+                "messages": [dict(m) for m in messages],
+                "reply": reply,
+                **usage,
+                "error": None if error is None else repr(error),
+            }
+        )
