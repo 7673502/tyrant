@@ -8,6 +8,7 @@ from frozendict import frozendict
 from tests.scripted_game import play_first_legal_actions
 from tyrant.engine.renderer import (
     _claim_statuses,
+    _voting_reminders,
     _government_labels,
     _government_numbers,
     _in_discussion,
@@ -345,6 +346,73 @@ class TestRenderText(unittest.TestCase):
             "- Can't be nominated chancellor next: none\n",
             render_text(scrub_state(self.state, 1), 1),
         )
+
+    def voting_state(self) -> GameState:
+        state = _nominated(replace(self.state, discussion_enabled=True))
+        while state.phase == GamePhase.DISCUSSION:
+            uid = state.discussion.current_speaker
+            text = f"I trust Player {uid}." if uid in (1, 3) else None
+            state = speak(state, uid, text)
+        return state
+
+    def test__voting_reminders_immutability(self):
+        """Verifies that _voting_reminders returns a new list without mutating the view."""
+        view = render_dict(self.voting_state(), 1)
+        before = copy.deepcopy(view)
+        self.assertIsNot(_voting_reminders(view), _voting_reminders(view))
+        self.assertEqual(view, before)
+
+    def test_render_text_voting_reminders_for_president(self):
+        """Verifies that the president is reminded during the vote that they nominated this government and what they said."""
+        state = self.voting_state()
+        self.assertEqual(state.phase, GamePhase.VOTING)
+        president = state.players[state.president_index].uid
+        text = render_text(state, president)
+        self.assertIn("- You nominated this government.\n", text)
+        self.assertNotIn("You are the nominee", text)
+        self.assertIn(
+            f'- What you said about this government: "I trust Player {president}."\n',
+            text,
+        )
+
+    def test_render_text_voting_reminders_for_nominee(self):
+        """Verifies that the nominee is reminded during the vote that they are the nominee."""
+        state = self.voting_state()
+        text = render_text(state, state.chancellor)
+        self.assertIn("- You are the nominee.\n", text)
+        self.assertNotIn("You nominated this government", text)
+
+    def test_render_text_voting_reminders_quote_only_own_speech(self):
+        """Verifies that a voter who passed in this nomination's discussion is not quoted, while a voter who spoke is."""
+        state = self.voting_state()
+        silent = next(
+            p.uid
+            for p in state.players
+            if p.uid not in (1, 3, state.chancellor)
+            and p.uid != state.players[state.president_index].uid
+        )
+        self.assertNotIn("What you said", render_text(state, silent))
+        speaker = next(
+            uid
+            for uid in (1, 3)
+            if uid not in (state.chancellor, state.players[state.president_index].uid)
+        )
+        self.assertIn(
+            f'- What you said about this government: "I trust Player {speaker}."\n',
+            render_text(state, speaker),
+        )
+
+    def test_render_text_voting_reminders_only_while_voting(self):
+        """Verifies that no voting reminders are shown outside the voting phase."""
+        state = _nominated(replace(self.state, discussion_enabled=True))
+        president = state.players[state.president_index].uid
+        state = speak(state, state.discussion.current_speaker, "Hello.")
+        self.assertEqual(state.phase, GamePhase.DISCUSSION)
+        for uid in (president, state.chancellor):
+            text = render_text(state, uid)
+            self.assertNotIn("You nominated this government", text)
+            self.assertNotIn("You are the nominee", text)
+            self.assertNotIn("What you said", text)
 
     def test_render_text_discussion_round(self):
         """Verifies that the current turn shows the discussion round only during discussion."""

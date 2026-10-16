@@ -523,6 +523,33 @@ def _knowledge_lines(knowledge: list[dict], labels: dict[int, str]) -> list[str]
     return lines
 
 
+def _voting_reminders(view: dict) -> list[str]:
+    """Returns the viewer's part in the government being voted on and their last speech about it, during a vote."""
+    if view["turn"]["phase"] != GamePhase.VOTING.value:
+        return []
+    viewer_uid = view["viewer"]["uid"]
+    lines = []
+    if view["government"]["president"] == viewer_uid:
+        lines.append("- You nominated this government.")
+    if view["government"]["chancellor"] == viewer_uid:
+        lines.append("- You are the nominee.")
+    timeline = view["timeline"]
+    nomination = max(
+        (i for i, e in enumerate(timeline) if e["type"] == "nomination"), default=0
+    )
+    speeches = [
+        e["text"]
+        for e in timeline[nomination:]
+        if e["type"] == "speech" and e["uid"] == viewer_uid and e["text"] is not None
+    ]
+    if speeches:
+        lines.append(
+            "- What you said about this government: "
+            f"{json.dumps(speeches[-1], ensure_ascii=False)}"
+        )
+    return lines
+
+
 def render_text(state: GameState, viewer_uid: int) -> str:
     """Returns a prompt-ready Markdown view of the state, scrubbed for the given viewer.
 
@@ -607,6 +634,7 @@ def render_text(state: GameState, viewer_uid: int) -> str:
         lines.append(
             f"- Discussion round: {turn['discussion']['round']} of {turn['discussion']['rounds']}"
         )
+    lines += _voting_reminders(view)
     if turn["active_power"] != "none":
         lines.append(f"- Active power: {turn['active_power']}")
     if turn["hand"]:
