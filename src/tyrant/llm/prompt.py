@@ -1,4 +1,5 @@
 import json
+import re
 from dataclasses import replace
 from typing import Final
 
@@ -140,8 +141,24 @@ def build_prompt(
     return "\n".join(sections)
 
 
+_XML_PARAMETER: Final = re.compile(
+    r'<parameter name="(action|message|notes)">(.*?)</parameter>', re.DOTALL
+)
+
+
+def _xml_choice(response: str) -> dict | None:
+    """Returns the `action`, `message` and `notes` parameters of a tool-call style reply, or None if it has no action."""
+    choice = dict(_XML_PARAMETER.findall(response))
+    if "action" not in choice:
+        return None
+    action = choice["action"].strip()
+    if action.isascii() and action.isdigit():
+        choice["action"] = int(action)
+    return choice
+
+
 def _last_choice(response: str) -> dict:
-    """Returns the last JSON object in the reply that has an `action` key."""
+    """Returns the last JSON object in the reply that has an `action` key, falling back to tool-call style parameters."""
     decoder = json.JSONDecoder()
     start = response.rfind("{")
     while start != -1:
@@ -152,6 +169,9 @@ def _last_choice(response: str) -> dict:
         if isinstance(value, dict) and "action" in value:
             return value
         start = response.rfind("{", 0, start)
+    choice = _xml_choice(response)
+    if choice is not None:
+        return choice
     raise InvalidMoveError("Reply has no JSON object with an action")
 
 
