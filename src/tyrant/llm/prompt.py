@@ -62,6 +62,12 @@ Some Fascist policies grant the President a power, which they must use before th
 - `unknown` means the value is hidden from you.
 """
 
+STRATEGY: Final[str] = """## Strategy by Role
+- Fascists: Lying about the policies you drew or received is normal and expected. Decide what you will claim before you discard, so your story holds together. Don't vote in lockstep with your teammates or defend Hitler too hard, because that exposes the team. When you execute a player, give the table a believable reason.
+- Hitler: Play as a Liberal would. Earn enough trust to be elected Chancellor once 3 or more Fascist policies are enacted.
+- Liberals: Check every claim against the board and against the other claims. Don't execute a player on suspicion alone.
+"""
+
 RESPONSE_FORMAT: Final[str] = f"""# Response Format
 Think through your decision in plain text first if you want. Then end your reply with exactly one JSON object:
 
@@ -73,8 +79,8 @@ Think through your decision in plain text first if you want. Then end your reply
 - Only the last JSON object in your reply is read.
 """
 
-SYSTEM_PROMPT: Final[str] = RULES + "\n" + RESPONSE_FORMAT
-"""The rules and the reply format, the same for every game and every player."""
+SYSTEM_PROMPT: Final[str] = RULES + "\n" + STRATEGY + "\n" + RESPONSE_FORMAT
+"""The rules, the strategy for each role and the reply format, the same for every game and every player."""
 
 
 def system_prompt(persona: str = "") -> str:

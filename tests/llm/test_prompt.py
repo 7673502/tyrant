@@ -13,6 +13,7 @@ from tyrant.llm.prompt import (
     MAX_NOTES_LENGTH,
     RESPONSE_FORMAT,
     RULES,
+    STRATEGY,
     SYSTEM_PROMPT,
     build_prompt,
     parse_action,
@@ -69,8 +70,27 @@ class FakeLLMAgent:
 
 class TestSystemPrompt(unittest.TestCase):
     def test_system_prompt_starts_with_rules(self):
-        """Verifies that the system prompt is the rules followed by the response format."""
-        self.assertEqual(SYSTEM_PROMPT, RULES + "\n" + RESPONSE_FORMAT)
+        """Verifies that the system prompt is the rules, then the strategy, then the response format."""
+        self.assertEqual(
+            SYSTEM_PROMPT, RULES + "\n" + STRATEGY + "\n" + RESPONSE_FORMAT
+        )
+
+    def test_strategy_covers_every_role(self):
+        """Verifies that the strategy section gives advice to every role."""
+        self.assertTrue(STRATEGY.startswith("## Strategy by Role\n"))
+        for name in ("Fascists", "Hitler", "Liberals"):
+            with self.subTest(name=name):
+                self.assertIn(f"- {name}: ", STRATEGY)
+
+    def test_strategy_calls_fascist_lies_expected(self):
+        """Verifies that the strategy tells Fascists that lying about policies is expected."""
+        self.assertIn("is normal and expected", STRATEGY)
+
+    def test_system_prompt_never_asks_for_honesty(self):
+        """Verifies that the system prompt never tells players to be honest or accurate."""
+        for word in ("honest", "accurate"):
+            with self.subTest(word=word):
+                self.assertNotIn(word, SYSTEM_PROMPT.lower())
 
     def test_system_prompt_contains_speech_limit(self):
         """Verifies that the system prompt states the maximum speech length."""
