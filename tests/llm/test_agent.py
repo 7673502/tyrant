@@ -253,6 +253,67 @@ class TestLLMAgent(unittest.TestCase):
         self.assertEqual(agent.cost, 0.0)
         self.assertGreater(agent.prompt_tokens, 0)
 
+    def _play_recorded(self, *replies) -> tuple[ScriptedCompletion, list, list]:
+        exchanges = []
+        self.agent = LLMAgent(self.uid, MODEL, on_exchange=exchanges.append)
+        scripted, results = self._play(*replies)
+        return scripted, results, exchanges
+
+    def test_on_exchange_receives_prompt_and_reply(self):
+        """Verifies that on_exchange gets the sent messages and the raw reply of an accepted call."""
+        reply = _reply(1, notes="Hmm.")
+        scripted, _, exchanges = self._play_recorded(reply)
+        self.assertEqual(len(exchanges), 1)
+        self.assertEqual(exchanges[0]["uid"], self.uid)
+        self.assertEqual(exchanges[0]["messages"], scripted.calls[0]["messages"])
+        self.assertEqual(exchanges[0]["reply"], reply)
+        self.assertIsNone(exchanges[0]["error"])
+        json.dumps(exchanges[0])
+
+    def test_on_exchange_receives_rejected_reply_and_retry_messages(self):
+        """Verifies that a rejected call reports its error and the retry call reports the feedback messages."""
+        rejected = _reply(99)
+        scripted, _, exchanges = self._play_recorded(rejected, _reply(1))
+        self.assertEqual(len(exchanges), 2)
+        self.assertEqual(exchanges[0]["reply"], rejected)
+        self.assertIn("InvalidMoveError", exchanges[0]["error"])
+        self.assertEqual(len(exchanges[1]["messages"]), 4)
+        self.assertEqual(exchanges[1]["messages"], scripted.calls[1]["messages"])
+        self.assertIsNone(exchanges[1]["error"])
+
+    def test_on_exchange_receives_provider_error(self):
+        """Verifies that a failed provider call reports no reply, zero usage and the AgentError."""
+        exchanges = []
+        agent = LLMAgent(self.uid, MODEL, on_exchange=exchanges.append)
+
+        async def failing(**kwargs):
+            raise ConnectionError("Connection reset")
+
+        with patch.object(litellm, "acompletion", failing):
+            with self.assertRaises(AgentError):
+                asyncio.run(agent.choose_action(self.state, self.actions))
+        self.assertEqual(len(exchanges), 1)
+        self.assertIsNone(exchanges[0]["reply"])
+        self.assertEqual(exchanges[0]["prompt_tokens"], 0)
+        self.assertEqual(exchanges[0]["cost"], 0.0)
+        self.assertIn("Connection reset", exchanges[0]["error"])
+
+    def test_on_exchange_reports_per_call_usage(self):
+        """Verifies that each exchange holds that call's usage and that they sum to the agent's totals."""
+        scripted, _, exchanges = self._play_recorded(_reply(1), _reply(2))
+        for exchange, response in zip(exchanges, scripted.responses):
+            with self.subTest(response=response.id):
+                self.assertEqual(
+                    exchange["prompt_tokens"], response.usage.prompt_tokens
+                )
+                self.assertEqual(
+                    exchange["completion_tokens"], response.usage.completion_tokens
+                )
+        self.assertAlmostEqual(sum(e["cost"] for e in exchanges), self.agent.cost)
+        self.assertEqual(
+            sum(e["prompt_tokens"] for e in exchanges), self.agent.prompt_tokens
+        )
+
     def test_seeded_game_with_discussion_finishes(self):
         """Verifies that five agents with mocked replies finish a seeded game with discussion and no faults."""
         reply = _reply(1, message="I am a liberal.", notes="Still watching.")
