@@ -96,6 +96,17 @@ class TestReplayDict(unittest.TestCase):
                 "player_count": 5,
                 "discussion_enabled": False,
                 "discussion_rounds": 1,
+                "discussion_contexts": [
+                    "after_execution",
+                    "after_investigation_claim",
+                    "after_nomination",
+                    "after_peek_claim",
+                    "after_policy_claims",
+                    "after_special_election",
+                    "before_execution",
+                    "before_investigation",
+                    "before_special_election",
+                ],
                 "fascist_track": [
                     "none",
                     "none",

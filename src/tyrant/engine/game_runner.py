@@ -20,8 +20,13 @@ from tyrant.models.action import (
 )
 from tyrant.models.agent import Agent
 from tyrant.models.agent_fault import AgentFault
-from tyrant.models.enums import GamePhase, Role
-from tyrant.models.game_state import GameState, create_game, scrub_state
+from tyrant.models.enums import DiscussionContext, GamePhase, Role
+from tyrant.models.game_state import (
+    DEFAULT_DISCUSSION_CONTEXTS,
+    GameState,
+    create_game,
+    scrub_state,
+)
 from tyrant.models.replay import Replay, record_fault, record_step
 
 logger = logging.getLogger(__name__)
@@ -73,7 +78,8 @@ class GameRunner:
         roles: Mapping[int, Role] | None = None,
         shuffle_players: bool = True,
         discussion_enabled: bool = False,
-        discussion_rounds: int = 2,
+        discussion_rounds: int = 1,
+        discussion_contexts: frozenset[DiscussionContext] = DEFAULT_DISCUSSION_CONTEXTS,
         max_retries: int = 2,
         timeout: float | None = 120.0,
         on_update: Callable[[dict], None] | None = None,
@@ -88,6 +94,7 @@ class GameRunner:
             shuffle_players: Whether to shuffle the seating order.
             discussion_enabled: Whether to hold discussions.
             discussion_rounds: How many times the table goes around in each discussion.
+            discussion_contexts: The events that start a discussion when discussions are enabled; every event except a failed election by default.
             max_retries: Retries allowed after an agent's first failed attempt.
             timeout: Seconds allowed for each attempt, or `None` for no limit.
             on_update: Called with each live update message, or `None` for no updates. A `start` message holds the empty replay, each `step` and `fault` message holds one entry of the replay's `steps` or `faults`, and an `end` message holds the result.
@@ -103,6 +110,7 @@ class GameRunner:
                 shuffle_players=shuffle_players,
                 discussion_enabled=discussion_enabled,
                 discussion_rounds=discussion_rounds,
+                discussion_contexts=discussion_contexts,
             )
         self.state = initial_state
         self.replay = Replay(

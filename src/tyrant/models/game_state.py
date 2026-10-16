@@ -81,6 +81,7 @@ POLICY_CLAIMS_DISCUSSION_CONTEXTS: Final[
 DEFAULT_DISCUSSION_CONTEXTS: Final[frozenset[DiscussionContext]] = frozenset(
     DiscussionContext
 ) - {DiscussionContext.AFTER_FAILED_ELECTION}
+"""Every discussion context except after a failed election, the contexts enabled by default."""
 
 PRESIDENT_SPEAKS_LAST_CONTEXTS: Final[frozenset[DiscussionContext]] = frozenset(
     {

@@ -146,6 +146,9 @@ def replay_dict(replay: Replay) -> dict:
             "player_count": len(initial.players),
             "discussion_enabled": initial.discussion_enabled,
             "discussion_rounds": initial.discussion_rounds,
+            "discussion_contexts": sorted(
+                to_json(c) for c in initial.discussion_contexts
+            ),
             "fascist_track": to_json(FASCIST_TRACKS[initial.board.player_count]),
         },
         "players": [

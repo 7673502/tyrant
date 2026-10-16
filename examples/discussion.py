@@ -3,7 +3,13 @@ import random
 from dataclasses import replace
 
 from tyrant import GameRunner, GameState
-from tyrant.models import Action, SpeakAction, SpeechEvent
+from tyrant.models import (
+    DEFAULT_DISCUSSION_CONTEXTS,
+    Action,
+    DiscussionContext,
+    SpeakAction,
+    SpeechEvent,
+)
 
 
 class ChattyAgent:
@@ -21,7 +27,12 @@ class ChattyAgent:
 
 async def main():
     players = tuple(ChattyAgent(i) for i in range(7))
-    runner = GameRunner(agents=players, discussion_enabled=True)
+    runner = GameRunner(
+        agents=players,
+        discussion_enabled=True,
+        discussion_contexts=DEFAULT_DISCUSSION_CONTEXTS
+        | {DiscussionContext.AFTER_FAILED_ELECTION},
+    )
     end_state = await runner.run()
 
     for event in end_state.events:
