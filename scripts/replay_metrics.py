@@ -1,0 +1,271 @@
+"""Measures LLM play quality from replay files.
+
+Each metric is a pure function of a replay dict. A metric returns None when
+the replay's version does not record the data it needs: v2 replays have no
+notes, faults or president discards.
+
+Claims are matched to the private knowledge of the government they follow:
+a president claim is checked against that government's draw (and its
+discard, when the claim names one), and a chancellor claim against what the
+chancellor received. A Liberal claim that differs from the truth is a
+mis-claim rather than a lie.
+
+A speech is repeated when at least REPEAT_THRESHOLD of its word 3-grams
+already appeared in the same player's earlier speeches. The threshold is a
+heuristic and stays fixed so that runs remain comparable.
+"""
+
+import gzip
+import json
+import re
+from collections import Counter
+from pathlib import Path
+
+DEFAULT_NOTES_CAP = 200
+NOTES_CAP_MARGIN = 10
+REPEAT_THRESHOLD = 0.5
+NGRAM_SIZE = 3
+INVENTED_REFERENCE = re.compile(
+    r"\bS\d+\b|\bmessage \d+|\bturn \d+|\bstep \d+", re.IGNORECASE
+)
+
+
+def load(path: str | Path) -> dict:
+    """Reads a replay file that is either gzipped or plain JSON.
+
+    Args:
+        path: The replay file.
+
+    Returns:
+        The replay as plain dicts.
+    """
+    try:
+        with gzip.open(path, "rt", encoding="utf-8") as f:
+            return json.load(f)
+    except gzip.BadGzipFile:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+
+
+def _events(replay: dict, event_type: str) -> list[dict]:
+    return [
+        event
+        for step in replay["steps"]
+        for event in step["events"]
+        if event["type"] == event_type
+    ]
+
+
+def _speeches(replay: dict) -> list[dict]:
+    return [event for event in _events(replay, "speech") if event["text"] is not None]
+
+
+def _parties(replay: dict) -> dict[int, str]:
+    return {player["uid"]: player["party"] for player in replay["players"]}
+
+
+def unanimous_election_rate(replay: dict) -> tuple[int, int, int]:
+    """Counts elections where every vote was the same.
+
+    Args:
+        replay: The replay dict.
+
+    Returns:
+        The unanimous elections, the all-ja elections and all elections.
+    """
+    elections = _events(replay, "election")
+    votes = [set(election["votes"].values()) for election in elections]
+    unanimous = sum(len(vote) == 1 for vote in votes)
+    all_ja = sum(vote == {"ja"} for vote in votes)
+    return unanimous, all_ja, len(elections)
+
+
+def _enact_claims(replay: dict) -> list[tuple[dict, dict]]:
+    truth: dict = {}
+    claims = []
+    for step in replay["steps"]:
+        for item in step["knowledge"]:
+            if item["type"] == "president_draw":
+                truth = {"president_draw": item}
+            elif item["type"] in ("president_discard", "chancellor_receive"):
+                truth[item["type"]] = item
+        for event in step["events"]:
+            if event["type"] != "claim":
+                continue
+            claim = event["claim"]
+            if claim["type"] in ("president_enact", "chancellor_enact"):
+                claims.append((claim, dict(truth)))
+    return claims
+
+
+def _is_true(claim: dict, truth: dict) -> bool:
+    if claim["type"] == "chancellor_enact":
+        return Counter(claim["policies"]) == Counter(
+            truth["chancellor_receive"]["policies"]
+        )
+    if Counter(claim["policies"]) != Counter(truth["president_draw"]["policies"]):
+        return False
+    if claim.get("discarded") is None or "president_discard" not in truth:
+        return True
+    return claim["discarded"] == truth["president_discard"]["discarded"]
+
+
+def claim_lie_rates(replay: dict) -> dict[str, tuple[int, int, int]]:
+    """Counts enact claims that differ from the claimant's private knowledge.
+
+    Args:
+        replay: The replay dict.
+
+    Returns:
+        For each party, the false claims, the declined claims and all claims
+        made by its members.
+    """
+    parties = _parties(replay)
+    rates = {"liberal": (0, 0, 0), "fascist": (0, 0, 0)}
+    for claim, truth in _enact_claims(replay):
+        party = parties[claim["uid"]]
+        false, declined, total = rates[party]
+        if claim["policies"] is None:
+            rates[party] = (false, declined + 1, total + 1)
+        else:
+            rates[party] = (false + (not _is_true(claim, truth)), declined, total + 1)
+    return rates
+
+
+def _passed(claim: dict) -> Counter | None:
+    drawn = Counter(claim["policies"])
+    if claim.get("discarded") is None:
+        return None
+    drawn[claim["discarded"]] -= 1
+    return +drawn
+
+
+def _conflict(president: dict, chancellor: dict) -> bool:
+    received = Counter(chancellor["policies"])
+    passed = _passed(president)
+    if passed is not None:
+        return passed != received
+    return bool(received - Counter(president["policies"]))
+
+
+def claim_conflicts(replay: dict) -> tuple[int, int]:
+    """Counts governments whose president and chancellor claims conflict.
+
+    Args:
+        replay: The replay dict.
+
+    Returns:
+        The governments whose first claims conflict, and how many of those
+        have consistent latest claims.
+    """
+    order: list[list[dict]] = []
+    for step in replay["steps"]:
+        for event in step["events"]:
+            if event["type"] == "policy_enacted":
+                order.append([])
+            elif event["type"] == "claim" and order:
+                order[-1].append(event["claim"])
+    raised = resolved = 0
+    for claims in order:
+        presidents = [
+            c for c in claims if c["type"] == "president_enact" and c["policies"]
+        ]
+        chancellors = [
+            c for c in claims if c["type"] == "chancellor_enact" and c["policies"]
+        ]
+        if not presidents or not chancellors:
+            continue
+        if _conflict(presidents[0], chancellors[0]):
+            raised += 1
+            resolved += not _conflict(presidents[-1], chancellors[-1])
+    return raised, resolved
+
+
+def notes_at_cap(replay: dict, cap: int = DEFAULT_NOTES_CAP) -> tuple[int, int] | None:
+    """Counts steps whose notes reach within NOTES_CAP_MARGIN of the cap.
+
+    Args:
+        replay: The replay dict.
+        cap: The notes length limit the game was played with.
+
+    Returns:
+        The steps with notes at the cap and all steps, or None when the
+        replay does not record notes.
+    """
+    steps = replay["steps"]
+    if not any("notes" in step for step in steps):
+        return None
+    full = sum(len(step.get("notes") or "") >= cap - NOTES_CAP_MARGIN for step in steps)
+    return full, len(steps)
+
+
+def speech_share(replay: dict) -> tuple[int, int, int]:
+    """Counts discussion steps.
+
+    Args:
+        replay: The replay dict.
+
+    Returns:
+        The speak and pass steps, the speak steps and all steps.
+    """
+    types = Counter(step["action"]["type"] for step in replay["steps"])
+    return types["speak"] + types["pass"], types["speak"], len(replay["steps"])
+
+
+def _ngrams(text: str) -> set[tuple[str, ...]]:
+    words = re.findall(r"\w+", text.lower())
+    return {
+        tuple(words[i : i + NGRAM_SIZE]) for i in range(len(words) - NGRAM_SIZE + 1)
+    }
+
+
+def repeated_speech_rate(replay: dict) -> tuple[int, int]:
+    """Counts speeches that mostly repeat the same player's earlier speeches.
+
+    Args:
+        replay: The replay dict.
+
+    Returns:
+        The repeated speeches and all speeches.
+    """
+    seen: dict[int, set[tuple[str, ...]]] = {}
+    speeches = _speeches(replay)
+    repeated = 0
+    for speech in speeches:
+        grams = _ngrams(speech["text"])
+        earlier = seen.setdefault(speech["uid"], set())
+        if grams and len(grams & earlier) / len(grams) >= REPEAT_THRESHOLD:
+            repeated += 1
+        earlier |= grams
+    return repeated, len(speeches)
+
+
+def invented_references(replay: dict) -> tuple[int, int]:
+    """Counts speeches that cite step, message, turn or line numbers.
+
+    Args:
+        replay: The replay dict.
+
+    Returns:
+        The speeches with such a reference and all speeches.
+    """
+    speeches = _speeches(replay)
+    cited = sum(bool(INVENTED_REFERENCE.search(s["text"])) for s in speeches)
+    return cited, len(speeches)
+
+
+def faults(replay: dict) -> tuple[dict[str, int], int] | None:
+    """Counts agent faults by exception class, and steps played by fallback.
+
+    Args:
+        replay: The replay dict.
+
+    Returns:
+        The faults per exception class and the fallback steps, or None when
+        the replay does not record faults.
+    """
+    if "faults" not in replay:
+        return None
+    reasons = Counter(fault["reason"].split("(")[0] for fault in replay["faults"])
+    fallbacks = sum(step["fallback"] for step in replay["steps"])
+    return dict(sorted(reasons.items())), fallbacks
