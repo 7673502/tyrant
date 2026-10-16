@@ -57,12 +57,15 @@ In seat order:
 - Hitler zone: no
 - Veto unlocked: no
 - Draw pile: 8, discard pile: 6
+- Policies not yet enacted: 5 liberal, 9 fascist (in the draw pile, the discard pile and any hand in play)
+- Next fascist policy grants: call_special_election
 
 ## Government
 - President: Player 5
 - Chancellor: Player 7
 - Previous president: Player 3
 - Previous chancellor: Player 4
+- Can't be nominated chancellor next: Player 4 (previous chancellor), Player 3 (previous president)
 
 ## Current Turn
 - Phase: voting

@@ -58,6 +58,7 @@ In seat order:
 - President Player 2 and Chancellor Player 3 enacted a fascist policy.
 - Chancellor Player 3 claimed receiving fascist, fascist.
 - President Player 2 claimed drawing fascist, fascist, liberal and discarding liberal.
+- The discard pile was shuffled into the draw pile (now 12 policies).
 - President Player 2 claimed the top 3 policies are, from the top, fascist, fascist, fascist.
 
 ### Gov 6 (P4→P1)
@@ -90,12 +91,15 @@ In seat order:
 - Hitler zone: yes
 - Veto unlocked: yes
 - Draw pile: 3, discard pile: 6
+- Policies not yet enacted: 4 liberal, 5 fascist (in the draw pile, the discard pile and any hand in play)
+- Next fascist policy: wins the game for the fascists
 
 ## Government
 - President: Player 5
 - Chancellor: Player 1
 - Previous president: Player 5
 - Previous chancellor: Player 1
+- Can't be nominated chancellor next: Player 1 (previous chancellor)
 
 ## Current Turn
 - Phase: game_over
