@@ -49,6 +49,12 @@ Whitespace in a message is collapsed, and the message is cut to [`MAX_SPEECH_LEN
 
 [`SYSTEM_PROMPT`](../reference/llm.md#tyrant.llm.SYSTEM_PROMPT) tells LLM players that repeating the board state is pointless and that they should pass unless they have a new claim, question or accusation.
 
+## Correcting a claim
+
+In the discussion that directly follows a government's policy claims, that government's president and chancellor are also offered a [`CorrectClaimAction`](../reference/models.md#tyrant.models.CorrectClaimAction) for every other claim they could have made, after the speak and pass options. The truthful one comes first, described as "Correct your claim (truth): …", and the rest as "Correct your claim (lie): …". Declining is not offered as a correction.
+
+A correction uses the player's turn and counts as speaking, so it resets the run of passes. It is recorded as a [`ClaimEvent`](../reference/models.md#tyrant.models.ClaimEvent) with `correction=True` and added to `GameState.claims`. Corrections are only offered for president and chancellor policy claims, and only until the discussion ends; once the next government is nominated, the claims stand.
+
 ## The transcript
 
 The full public transcript is kept as [`SpeechEvent`](../reference/models.md#tyrant.models.SpeechEvent)s in `GameState.events`. Each one is tagged with the [`DiscussionContext`](../reference/models.md#tyrant.models.DiscussionContext) that triggered it, and a pass is recorded with `text=None`. See `examples/discussion.py`.
