@@ -1,5 +1,6 @@
 import json
 import re
+from collections.abc import Iterable
 from dataclasses import fields, is_dataclass
 from enum import Enum
 from typing import Any
@@ -57,6 +58,18 @@ def to_json(value: Any, suffix: str = "") -> Any:
             f.name: to_json(getattr(value, f.name), "Claim") for f in fields(value)
         }
     return value
+
+
+def format_hand(policies: Iterable[str]) -> str:
+    """Returns policies as a comma-separated list in one canonical order, fascist before liberal.
+
+    Args:
+        policies: Policy tiles, or their JSON values.
+
+    Returns:
+        The sorted policies joined with commas.
+    """
+    return ", ".join(sorted(policies))
 
 
 def _awaiting(state: GameState) -> list[int]:
@@ -319,17 +332,17 @@ def _knowledge_line(entry: dict) -> str:
         case "president_draw":
             return (
                 f"As president with Chancellor {_player(entry['chancellor_uid'])}, "
-                f"you drew {', '.join(entry['policies'])}."
+                f"you drew {format_hand(entry['policies'])}."
             )
         case "president_discard":
             return (
                 f"As president with Chancellor {_player(entry['chancellor_uid'])}, "
-                f"you discarded {entry['discarded']}, passed {', '.join(entry['passed'])}."
+                f"you discarded {entry['discarded']}, passed {format_hand(entry['passed'])}."
             )
         case "chancellor_receive":
             return (
                 f"As chancellor under President {_player(entry['president_uid'])}, "
-                f"you received {', '.join(entry['policies'])}."
+                f"you received {format_hand(entry['policies'])}."
             )
         case "peek":
             return (
@@ -354,7 +367,7 @@ def _knowledge_lines(knowledge: list[dict]) -> list[str]:
         ):
             lines[-1] = (
                 f"{lines[-1].removesuffix('.')}, discarded {entry['discarded']}, "
-                f"passed {', '.join(entry['passed'])}."
+                f"passed {format_hand(entry['passed'])}."
             )
         else:
             lines.append(_knowledge_line(entry))
