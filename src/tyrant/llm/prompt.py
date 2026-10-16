@@ -1,4 +1,5 @@
 import json
+import logging
 from dataclasses import replace
 from typing import Final
 
@@ -7,6 +8,8 @@ from tyrant.exceptions import InvalidMoveError
 from tyrant.models.action import Action, SpeakAction
 from tyrant.models.discussion import MAX_SPEECH_LENGTH
 from tyrant.models.game_state import GameState
+
+logger = logging.getLogger(__name__)
 
 MAX_NOTES_LENGTH: Final = 200
 """Maximum number of characters kept from an agent's notes."""
@@ -185,6 +188,26 @@ def parse_action(response: str, valid_actions: tuple[Action, ...]) -> Action:
     return replace(action, message=message)
 
 
+def clip_text(text: str, limit: int) -> str:
+    """Returns the text cut at a word boundary to at most `limit` characters, ending in an ellipsis when cut.
+
+    Args:
+        text: The text to clip.
+        limit: The maximum number of characters returned, including the ellipsis.
+
+    Returns:
+        The text unchanged if it fits, otherwise the words before the last space that fits followed by "…".
+        A single word longer than the limit is cut mid-word.
+    """
+    if len(text) <= limit:
+        return text
+    head = text[: limit - 1]
+    space = head.rfind(" ")
+    if space > 0:
+        head = head[:space]
+    return head.rstrip() + "…"
+
+
 def parse_notes(response: str) -> str | None:
     """Returns the cleaned notes from the last JSON object in an LLM reply, or None if it has none.
 
@@ -192,7 +215,8 @@ def parse_notes(response: str) -> str | None:
         response: The model's reply.
 
     Returns:
-        The notes with whitespace collapsed and cut to `MAX_NOTES_LENGTH` characters, or `None`.
+        The notes with whitespace collapsed and clipped at a word boundary to `MAX_NOTES_LENGTH`
+        characters, or `None`.
 
     Raises:
         InvalidMoveError: If the reply has no JSON object with an `action` key.
@@ -200,4 +224,8 @@ def parse_notes(response: str) -> str | None:
     notes = _last_choice(response).get("notes")
     if not isinstance(notes, str):
         return None
-    return " ".join(notes.split())[:MAX_NOTES_LENGTH]
+    notes = " ".join(notes.split())
+    clipped = clip_text(notes, MAX_NOTES_LENGTH)
+    if clipped != notes:
+        logger.warning("Notes cut from %d to %d characters", len(notes), len(clipped))
+    return clipped
