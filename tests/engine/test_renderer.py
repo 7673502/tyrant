@@ -17,6 +17,7 @@ from tyrant.engine.renderer import (
     render_text,
 )
 from tyrant.exceptions import TyrantError
+from tyrant.models.board import FASCIST_TRACKS
 from tyrant.models.claim import (
     ChancellorEnactClaim,
     InvestigationClaim,
@@ -150,6 +151,40 @@ class TestRenderDict(unittest.TestCase):
         self.assertEqual(board["draw_pile"], 17)
         self.assertEqual(len(board["fascist_track"]), 6)
 
+    def test_render_dict_policies_left_count_hand_in_play(self):
+        """Verifies that the policies not yet enacted match the draw pile, the discard pile and the hand in play."""
+        state = _nominated(self.state)
+        for player in state.players:
+            state = cast_vote(state, player.uid, Vote.JA)
+        self.assertEqual(state.phase, GamePhase.PRESIDENT_DISCARD)
+        tiles = state.deck.draw_pile + state.deck.discard_pile + state.drawn_policies
+        board = render_dict(state, 1)["board"]
+        self.assertEqual(board["liberal_policies_left"], tiles.count(L))
+        self.assertEqual(board["fascist_policies_left"], tiles.count(F))
+
+    def test_render_dict_next_fascist_power_per_track(self):
+        """Verifies that the next fascist power follows the 5, 7 and 9 player tracks and that the sixth policy wins."""
+        for count in (5, 7, 9):
+            state = create_game(tuple(range(1, count + 1)), 42)
+            for played in range(6):
+                with self.subTest(player_count=count, fascist_played=played):
+                    board = render_dict(
+                        replace(
+                            state, board=replace(state.board, fascist_played=played)
+                        ),
+                        1,
+                    )["board"]
+                    self.assertEqual(board["next_fascist_policy_wins"], played == 5)
+                    expected = (
+                        "none" if played == 5 else FASCIST_TRACKS[count][played].value
+                    )
+                    self.assertEqual(board["next_fascist_power"], expected)
+
+    def test_render_dict_term_limited(self):
+        """Verifies that the government section lists the term-limited players."""
+        state = replace(self.state, previous_president=3, previous_chancellor=5)
+        self.assertEqual(render_dict(state, 1)["government"]["term_limited"], [5, 3])
+
     def test_render_dict_awaiting_nomination(self):
         """Verifies that the president must act during nomination."""
         turn = render_dict(scrub_state(self.state, 1), 1)["turn"]
@@ -277,6 +312,38 @@ class TestRenderText(unittest.TestCase):
                 "## Government",
                 "## Current Turn",
             ],
+        )
+
+    def test_render_text_board_helpers(self):
+        """Verifies that the board shows the policies not yet enacted and what the next fascist policy grants."""
+        state = replace(self.state, board=replace(self.state.board, fascist_played=2))
+        text = render_text(scrub_state(state, 1), 1)
+        self.assertIn(
+            "- Policies not yet enacted: 6 liberal, 9 fascist (in the draw pile, "
+            "the discard pile and any hand in play)\n",
+            text,
+        )
+        self.assertIn("- Next fascist policy grants: call_special_election\n", text)
+
+    def test_render_text_next_fascist_policy_wins(self):
+        """Verifies that the board says the next fascist policy wins once 5 are enacted."""
+        state = replace(self.state, board=replace(self.state.board, fascist_played=5))
+        self.assertIn(
+            "- Next fascist policy: wins the game for the fascists\n",
+            render_text(scrub_state(state, 1), 1),
+        )
+
+    def test_render_text_term_limited(self):
+        """Verifies that the government section names each term-limited player and why."""
+        state = replace(self.state, previous_president=3, previous_chancellor=5)
+        self.assertIn(
+            "- Can't be nominated chancellor next: Player 5 (previous chancellor), "
+            "Player 3 (previous president)\n",
+            render_text(scrub_state(state, 1), 1),
+        )
+        self.assertIn(
+            "- Can't be nominated chancellor next: none\n",
+            render_text(scrub_state(self.state, 1), 1),
         )
 
     def test_render_text_discussion_round(self):
