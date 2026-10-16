@@ -103,6 +103,11 @@ class TestLLMAgent(unittest.TestCase):
         self.assertTrue(system["content"].startswith(SYSTEM_PROMPT))
         self.assertTrue(system["content"].endswith("## Your Personality\nCautious.\n"))
 
+    def test_profile_has_model_and_persona(self):
+        """Verifies that the profile names the model and the persona."""
+        agent = LLMAgent(self.uid, MODEL, persona="Cautious.")
+        self.assertEqual(agent.profile, frozendict(model=MODEL, persona="Cautious."))
+
     def test_accepted_notes_replace_previous_notes(self):
         """Verifies that notes from an accepted reply replace the old notes and appear in the next prompt."""
         scripted, _ = self._play(

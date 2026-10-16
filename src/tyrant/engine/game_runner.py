@@ -1,20 +1,20 @@
 import asyncio
 import logging
-from collections.abc import Awaitable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import fields
 from random import Random
-from typing import Final
 
+from frozendict import frozendict
+
+from tyrant.engine.replay import fault_dict, replay_dict, result_dict, step_dict
 from tyrant.engine.router import apply_action, get_legal_actions
 from tyrant.exceptions import AgentError, InvalidMoveError, TyrantError
-from tyrant.models.action import Action, PassAction
+from tyrant.models.action import AGENT_FILLED_FIELDS, Action, PassAction
 from tyrant.models.agent import Agent
 from tyrant.models.agent_fault import AgentFault
 from tyrant.models.enums import GamePhase, Role
 from tyrant.models.game_state import GameState, create_game, scrub_state
 from tyrant.models.replay import Replay, record_fault, record_step
-
-AGENT_FILLED_FIELDS: Final = frozenset({"description", "message"})
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +36,11 @@ def _is_offered(action: Action, valid_actions: tuple[Action, ...]) -> bool:
     )
 
 
+def _profile(agent: Agent) -> frozendict[str, str]:
+    """Returns the agent's class name as `type`, plus its `profile` if it has one."""
+    return frozendict(type=type(agent).__name__, **getattr(agent, "profile", {}))
+
+
 class GameRunner:
     """Plays a game by asking agents for actions until it ends.
 
@@ -49,6 +54,7 @@ class GameRunner:
         timeout: Seconds allowed for each attempt, or `None` for no limit.
         rng: Random generator that picks fallback actions when no pass is offered.
         faults: Every failed attempt, in order.
+        on_update: Called with each live update message, or `None` for no updates.
     """
 
     def __init__(
@@ -62,6 +68,7 @@ class GameRunner:
         discussion_rounds: int = 2,
         max_retries: int = 2,
         timeout: float | None = 120.0,
+        on_update: Callable[[dict], None] | None = None,
     ):
         """Sets up the runner and, unless `initial_state` is given, a new game.
 
@@ -75,6 +82,7 @@ class GameRunner:
             discussion_rounds: How many times the table goes around in each discussion.
             max_retries: Retries allowed after an agent's first failed attempt.
             timeout: Seconds allowed for each attempt, or `None` for no limit.
+            on_update: Called with each live update message, or `None` for no updates. A `start` message holds the empty replay, each `step` and `fault` message holds one entry of the replay's `steps` or `faults`, and an `end` message holds the result.
 
         Raises:
             TyrantError: If the settings are not valid for a new game.
@@ -89,12 +97,16 @@ class GameRunner:
                 discussion_rounds=discussion_rounds,
             )
         self.state = initial_state
-        self.replay = Replay(initial_state=initial_state)
+        self.replay = Replay(
+            initial_state=initial_state,
+            agents=frozendict({agent.uid: _profile(agent) for agent in agents}),
+        )
         self.agents = {agent.uid: agent for agent in agents}
         self.max_retries = max_retries
         self.timeout = timeout
         self.rng = Random(seed)
         self.faults: tuple[AgentFault, ...] = ()
+        self.on_update = on_update
 
     async def run(self) -> GameState:
         """Plays the game until it ends.
@@ -106,8 +118,12 @@ class GameRunner:
             TyrantError: If no player has a legal action.
             Exception: Any exception an agent raises other than `InvalidMoveError`, `TimeoutError` or `AgentError`.
         """
+        if self.on_update is not None:
+            self.on_update({"type": "start", "replay": replay_dict(self.replay)})
         while self.state.phase != GamePhase.GAME_OVER:
             await self._run_iteration()
+        if self.on_update is not None:
+            self.on_update({"type": "end", "result": result_dict(self.state)})
         return self.state
 
     async def _run_iteration(self) -> GameState:
@@ -130,10 +146,19 @@ class GameRunner:
         fell_back = {f.uid for f in self.faults[fault_count:] if f.fell_back}
 
         for agent_uid, chosen_action in results:
-            self.state = apply_action(self.state, chosen_action, agent_uid)
+            state = self.state
+            self.state = apply_action(state, chosen_action, agent_uid)
             self.replay = record_step(
-                self.replay, agent_uid, chosen_action, agent_uid in fell_back
+                self.replay,
+                agent_uid,
+                chosen_action,
+                agent_uid in fell_back,
+                getattr(self.agents[agent_uid], "notes", None),
             )
+            if self.on_update is not None:
+                index = len(self.replay.steps) - 1
+                step = step_dict(index, self.replay.steps[index], state, self.state)
+                self.on_update({"type": "step", "step": step})
 
         return self.state
 
@@ -178,6 +203,8 @@ class GameRunner:
         )
         self.faults = self.faults + (fault,)
         self.replay = record_fault(self.replay, fault)
+        if self.on_update is not None:
+            self.on_update({"type": "fault", "fault": fault_dict(fault)})
         logger.warning(
             "Player %s failed in phase %s: %s%s",
             uid,

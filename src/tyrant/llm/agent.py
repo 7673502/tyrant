@@ -30,6 +30,7 @@ class LLMAgent:
         completion_tokens: Total completion tokens used.
         cached_tokens: Total prompt tokens read from the provider's cache.
         cost: Total cost in US dollars, from `litellm.completion_cost`.
+        profile: The model and persona, which replays show for the player.
     """
 
     def __init__(
@@ -57,6 +58,11 @@ class LLMAgent:
         self.cached_tokens = 0
         self.cost = 0.0
         self._rejected: tuple[GameState, str, InvalidMoveError] | None = None
+
+    @property
+    def profile(self) -> frozendict[str, str]:
+        """The model and persona, which replays show for the player."""
+        return frozendict(model=self.model, persona=self.persona)
 
     async def choose_action(
         self, state: GameState, valid_actions: tuple[Action, ...]

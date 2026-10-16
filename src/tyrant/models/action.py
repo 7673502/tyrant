@@ -1,5 +1,9 @@
 from dataclasses import dataclass
+from typing import Final
+
 from tyrant.models.enums import Party, PolicyTile, Vote
+
+AGENT_FILLED_FIELDS: Final = frozenset({"description", "message"})
 
 
 @dataclass(frozen=True)

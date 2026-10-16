@@ -1,6 +1,8 @@
 import unittest
 from dataclasses import fields, is_dataclass
 
+from frozendict import frozendict
+
 from tyrant.models.action import NominateAction, VoteAction
 from tyrant.models.agent_fault import AgentFault
 from tyrant.models.enums import GamePhase, Vote
@@ -41,6 +43,7 @@ class TestReplay(unittest.TestCase):
         replay = Replay(initial_state=self.state)
         self.assertIsInstance(replay.steps, tuple)
         self.assertIsInstance(replay.faults, tuple)
+        self.assertIsInstance(replay.agents, frozendict)
         for field in fields(replay):
             with self.assertRaises(Exception):
                 setattr(replay, field.name, None)
@@ -70,6 +73,22 @@ class TestReplay(unittest.TestCase):
         replay = record_step(replay, 3, VOTE, fallback=True)
 
         self.assertEqual(tuple(step.fallback for step in replay.steps), (False, True))
+
+    def test_record_step_notes(self):
+        """Verifies that record_step stores the agent's notes only when given."""
+        replay = record_step(Replay(initial_state=self.state), 1, NOMINATE)
+        replay = record_step(replay, 3, VOTE, notes="Player 1 is suspicious.")
+
+        self.assertEqual(
+            tuple(step.notes for step in replay.steps),
+            (None, "Player 1 is suspicious."),
+        )
+
+    def test_record_step_keeps_agents(self):
+        """Verifies that record_step keeps the replay's agents."""
+        agents = frozendict({1: frozendict(type="RandomAgent")})
+        replay = Replay(initial_state=self.state, agents=agents)
+        self.assertIs(record_step(replay, 1, NOMINATE).agents, agents)
 
     def test_record_fault_immutability(self):
         """Verifies that record_fault returns a new Replay and leaves the input unchanged."""
