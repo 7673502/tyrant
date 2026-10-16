@@ -16,55 +16,71 @@ In seat order:
 - Player 2: party unknown, role unknown, alive
 
 ## Private Knowledge
-- As president with Chancellor Player 3, you drew fascist, liberal, liberal, discarded liberal, passed fascist, liberal.
-- As chancellor under President Player 3, you received liberal, liberal.
-- As chancellor under President Player 5, you received fascist, liberal.
-- As president with Chancellor Player 1, you drew fascist, fascist, fascist, discarded fascist, passed fascist, fascist.
-- As chancellor under President Player 1, you received fascist, fascist.
+- In Gov 1 (P4→P3) you drew fascist, liberal, liberal, discarded liberal, passed fascist, liberal.
+- In Gov 2 (P3→P4) you received liberal, liberal.
+- In Gov 4 (P5→P4) you received fascist, liberal.
+- In Gov 6 (P4→P1) you drew fascist, fascist, fascist, discarded fascist, passed fascist, fascist.
+- In Gov 7 (P1→P4) you received fascist, fascist.
 
 ## Timeline
-1. President Player 4 nominated Player 3 for chancellor.
-2. Election of President Player 4 and Chancellor Player 3 passed (ja: Player 4, Player 3, Player 1, Player 5, Player 2; nein: none).
-3. President Player 4 and Chancellor Player 3 enacted a fascist policy.
-4. President Player 4 claimed drawing fascist, liberal, liberal and discarding liberal.
-5. Chancellor Player 3 claimed receiving fascist, liberal.
-6. President Player 3 nominated Player 4 for chancellor.
-7. Election of President Player 3 and Chancellor Player 4 passed (ja: Player 4, Player 3, Player 1, Player 5, Player 2; nein: none).
-8. President Player 3 and Chancellor Player 4 enacted a liberal policy.
-9. Chancellor Player 4 claimed receiving liberal, liberal.
-10. President Player 3 claimed drawing fascist, liberal, liberal and discarding fascist.
-11. President Player 1 nominated Player 3 for chancellor.
-12. Election of President Player 1 and Chancellor Player 3 passed (ja: Player 4, Player 3, Player 1, Player 5, Player 2; nein: none).
-13. President Player 1 and Chancellor Player 3 enacted a fascist policy.
-14. Chancellor Player 3 claimed receiving fascist, fascist.
-15. President Player 1 claimed drawing fascist, fascist, fascist and discarding fascist.
-16. President Player 5 nominated Player 4 for chancellor.
-17. Election of President Player 5 and Chancellor Player 4 passed (ja: Player 4, Player 3, Player 1, Player 5, Player 2; nein: none).
-18. President Player 5 and Chancellor Player 4 enacted a liberal policy.
-19. Chancellor Player 4 claimed receiving fascist, liberal.
-20. President Player 5 claimed drawing fascist, fascist, liberal and discarding fascist.
-21. President Player 2 nominated Player 3 for chancellor.
-22. Election of President Player 2 and Chancellor Player 3 passed (ja: Player 4, Player 3, Player 1, Player 5, Player 2; nein: none).
-23. President Player 2 and Chancellor Player 3 enacted a fascist policy.
-24. Chancellor Player 3 claimed receiving fascist, fascist.
-25. President Player 2 claimed drawing fascist, fascist, liberal and discarding liberal.
-26. President Player 2 claimed the top 3 policies are, from the top, fascist, fascist, fascist.
-27. President Player 4 nominated Player 1 for chancellor.
-28. Election of President Player 4 and Chancellor Player 1 passed (ja: Player 4, Player 3, Player 1, Player 5, Player 2; nein: none).
-29. President Player 4 and Chancellor Player 1 enacted a fascist policy.
-30. President Player 4 claimed drawing fascist, fascist, fascist and discarding fascist.
-31. Chancellor Player 1 claimed receiving fascist, fascist.
-32. President Player 4 executed Player 3.
-33. President Player 1 nominated Player 4 for chancellor.
-34. Election of President Player 1 and Chancellor Player 4 passed (ja: Player 4, Player 1, Player 5, Player 2; nein: none).
-35. President Player 1 and Chancellor Player 4 enacted a fascist policy.
-36. Chancellor Player 4 claimed receiving fascist, fascist.
-37. President Player 1 claimed drawing fascist, fascist, liberal and discarding liberal.
-38. President Player 1 executed Player 4.
-39. President Player 5 nominated Player 1 for chancellor.
-40. Election of President Player 5 and Chancellor Player 1 passed (ja: Player 1, Player 5, Player 2; nein: none).
-41. President Player 5 and Chancellor Player 1 enacted a fascist policy.
-42. Game over: fascist win by fascist_policies.
+
+### Gov 1 (P4→P3)
+- President Player 4 nominated Player 3 for chancellor.
+- Election of President Player 4 and Chancellor Player 3 passed (ja: Player 4, Player 3, Player 1, Player 5, Player 2; nein: none).
+- President Player 4 and Chancellor Player 3 enacted a fascist policy.
+- President Player 4 claimed drawing fascist, liberal, liberal and discarding liberal.
+- Chancellor Player 3 claimed receiving fascist, liberal.
+
+### Gov 2 (P3→P4)
+- President Player 3 nominated Player 4 for chancellor.
+- Election of President Player 3 and Chancellor Player 4 passed (ja: Player 4, Player 3, Player 1, Player 5, Player 2; nein: none).
+- President Player 3 and Chancellor Player 4 enacted a liberal policy.
+- Chancellor Player 4 claimed receiving liberal, liberal.
+- President Player 3 claimed drawing fascist, liberal, liberal and discarding fascist.
+
+### Gov 3 (P1→P3)
+- President Player 1 nominated Player 3 for chancellor.
+- Election of President Player 1 and Chancellor Player 3 passed (ja: Player 4, Player 3, Player 1, Player 5, Player 2; nein: none).
+- President Player 1 and Chancellor Player 3 enacted a fascist policy.
+- Chancellor Player 3 claimed receiving fascist, fascist.
+- President Player 1 claimed drawing fascist, fascist, fascist and discarding fascist.
+
+### Gov 4 (P5→P4)
+- President Player 5 nominated Player 4 for chancellor.
+- Election of President Player 5 and Chancellor Player 4 passed (ja: Player 4, Player 3, Player 1, Player 5, Player 2; nein: none).
+- President Player 5 and Chancellor Player 4 enacted a liberal policy.
+- Chancellor Player 4 claimed receiving fascist, liberal.
+- President Player 5 claimed drawing fascist, fascist, liberal and discarding fascist.
+
+### Gov 5 (P2→P3)
+- President Player 2 nominated Player 3 for chancellor.
+- Election of President Player 2 and Chancellor Player 3 passed (ja: Player 4, Player 3, Player 1, Player 5, Player 2; nein: none).
+- President Player 2 and Chancellor Player 3 enacted a fascist policy.
+- Chancellor Player 3 claimed receiving fascist, fascist.
+- President Player 2 claimed drawing fascist, fascist, liberal and discarding liberal.
+- President Player 2 claimed the top 3 policies are, from the top, fascist, fascist, fascist.
+
+### Gov 6 (P4→P1)
+- President Player 4 nominated Player 1 for chancellor.
+- Election of President Player 4 and Chancellor Player 1 passed (ja: Player 4, Player 3, Player 1, Player 5, Player 2; nein: none).
+- President Player 4 and Chancellor Player 1 enacted a fascist policy.
+- President Player 4 claimed drawing fascist, fascist, fascist and discarding fascist.
+- Chancellor Player 1 claimed receiving fascist, fascist.
+- President Player 4 executed Player 3.
+
+### Gov 7 (P1→P4)
+- President Player 1 nominated Player 4 for chancellor.
+- Election of President Player 1 and Chancellor Player 4 passed (ja: Player 4, Player 1, Player 5, Player 2; nein: none).
+- President Player 1 and Chancellor Player 4 enacted a fascist policy.
+- Chancellor Player 4 claimed receiving fascist, fascist.
+- President Player 1 claimed drawing fascist, fascist, liberal and discarding liberal.
+- President Player 1 executed Player 4.
+
+### Gov 8 (P5→P1)
+- President Player 5 nominated Player 1 for chancellor.
+- Election of President Player 5 and Chancellor Player 1 passed (ja: Player 1, Player 5, Player 2; nein: none).
+- President Player 5 and Chancellor Player 1 enacted a fascist policy.
+- Game over: fascist win by fascist_policies.
 
 ## Board
 - Liberal policies: 2/5

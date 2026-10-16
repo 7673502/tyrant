@@ -95,7 +95,8 @@
     {
       "type": "nomination",
       "president_uid": 4,
-      "chancellor_uid": 7
+      "chancellor_uid": 7,
+      "government": 1
     },
     {
       "type": "election",
@@ -110,13 +111,15 @@
         "6": "ja",
         "2": "ja"
       },
-      "result": "ja"
+      "result": "ja",
+      "government": 1
     },
     {
       "type": "policy_enacted",
       "policy": "liberal",
       "president_uid": 4,
-      "chancellor_uid": 7
+      "chancellor_uid": 7,
+      "government": 1
     },
     {
       "type": "claim",
@@ -132,7 +135,8 @@
       },
       "president_uid": 4,
       "chancellor_uid": 7,
-      "target_uid": null
+      "target_uid": null,
+      "government": 1
     },
     {
       "type": "claim",
@@ -146,12 +150,14 @@
       },
       "president_uid": 4,
       "chancellor_uid": 7,
-      "target_uid": null
+      "target_uid": null,
+      "government": 1
     },
     {
       "type": "nomination",
       "president_uid": 7,
-      "chancellor_uid": 3
+      "chancellor_uid": 3,
+      "government": 2
     },
     {
       "type": "election",
@@ -166,13 +172,15 @@
         "6": "ja",
         "2": "ja"
       },
-      "result": "ja"
+      "result": "ja",
+      "government": 2
     },
     {
       "type": "policy_enacted",
       "policy": "fascist",
       "president_uid": 7,
-      "chancellor_uid": 3
+      "chancellor_uid": 3,
+      "government": 2
     },
     {
       "type": "claim",
@@ -188,7 +196,8 @@
       },
       "president_uid": 7,
       "chancellor_uid": 3,
-      "target_uid": null
+      "target_uid": null,
+      "government": 2
     },
     {
       "type": "claim",
@@ -202,12 +211,14 @@
       },
       "president_uid": 7,
       "chancellor_uid": 3,
-      "target_uid": null
+      "target_uid": null,
+      "government": 2
     },
     {
       "type": "nomination",
       "president_uid": 3,
-      "chancellor_uid": 4
+      "chancellor_uid": 4,
+      "government": 3
     },
     {
       "type": "election",
@@ -222,13 +233,15 @@
         "6": "ja",
         "2": "ja"
       },
-      "result": "ja"
+      "result": "ja",
+      "government": 3
     },
     {
       "type": "policy_enacted",
       "policy": "fascist",
       "president_uid": 3,
-      "chancellor_uid": 4
+      "chancellor_uid": 4,
+      "government": 3
     },
     {
       "type": "claim",
@@ -242,7 +255,8 @@
       },
       "president_uid": 3,
       "chancellor_uid": 4,
-      "target_uid": null
+      "target_uid": null,
+      "government": 3
     },
     {
       "type": "claim",
@@ -258,12 +272,14 @@
       },
       "president_uid": 3,
       "chancellor_uid": 4,
-      "target_uid": null
+      "target_uid": null,
+      "government": 3
     },
     {
       "type": "investigation",
       "president_uid": 3,
-      "target_uid": 4
+      "target_uid": 4,
+      "government": 3
     },
     {
       "type": "claim",
@@ -274,12 +290,14 @@
       },
       "president_uid": 3,
       "chancellor_uid": null,
-      "target_uid": 4
+      "target_uid": 4,
+      "government": 3
     },
     {
       "type": "nomination",
       "president_uid": 5,
-      "chancellor_uid": 7
+      "chancellor_uid": 7,
+      "government": 4
     }
   ],
   "knowledge": [
@@ -290,7 +308,8 @@
       "policies": [
         "liberal",
         "fascist"
-      ]
+      ],
+      "government": 1
     },
     {
       "type": "president_draw",
@@ -300,7 +319,8 @@
         "liberal",
         "fascist",
         "fascist"
-      ]
+      ],
+      "government": 2
     },
     {
       "type": "president_discard",
@@ -310,7 +330,8 @@
       "passed": [
         "fascist",
         "fascist"
-      ]
+      ],
+      "government": 2
     }
   ]
 }
