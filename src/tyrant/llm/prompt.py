@@ -15,7 +15,7 @@ from tyrant.models.game_state import GameState
 
 logger = logging.getLogger(__name__)
 
-MAX_NOTES_LENGTH: Final = 200
+MAX_NOTES_LENGTH: Final = 700
 """Maximum number of characters kept from an agent's notes."""
 
 RULES: Final[str] = """# Secret Hitler Rules
@@ -79,7 +79,7 @@ Think through your decision in plain text first if you want. Then end your reply
 
 - `action` is the number of the option you choose from Your Options.
 - `message` is only required when you choose the option to say something to the table. It is what you say, at most {MAX_SPEECH_LENGTH} characters. Leave it out otherwise.
-- `notes` are your private notes, at most {MAX_NOTES_LENGTH} characters. Only you ever see them. They are shown back to you under Your Notes on your next turn, so use them to track suspicions, claims and plans. Each `notes` you send replaces your previous notes entirely, so rewrite everything you want to keep. Leave it out to keep your notes unchanged.
+- `notes` are your private notes, at most {MAX_NOTES_LENGTH} characters. Only you ever see them. They are shown back to you under Your Notes on your next turn, so use them to track suspicions, claims and plans. Don't copy the board, players or timeline; they are shown every turn. Keep suspicions, plans, and what only you know. Each `notes` you send replaces your previous notes entirely, so rewrite everything you want to keep. Leave it out to keep your notes unchanged.
 - Only the last JSON object in your reply is read.
 """
 
