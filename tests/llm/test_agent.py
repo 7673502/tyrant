@@ -211,10 +211,11 @@ class TestLLMAgent(unittest.TestCase):
         self.assertIsInstance(raised.exception.__cause__, ConnectionError)
 
     def test_notes_are_capped_and_collapsed(self):
-        """Verifies that saved notes have collapsed whitespace and at most MAX_NOTES_LENGTH characters."""
-        self._play(_reply(1, notes="a \n\n b " + "x" * (2 * MAX_NOTES_LENGTH)))
-        self.assertEqual(len(self.agent.notes), MAX_NOTES_LENGTH)
-        self.assertTrue(self.agent.notes.startswith("a b x"))
+        """Verifies that saved notes have collapsed whitespace and are cut at a word boundary within MAX_NOTES_LENGTH characters."""
+        self._play(_reply(1, notes="a \n\n b " + "word " * MAX_NOTES_LENGTH))
+        self.assertLessEqual(len(self.agent.notes), MAX_NOTES_LENGTH)
+        self.assertTrue(self.agent.notes.startswith("a b word"))
+        self.assertTrue(self.agent.notes.endswith("word…"))
 
     def test_usage_totals_add_up(self):
         """Verifies that token and cost totals sum every response, including rejected ones."""
