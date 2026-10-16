@@ -2,8 +2,11 @@ import asyncio
 import unittest
 from dataclasses import replace
 
+from frozendict import frozendict
+
 from tyrant.agents.random_agent import RandomAgent
 from tyrant.engine.game_runner import GameRunner, _is_offered
+from tyrant.engine.replay import replay_dict
 from tyrant.engine.router import apply_action, get_legal_actions
 from tyrant.exceptions import AgentError, InvalidMoveError, TyrantError
 from tyrant.models.action import (
@@ -84,6 +87,19 @@ class CrashingAgent:
     ) -> Action:
         self.calls += 1
         raise KeyError("missing")
+
+
+class NotingAgent:
+    def __init__(self, uid: int):
+        self.uid = uid
+        self.profile = frozendict(model="scripted")
+        self.notes = ""
+
+    async def choose_action(
+        self, state: GameState, valid_actions: tuple[Action, ...]
+    ) -> Action:
+        self.notes = f"Acted in {state.phase}."
+        return valid_actions[0]
 
 
 class SlowAgent:
@@ -639,6 +655,69 @@ class TestGameRunnerReplay(unittest.IsolatedAsyncioTestCase):
         fault = runner.replay.faults[0]
         self.assertEqual(runner.replay.steps[fault.step].uid, failing_uid)
         self.assertTrue(runner.replay.steps[fault.step].fallback)
+
+    def test_init_replay_records_agent_profiles(self):
+        """Verifies that the replay records each agent's class name and profile."""
+        agents = [NotingAgent(uid=1)] + [RandomAgent(uid=i) for i in range(2, 6)]
+        runner = GameRunner(agents=agents, seed=42)
+        self.assertEqual(
+            runner.replay.agents[1], frozendict(type="NotingAgent", model="scripted")
+        )
+        self.assertEqual(runner.replay.agents[2], frozendict(type="RandomAgent"))
+
+    async def test_run_replay_records_notes(self):
+        """Verifies that each step keeps the acting agent's notes, or None for agents without notes."""
+        agents = [NotingAgent(uid=1)] + [RandomAgent(uid=i) for i in range(2, 6)]
+        runner = GameRunner(agents=agents, seed=42)
+        await runner.run()
+        for step in runner.replay.steps:
+            if step.uid == 1:
+                self.assertTrue(step.notes.startswith("Acted in "))
+            else:
+                self.assertIsNone(step.notes)
+
+    async def test_run_sends_live_updates(self):
+        """Verifies that the live updates rebuild the same replay as replay_dict."""
+        messages = []
+        agents = [RaisingAgent(uid=1)] + [RandomAgent(uid=i) for i in range(2, 6)]
+        runner = GameRunner(
+            agents=agents, seed=42, max_retries=0, on_update=messages.append
+        )
+
+        with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
+            await runner.run()
+
+        view = replay_dict(runner.replay)
+        self.assertEqual(messages[0]["type"], "start")
+        self.assertEqual(
+            messages[0]["replay"], view | {"steps": [], "faults": [], "result": None}
+        )
+        self.assertEqual(
+            [m["step"] for m in messages if m["type"] == "step"], view["steps"]
+        )
+        self.assertEqual(
+            [m["fault"] for m in messages if m["type"] == "fault"], view["faults"]
+        )
+        self.assertNotEqual(view["faults"], [])
+        self.assertEqual(messages[-1], {"type": "end", "result": view["result"]})
+
+    async def test_run_fault_update_precedes_its_step(self):
+        """Verifies that a fault is sent before the step it points at."""
+        messages = []
+        agents = [RaisingAgent(uid=1)] + [RandomAgent(uid=i) for i in range(2, 6)]
+        runner = GameRunner(
+            agents=agents, seed=42, max_retries=0, on_update=messages.append
+        )
+
+        with self.assertLogs("tyrant.engine.game_runner", level="WARNING"):
+            await runner.run()
+
+        sent_steps = 0
+        for message in messages:
+            if message["type"] == "step":
+                sent_steps += 1
+            elif message["type"] == "fault":
+                self.assertGreaterEqual(message["fault"]["step"], sent_steps)
 
     async def test_query_agent_records_rejected_reply(self):
         """Verifies that a fault keeps the raw reply carried by an InvalidMoveError."""

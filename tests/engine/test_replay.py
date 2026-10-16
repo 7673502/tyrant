@@ -1,12 +1,23 @@
 import gzip
 import json
 import unittest
+from importlib.metadata import version
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from tests.scripted_game import record_first_legal_actions
 from tyrant.engine.renderer import to_json
-from tyrant.engine.replay import _snapshot, read_replay, replay_dict, write_replay
+from frozendict import frozendict
+
+from tyrant.engine.replay import (
+    _snapshot,
+    fault_dict,
+    read_replay,
+    replay_dict,
+    result_dict,
+    step_dict,
+    write_replay,
+)
 from tyrant.engine.router import apply_action, get_legal_actions
 from tyrant.models.action import SpeakAction
 from tyrant.models.agent_fault import AgentFault
@@ -77,7 +88,8 @@ class TestReplayDict(unittest.TestCase):
 
     def test_replay_dict_format(self):
         """Verifies the exact format of the header, initial snapshot, and first step."""
-        self.assertEqual(self.view["version"], 3)
+        self.assertEqual(self.view["version"], 4)
+        self.assertEqual(self.view["tyrant_version"], version("tyrant"))
         self.assertEqual(
             self.view["settings"],
             {
@@ -97,11 +109,41 @@ class TestReplayDict(unittest.TestCase):
         self.assertEqual(
             self.view["players"],
             [
-                {"uid": 4, "seat": 0, "role": "liberal", "party": "liberal"},
-                {"uid": 3, "seat": 1, "role": "liberal", "party": "liberal"},
-                {"uid": 1, "seat": 2, "role": "liberal", "party": "liberal"},
-                {"uid": 5, "seat": 3, "role": "hitler", "party": "fascist"},
-                {"uid": 2, "seat": 4, "role": "fascist", "party": "fascist"},
+                {
+                    "uid": 4,
+                    "seat": 0,
+                    "role": "liberal",
+                    "party": "liberal",
+                    "agent": None,
+                },
+                {
+                    "uid": 3,
+                    "seat": 1,
+                    "role": "liberal",
+                    "party": "liberal",
+                    "agent": None,
+                },
+                {
+                    "uid": 1,
+                    "seat": 2,
+                    "role": "liberal",
+                    "party": "liberal",
+                    "agent": None,
+                },
+                {
+                    "uid": 5,
+                    "seat": 3,
+                    "role": "hitler",
+                    "party": "fascist",
+                    "agent": None,
+                },
+                {
+                    "uid": 2,
+                    "seat": 4,
+                    "role": "fascist",
+                    "party": "fascist",
+                    "agent": None,
+                },
             ],
         )
         initial = {
@@ -129,6 +171,7 @@ class TestReplayDict(unittest.TestCase):
                 "uid": 4,
                 "action": {"type": "nominate", "target_uid": 3},
                 "fallback": False,
+                "notes": None,
                 "events": [
                     {"type": "nomination", "president_uid": 4, "chancellor_uid": 3}
                 ],
@@ -214,6 +257,64 @@ class TestReplayDict(unittest.TestCase):
         view = replay_dict(Replay(initial_state=self.replay.initial_state))
         self.assertIsNone(view["result"])
         self.assertEqual(view["steps"], [])
+
+    def test_replay_dict_agents_and_notes(self):
+        """Verifies that each player's agent and each step's notes are written as recorded."""
+        state = self.replay.initial_state
+        uid = state.players[state.president_index].uid
+        action = get_legal_actions(state, uid)[0]
+        agents = frozendict(
+            {p.uid: frozendict(type="RandomAgent") for p in state.players}
+        )
+        replay = Replay(initial_state=state, agents=agents)
+        view = replay_dict(record_step(replay, uid, action, notes="Trust no one."))
+        self.assertEqual(
+            [p["agent"] for p in view["players"]], [{"type": "RandomAgent"}] * 5
+        )
+        self.assertEqual(view["steps"][0]["notes"], "Trust no one.")
+
+    def test_step_dict_matches_replay_dict(self):
+        """Verifies that step_dict builds the same entries as the steps in replay_dict."""
+        state = self.replay.initial_state
+        steps = []
+        for index, step in enumerate(self.replay.steps):
+            next_state = apply_action(state, step.action, step.uid)
+            steps.append(step_dict(index, step, state, next_state))
+            state = next_state
+        self.assertEqual(steps, self.view["steps"])
+
+    def test_step_dict_immutability(self):
+        """Verifies that step_dict does not mutate the step or the states."""
+        state = self.replay.initial_state
+        step = self.replay.steps[0]
+        next_state = apply_action(state, step.action, step.uid)
+        events = next_state.events
+        step_dict(0, step, state, next_state)
+        self.assertIs(next_state.events, events)
+        self.assertEqual(apply_action(state, step.action, step.uid), next_state)
+
+    def test_fault_dict_immutability(self):
+        """Verifies that fault_dict does not mutate the fault."""
+        fault = AgentFault(
+            uid=1,
+            phase=GamePhase.VOTING,
+            reason="TimeoutError()",
+            fell_back=True,
+            step=0,
+        )
+        fault_dict(fault)
+        self.assertEqual(fault.reason, "TimeoutError()")
+        self.assertIsNone(fault.reply)
+
+    def test_result_dict_immutability(self):
+        """Verifies that result_dict does not mutate the state."""
+        events = self.final.events
+        result_dict(self.final)
+        self.assertIs(self.final.events, events)
+
+    def test_result_dict_without_game_over(self):
+        """Verifies that result_dict is None before the game ends."""
+        self.assertIsNone(result_dict(self.replay.initial_state))
 
     def test_replay_dict_immutability(self):
         """Verifies that replay_dict does not mutate the replay."""

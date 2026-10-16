@@ -7,6 +7,8 @@ from tyrant.models.game_state import GameState
 class Agent(Protocol):
     """Protocol that every player implementation satisfies.
 
+    An agent may also have a `profile` attribute, a mapping of strings such as a model name that replays show for the player, and a `notes` string, its private notes, which replays record after each of its steps.
+
     Attributes:
         uid: The player's unique ID.
     """
