@@ -23,9 +23,20 @@ from tyrant.models.action import (
     VoteAction,
 )
 from tyrant.models.agent_fault import AgentFault
-from tyrant.models.enums import HIDDEN, GamePhase, Party, PolicyTile, Vote
+from tyrant.models.enums import (
+    HIDDEN,
+    DiscussionContext,
+    GamePhase,
+    Party,
+    PolicyTile,
+    Vote,
+)
 from tyrant.models.event import ClaimEvent, SpeechEvent
-from tyrant.models.game_state import GameState, create_game
+from tyrant.models.game_state import (
+    DEFAULT_DISCUSSION_CONTEXTS,
+    GameState,
+    create_game,
+)
 from tyrant.models.replay import Replay, record_step
 
 
@@ -168,10 +179,23 @@ class TestGameRunnerDiscussion(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(runner.state.discussion_enabled)
 
     def test_init_discussion_rounds_default(self):
-        """Verifies that GameRunner defaults to two discussion rounds."""
+        """Verifies that GameRunner defaults to one discussion round."""
         agents = [StubAgent(uid=i, actions_to_play=[]) for i in range(1, 6)]
         runner = GameRunner(agents=agents, seed=42)
-        self.assertEqual(runner.state.discussion_rounds, 2)
+        self.assertEqual(runner.state.discussion_rounds, 1)
+
+    def test_init_discussion_contexts_default(self):
+        """Verifies that GameRunner defaults to every discussion context except after a failed election."""
+        agents = [StubAgent(uid=i, actions_to_play=[]) for i in range(1, 6)]
+        runner = GameRunner(agents=agents, seed=42)
+        self.assertEqual(runner.state.discussion_contexts, DEFAULT_DISCUSSION_CONTEXTS)
+
+    def test_init_forwards_discussion_contexts(self):
+        """Verifies that GameRunner passes discussion_contexts to create_game."""
+        agents = [StubAgent(uid=i, actions_to_play=[]) for i in range(1, 6)]
+        contexts = frozenset({DiscussionContext.AFTER_NOMINATION})
+        runner = GameRunner(agents=agents, seed=42, discussion_contexts=contexts)
+        self.assertEqual(runner.state.discussion_contexts, contexts)
 
     def test_init_forwards_discussion_rounds(self):
         """Verifies that GameRunner passes discussion_rounds to create_game."""

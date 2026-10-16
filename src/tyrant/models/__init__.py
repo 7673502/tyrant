@@ -57,7 +57,12 @@ from tyrant.models.event import (
     SpeechEvent,
     VetoEvent,
 )
-from tyrant.models.game_state import GameState, create_game, scrub_state
+from tyrant.models.game_state import (
+    DEFAULT_DISCUSSION_CONTEXTS,
+    GameState,
+    create_game,
+    scrub_state,
+)
 from tyrant.models.knowledge import (
     ChancellorReceiveKnowledge,
     InvestigationKnowledge,
@@ -70,6 +75,7 @@ from tyrant.models.player import Player
 from tyrant.models.replay import Replay, ReplayStep
 
 __all__ = [
+    "DEFAULT_DISCUSSION_CONTEXTS",
     "HIDDEN",
     "MAX_SPEECH_LENGTH",
     "Action",

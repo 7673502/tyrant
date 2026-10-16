@@ -8,19 +8,36 @@ runner = GameRunner(agents, discussion_enabled=True)
 
 ## Speaking order
 
-During a [`DISCUSSION`](../reference/models.md#tyrant.models.GamePhase) phase, alive players take turns in seat order, starting with the president. Before a presidential power, the order starts one seat after the president, so the president hears the table before acting. The table goes around twice by default. Set `discussion_rounds` to change that:
+During a [`DISCUSSION`](../reference/models.md#tyrant.models.GamePhase) phase, alive players take turns in seat order, starting with the president. Before a presidential power, the order starts one seat after the president, so the president hears the table before acting. The table goes around once by default. Set `discussion_rounds` to change that:
 
 ```python
-runner = GameRunner(agents, discussion_enabled=True, discussion_rounds=1)
+runner = GameRunner(agents, discussion_enabled=True, discussion_rounds=2)
 ```
 
 A discussion ends early once every living speaker passes in a row, even partway through a round. `Discussion.consecutive_passes` counts the passes since the last speech.
 
 The discussion in progress is in `GameState.discussion`, a [`Discussion`](../reference/models.md#tyrant.models.Discussion) with the context, the speaker order, the current speaker and round, and the passes in a row.
 
+## Which events start a discussion
+
+`discussion_contexts` is the set of [`DiscussionContext`](../reference/models.md#tyrant.models.DiscussionContext)s that start a discussion. The default, [`DEFAULT_DISCUSSION_CONTEXTS`](../reference/models.md#tyrant.models.DEFAULT_DISCUSSION_CONTEXTS), holds every context except `AFTER_FAILED_ELECTION`. A failed election is usually followed straight away by a new nomination, which has its own discussion, so the two would cover the same ground. To talk after failed elections too:
+
+```python
+from tyrant.models import DEFAULT_DISCUSSION_CONTEXTS, DiscussionContext
+
+runner = GameRunner(
+    agents,
+    discussion_enabled=True,
+    discussion_contexts=DEFAULT_DISCUSSION_CONTEXTS
+    | {DiscussionContext.AFTER_FAILED_ELECTION},
+)
+```
+
+An event whose context is not in the set is played without a discussion. `create_game` raises `TyrantError` for a value that is not a `DiscussionContext`.
+
 ## Speaking
 
-On their turn, a player's legal actions are a [`SpeakAction`](../reference/models.md#tyrant.models.SpeakAction) and a [`PassAction`](../reference/models.md#tyrant.models.PassAction). To say something, fill in the message:
+On their turn, a player's legal actions are a [`SpeakAction`](../reference/models.md#tyrant.models.SpeakAction), described as "Say something new to the table", and a [`PassAction`](../reference/models.md#tyrant.models.PassAction), described as "Stay silent (choose this if you would repeat an earlier point)". To say something, fill in the message:
 
 ```python
 from dataclasses import replace

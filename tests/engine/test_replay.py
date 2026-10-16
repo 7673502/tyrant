@@ -95,7 +95,18 @@ class TestReplayDict(unittest.TestCase):
             {
                 "player_count": 5,
                 "discussion_enabled": False,
-                "discussion_rounds": 2,
+                "discussion_rounds": 1,
+                "discussion_contexts": [
+                    "after_execution",
+                    "after_investigation_claim",
+                    "after_nomination",
+                    "after_peek_claim",
+                    "after_policy_claims",
+                    "after_special_election",
+                    "before_execution",
+                    "before_investigation",
+                    "before_special_election",
+                ],
                 "fascist_track": [
                     "none",
                     "none",
@@ -246,7 +257,7 @@ class TestReplayDict(unittest.TestCase):
         step = replay_dict(_speech_replay())["steps"][-1]
         discussion = step["state"]["discussion"]
         self.assertEqual(set(discussion), {"context", "round", "rounds", "speaker"})
-        self.assertEqual(discussion["rounds"], 2)
+        self.assertEqual(discussion["rounds"], 1)
 
     def test_replay_dict_is_json_serializable(self):
         """Verifies that every value in the replay is plain JSON."""

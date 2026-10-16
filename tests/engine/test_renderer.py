@@ -169,7 +169,9 @@ class TestRenderDict(unittest.TestCase):
 
     def test_render_dict_discussion_round(self):
         """Verifies that the discussion context, round and round count are reported during discussion."""
-        state = _nominated(replace(self.state, discussion_enabled=True))
+        state = _nominated(
+            replace(self.state, discussion_enabled=True, discussion_rounds=2)
+        )
         for uid in state.discussion.speaker_order:
             state = speak(state, uid, "Hello")
         turn = render_dict(scrub_state(state, 1), 1)["turn"]
@@ -276,7 +278,9 @@ class TestRenderText(unittest.TestCase):
 
     def test_render_text_discussion_round(self):
         """Verifies that the current turn shows the discussion round only during discussion."""
-        state = _nominated(replace(self.state, discussion_enabled=True))
+        state = _nominated(
+            replace(self.state, discussion_enabled=True, discussion_rounds=2)
+        )
         self.assertIn(
             "- Discussion round: 1 of 2\n", render_text(scrub_state(state, 1), 1)
         )
