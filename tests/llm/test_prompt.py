@@ -17,6 +17,7 @@ from tyrant.llm.prompt import (
     SYSTEM_PROMPT,
     _xml_choice,
     build_prompt,
+    clip_text,
     parse_action,
     parse_notes,
     render_actions,
@@ -101,6 +102,10 @@ class TestSystemPrompt(unittest.TestCase):
         """Verifies that the response format describes the notes field and its length limit."""
         self.assertIn("`notes`", RESPONSE_FORMAT)
         self.assertIn(str(MAX_NOTES_LENGTH), RESPONSE_FORMAT)
+
+    def test_response_format_discourages_restating_state_in_notes(self):
+        """Verifies that the response format tells agents not to copy the shown state into their notes."""
+        self.assertIn("Don't copy the board, players or timeline", RESPONSE_FORMAT)
 
     def test_rules_encourage_passing(self):
         """Verifies that the rules tell players to stay silent unless they have something new to say."""
@@ -404,15 +409,55 @@ class TestParseNotes(unittest.TestCase):
 
     def test_parse_notes_collapses_whitespace_and_caps_length(self):
         """Verifies that notes have collapsed whitespace and at most MAX_NOTES_LENGTH characters."""
-        notes = "  a\n\n b\t" + "x" * (2 * MAX_NOTES_LENGTH)
-        parsed = parse_notes(json.dumps({"action": 1, "notes": notes}))
-        self.assertEqual(len(parsed), MAX_NOTES_LENGTH)
-        self.assertTrue(parsed.startswith("a b x"))
+        notes = "  a\n\n b\t" + "word " * MAX_NOTES_LENGTH
+        with self.assertLogs("tyrant.llm.prompt", level="WARNING"):
+            parsed = parse_notes(json.dumps({"action": 1, "notes": notes}))
+        self.assertLessEqual(len(parsed), MAX_NOTES_LENGTH)
+        self.assertTrue(parsed.startswith("a b word"))
+        self.assertTrue(parsed.endswith("word…"))
+
+    def test_parse_notes_logs_cut(self):
+        """Verifies that cutting notes logs a warning with the original and cut lengths."""
+        notes = "word " * MAX_NOTES_LENGTH
+        with self.assertLogs("tyrant.llm.prompt", level="WARNING") as logs:
+            parsed = parse_notes(json.dumps({"action": 1, "notes": notes}))
+        self.assertIn(
+            f"Notes cut from {len(notes.strip())} to {len(parsed)} characters",
+            logs.output[0],
+        )
+
+    def test_parse_notes_short_notes_do_not_log(self):
+        """Verifies that notes within the limit are returned unchanged without a warning."""
+        with self.assertNoLogs("tyrant.llm.prompt", level="WARNING"):
+            self.assertEqual(
+                parse_notes('{"action": 1, "notes": "Watch Player 3."}'),
+                "Watch Player 3.",
+            )
 
     def test_parse_notes_rejects_missing_json(self):
         """Verifies that a reply without a JSON action object raises InvalidMoveError."""
         with self.assertRaises(InvalidMoveError):
             parse_notes("My notes are secret.")
+
+
+class TestClipText(unittest.TestCase):
+    def test_clip_text_immutability(self):
+        """Verifies that clip_text returns equal text for equal input and leaves the input unchanged."""
+        text = "alpha beta gamma"
+        self.assertEqual(clip_text(text, 12), clip_text(text, 12))
+        self.assertEqual(text, "alpha beta gamma")
+
+    def test_clip_text_short_text_unchanged(self):
+        """Verifies that text within the limit is returned unchanged."""
+        self.assertEqual(clip_text("alpha beta", 10), "alpha beta")
+
+    def test_clip_text_cuts_at_word_boundary(self):
+        """Verifies that over-long text is cut after the last whole word that fits and ends in an ellipsis."""
+        self.assertEqual(clip_text("alpha beta gamma", 12), "alpha beta…")
+
+    def test_clip_text_hard_cuts_single_long_word(self):
+        """Verifies that a single word longer than the limit is cut mid-word."""
+        self.assertEqual(clip_text("abcdefghij", 5), "abcd…")
 
 
 class TestPromptGame(unittest.TestCase):
