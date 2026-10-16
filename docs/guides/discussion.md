@@ -51,7 +51,7 @@ Whitespace in a message is collapsed, and the message is cut to [`MAX_SPEECH_LEN
 
 ## Correcting a claim
 
-In the discussion that directly follows a government's policy claims, that government's president and chancellor are also offered a [`CorrectClaimAction`](../reference/models.md#tyrant.models.CorrectClaimAction) for every other claim they could have made, after the speak and pass options. The truthful one comes first, described as "Correct your claim (truth): …", and the rest as "Correct your claim (lie): …". Declining is not offered as a correction.
+In the discussion that directly follows a government's policy claims, that government's president and chancellor are also offered a [`CorrectClaimAction`](../reference/models.md#tyrant.models.CorrectClaimAction) for every other claim they could have made, after the speak and pass options. Each is described as "Correct your claim: …". The truthful one comes first and ends with "(matches what you saw)"; the rest are unmarked. Declining is not offered as a correction.
 
 A correction uses the player's turn and counts as speaking, so it resets the run of passes. It is recorded as a [`ClaimEvent`](../reference/models.md#tyrant.models.ClaimEvent) with `correction=True` and added to `GameState.claims`. Corrections are only offered for president and chancellor policy claims, and only until the discussion ends; once the next government is nominated, the claims stand.
 

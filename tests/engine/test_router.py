@@ -690,8 +690,8 @@ class TestGetLegalActionsInvestigation(unittest.TestCase):
         self.assertEqual(
             [a.description for a in actions[:2]],
             [
-                "Tell the truth: the investigated player is a Fascist.",
-                "Lie: claim the investigated player is a Liberal.",
+                "Claim the investigated player is a Fascist (matches what you saw).",
+                "Claim the investigated player is a Liberal.",
             ],
         )
 
@@ -705,9 +705,11 @@ class TestClaimDescriptions(unittest.TestCase):
         self.assertEqual(claim, "you received fascist, liberal")
 
     def test__claim_description_labels(self):
-        """Verifies that _claim_description labels the truth and the lies."""
-        self.assertEqual(_claim_description("x", True), "Tell the truth: x.")
-        self.assertEqual(_claim_description("x", False), "Lie: claim x.")
+        """Verifies that _claim_description marks only the claim that matches what the player saw."""
+        self.assertEqual(
+            _claim_description("x", True), "Claim x (matches what you saw)."
+        )
+        self.assertEqual(_claim_description("x", False), "Claim x.")
 
     def test__president_claim_immutability(self):
         """Verifies that _president_claim returns a new string and leaves its input unchanged."""
@@ -772,9 +774,11 @@ class TestGetLegalActionsPolicyPeek(unittest.TestCase):
         self.assertEqual(actions[0].claim_policies, (L, F, F))
         self.assertEqual(
             actions[0].description,
-            "Tell the truth: the top 3 policies are, from the top, liberal, fascist, fascist.",
+            "Claim the top 3 policies are, from the top, liberal, fascist, fascist (matches what you saw).",
         )
-        self.assertTrue(all(a.description.startswith("Lie: ") for a in actions[1:-1]))
+        self.assertFalse(
+            any("(matches what you saw)" in a.description for a in actions[1:])
+        )
 
     def test__get_legal_actions_policy_peek_silence(self):
         """Ensure that player can choose to be silent when claiming."""
@@ -1168,7 +1172,7 @@ class TestGetLegalActionsEnactClaims(unittest.TestCase):
         )
 
     def test_enact_claims_president_truth_first(self):
-        """Verifies that the president's truthful claim comes first and is the only one labelled as the truth."""
+        """Verifies that the president's truthful claim comes first and is the only one marked as matching what they saw."""
         state = self._claims_state()
         F, L = PolicyTile.FASCIST, PolicyTile.LIBERAL
         actions = get_legal_actions(state, state.players[state.president_index].uid)
@@ -1178,14 +1182,16 @@ class TestGetLegalActionsEnactClaims(unittest.TestCase):
         )
         self.assertEqual(
             actions[0].description,
-            "Tell the truth: you drew fascist, fascist, liberal and discarded "
-            "fascist, so you passed fascist, liberal.",
+            "Claim you drew fascist, fascist, liberal and discarded "
+            "fascist, so you passed fascist, liberal (matches what you saw).",
         )
         self.assertEqual(
-            [a.description.startswith("Tell the truth:") for a in actions].count(True),
+            ["(matches what you saw)" in a.description for a in actions].count(True),
             1,
         )
-        self.assertTrue(all(a.description.startswith("Lie: ") for a in actions[1:-1]))
+        self.assertTrue(
+            all(a.description.startswith("Claim you drew ") for a in actions[1:-1])
+        )
 
     def test_enact_claims_president_latest_knowledge(self):
         """Verifies that the president's truth comes from their latest discard."""
@@ -1210,20 +1216,21 @@ class TestGetLegalActionsEnactClaims(unittest.TestCase):
         )
 
     def test_enact_claims_chancellor_truth_first(self):
-        """Verifies that the chancellor's truthful claim comes first and is the only one labelled as the truth."""
+        """Verifies that the chancellor's truthful claim comes first and is the only one marked as matching what they saw."""
         state = self._claims_state()
         F, L = PolicyTile.FASCIST, PolicyTile.LIBERAL
         actions = get_legal_actions(state, state.chancellor)
         self.assertEqual(len(actions), 4)
         self.assertEqual(actions[0].claim_policies, (F, L))
         self.assertEqual(
-            actions[0].description, "Tell the truth: you received fascist, liberal."
+            actions[0].description,
+            "Claim you received fascist, liberal (matches what you saw).",
         )
         self.assertEqual(
             [a.description for a in actions[1:3]],
             [
-                "Lie: claim you received fascist, fascist.",
-                "Lie: claim you received liberal, liberal.",
+                "Claim you received fascist, fascist.",
+                "Claim you received liberal, liberal.",
             ],
         )
 
@@ -1368,12 +1375,13 @@ class TestGetLegalActionsCorrections(unittest.TestCase):
         )
         self.assertEqual(
             corrections[0].description,
-            "Correct your claim (truth): you drew fascist, fascist, liberal and "
-            "discarded fascist, so you passed fascist, liberal.",
+            "Correct your claim: you drew fascist, fascist, liberal and "
+            "discarded fascist, so you passed fascist, liberal (matches what you saw).",
         )
         self.assertTrue(
             all(
-                a.description.startswith("Correct your claim (lie): ")
+                a.description.startswith("Correct your claim: ")
+                and "(matches what you saw)" not in a.description
                 for a in corrections[1:]
             )
         )
@@ -1392,7 +1400,8 @@ class TestGetLegalActionsCorrections(unittest.TestCase):
         self.assertEqual(len(corrections), 2)
         self.assertTrue(
             all(
-                a.description.startswith("Correct your claim (lie): ")
+                a.description.startswith("Correct your claim: ")
+                and "(matches what you saw)" not in a.description
                 for a in corrections
             )
         )
