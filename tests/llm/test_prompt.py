@@ -94,6 +94,14 @@ class TestSystemPrompt(unittest.TestCase):
             with self.subTest(word=word):
                 self.assertNotIn(word, SYSTEM_PROMPT.lower())
 
+    def test_rules_ask_for_government_labels(self):
+        """Verifies that the rules tell players to cite governments by their Gov label rather than by numbers."""
+        self.assertIn(
+            "Refer to governments only by their Gov label (e.g. Gov 3) and to players "
+            "as Player N. There are no step, message or line numbers.",
+            RULES,
+        )
+
     def test_system_prompt_contains_speech_limit(self):
         """Verifies that the system prompt states the maximum speech length."""
         self.assertIn(str(MAX_SPEECH_LENGTH), SYSTEM_PROMPT)
