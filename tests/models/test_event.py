@@ -13,6 +13,7 @@ from tyrant.models.enums import (
 )
 from tyrant.models.event import (
     ClaimEvent,
+    DeckShuffledEvent,
     ElectionEvent,
     Event,
     ExecutionEvent,
@@ -71,6 +72,10 @@ class TestEvent(unittest.TestCase):
         )
         self.assertFalse(enacted.top_deck)
         self.assertTrue(top_decked.top_deck)
+
+    def test_deck_shuffled_event_immutability(self):
+        """Verifies that DeckShuffledEvent is a frozen dataclass with immutable fields."""
+        self.assert_frozen(DeckShuffledEvent(draw_pile=14))
 
     def test_veto_event_immutability(self):
         """Verifies that VetoEvent is a frozen dataclass with immutable fields."""

@@ -68,13 +68,20 @@
     "hitler_zone": true,
     "veto_unlocked": true,
     "draw_pile": 0,
-    "discard_pile": 8
+    "discard_pile": 8,
+    "liberal_policies_left": 3,
+    "fascist_policies_left": 5,
+    "next_fascist_policy_wins": true,
+    "next_fascist_power": "none"
   },
   "government": {
     "president": 3,
     "chancellor": 5,
     "previous_president": 3,
-    "previous_chancellor": 5
+    "previous_chancellor": 5,
+    "term_limited": [
+      5
+    ]
   },
   "turn": {
     "phase": "game_over",
@@ -445,6 +452,11 @@
         "2": "ja"
       },
       "result": "ja",
+      "government": 6
+    },
+    {
+      "type": "deck_shuffled",
+      "draw_pile": 12,
       "government": 6
     },
     {

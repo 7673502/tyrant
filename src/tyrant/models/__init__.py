@@ -47,6 +47,7 @@ from tyrant.models.enums import (
 )
 from tyrant.models.event import (
     ClaimEvent,
+    DeckShuffledEvent,
     ElectionEvent,
     Event,
     ExecutionEvent,
@@ -97,6 +98,7 @@ __all__ = [
     "ClaimPresidentEnactAction",
     "CorrectClaimAction",
     "Deck",
+    "DeckShuffledEvent",
     "Discussion",
     "DiscussionContext",
     "ElectionEvent",

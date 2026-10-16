@@ -48,6 +48,7 @@ from tyrant.models.game_state import (
     president_discard,
     president_veto_response,
     speak,
+    term_limited,
 )
 from tyrant.models.knowledge import (
     ChancellorReceiveKnowledge,
@@ -66,16 +67,14 @@ def _get_legal_actions_nomination(
         return tuple()
 
     actions: list[Action] = []
-    alive_count = sum(1 for p in state.players if p.is_alive)
+    limited = term_limited(state)
 
     for p in state.players:
         if not p.is_alive:
             continue
         if p.uid == player_uid:
             continue
-        if alive_count > 5 and p.uid == state.previous_president:
-            continue
-        if p.uid == state.previous_chancellor:
+        if p.uid in limited:
             continue
 
         actions.append(

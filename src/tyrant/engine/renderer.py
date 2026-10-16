@@ -14,9 +14,10 @@ from tyrant.models.board import (
     FASCIST_TRACKS,
     LIBERAL_TILES_TO_WIN,
 )
+from tyrant.models.deck import NUM_FASCIST_POLICIES, NUM_LIBERAL_POLICIES
 from tyrant.models.election_tracker import FAILURES_UNTIL_TOP_DECK
 from tyrant.models.enums import HIDDEN, GamePhase
-from tyrant.models.game_state import GameState, scrub_state
+from tyrant.models.game_state import GameState, scrub_state, term_limited
 
 UNKNOWN = "unknown"
 DISCUSSIONS_SHOWN = 2
@@ -174,6 +175,7 @@ def render_dict(state: GameState, viewer_uid: int) -> dict:
         for entry, number in zip(timeline, _government_numbers(timeline))
     ]
     knowledge = [to_json(k, "Knowledge") for k in state.knowledge]
+    next_fascist_wins = state.board.fascist_played >= FASCIST_TILES_TO_WIN - 1
     knowledge = [
         entry | {"government": number}
         for entry, number in zip(knowledge, _knowledge_governments(knowledge, timeline))
@@ -212,12 +214,21 @@ def render_dict(state: GameState, viewer_uid: int) -> dict:
             "veto_unlocked": state.board.veto_power_unlocked,
             "draw_pile": len(state.deck.draw_pile),
             "discard_pile": len(state.deck.discard_pile),
+            "liberal_policies_left": NUM_LIBERAL_POLICIES - state.board.liberal_played,
+            "fascist_policies_left": NUM_FASCIST_POLICIES - state.board.fascist_played,
+            "next_fascist_policy_wins": next_fascist_wins,
+            "next_fascist_power": "none"
+            if next_fascist_wins
+            else to_json(
+                FASCIST_TRACKS[state.board.player_count][state.board.fascist_played]
+            ),
         },
         "government": {
             "president": state.players[state.president_index].uid,
             "chancellor": state.chancellor,
             "previous_president": state.previous_president,
             "previous_chancellor": state.previous_chancellor,
+            "term_limited": list(term_limited(state)),
         },
         "turn": {
             "phase": to_json(state.phase),
@@ -246,6 +257,18 @@ def _player(uid: int | None) -> str:
 def _player_list(uids: list[int]) -> str:
     """Returns a comma-separated list of player names, or `none`."""
     return ", ".join(_player(uid) for uid in uids) or "none"
+
+
+def _term_limited_list(government: dict) -> str:
+    """Returns the term-limited players, each with the office that limits them, or `none`."""
+    return (
+        ", ".join(
+            f"{_player(uid)} (previous "
+            f"{'chancellor' if uid == government['previous_chancellor'] else 'president'})"
+            for uid in government["term_limited"]
+        )
+        or "none"
+    )
 
 
 def _yes_no(value: bool) -> str:
@@ -329,6 +352,11 @@ def _timeline_line(entry: dict) -> str:
             return (
                 f"President {_player(entry['president_uid'])} and Chancellor "
                 f"{_player(entry['chancellor_uid'])} enacted a {entry['policy']} policy."
+            )
+        case "deck_shuffled":
+            return (
+                "The discard pile was shuffled into the draw pile "
+                f"(now {entry['draw_pile']} policies)."
             )
         case "veto":
             response = "approved" if entry["approved"] else "denied"
@@ -495,6 +523,33 @@ def _knowledge_lines(knowledge: list[dict], labels: dict[int, str]) -> list[str]
     return lines
 
 
+def _voting_reminders(view: dict) -> list[str]:
+    """Returns the viewer's part in the government being voted on and their last speech about it, during a vote."""
+    if view["turn"]["phase"] != GamePhase.VOTING.value:
+        return []
+    viewer_uid = view["viewer"]["uid"]
+    lines = []
+    if view["government"]["president"] == viewer_uid:
+        lines.append("- You nominated this government.")
+    if view["government"]["chancellor"] == viewer_uid:
+        lines.append("- You are the nominee.")
+    timeline = view["timeline"]
+    nomination = max(
+        (i for i, e in enumerate(timeline) if e["type"] == "nomination"), default=0
+    )
+    speeches = [
+        e["text"]
+        for e in timeline[nomination:]
+        if e["type"] == "speech" and e["uid"] == viewer_uid and e["text"] is not None
+    ]
+    if speeches:
+        lines.append(
+            "- What you said about this government: "
+            f"{json.dumps(speeches[-1], ensure_ascii=False)}"
+        )
+    return lines
+
+
 def render_text(state: GameState, viewer_uid: int) -> str:
     """Returns a prompt-ready Markdown view of the state, scrubbed for the given viewer.
 
@@ -556,12 +611,19 @@ def render_text(state: GameState, viewer_uid: int) -> str:
         f"- Hitler zone: {_yes_no(board['hitler_zone'])}",
         f"- Veto unlocked: {_yes_no(board['veto_unlocked'])}",
         f"- Draw pile: {board['draw_pile']}, discard pile: {board['discard_pile']}",
+        f"- Policies not yet enacted: {board['liberal_policies_left']} liberal, "
+        f"{board['fascist_policies_left']} fascist (in the draw pile, the discard pile "
+        "and any hand in play)",
+        "- Next fascist policy: wins the game for the fascists"
+        if board["next_fascist_policy_wins"]
+        else f"- Next fascist policy grants: {board['next_fascist_power']}",
         "",
         "## Government",
         f"- President: {_player(government['president'])}",
         f"- Chancellor: {_player(government['chancellor'])}",
         f"- Previous president: {_player(government['previous_president'])}",
         f"- Previous chancellor: {_player(government['previous_chancellor'])}",
+        f"- Can't be nominated chancellor next: {_term_limited_list(government)}",
         "",
         "## Current Turn",
         f"- Phase: {turn['phase']}",
@@ -572,6 +634,7 @@ def render_text(state: GameState, viewer_uid: int) -> str:
         lines.append(
             f"- Discussion round: {turn['discussion']['round']} of {turn['discussion']['rounds']}"
         )
+    lines += _voting_reminders(view)
     if turn["active_power"] != "none":
         lines.append(f"- Active power: {turn['active_power']}")
     if turn["hand"]:

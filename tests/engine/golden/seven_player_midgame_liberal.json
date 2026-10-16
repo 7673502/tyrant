@@ -68,13 +68,21 @@
     "hitler_zone": false,
     "veto_unlocked": false,
     "draw_pile": 8,
-    "discard_pile": 6
+    "discard_pile": 6,
+    "liberal_policies_left": 5,
+    "fascist_policies_left": 9,
+    "next_fascist_policy_wins": false,
+    "next_fascist_power": "call_special_election"
   },
   "government": {
     "president": 5,
     "chancellor": 7,
     "previous_president": 3,
-    "previous_chancellor": 4
+    "previous_chancellor": 4,
+    "term_limited": [
+      4,
+      3
+    ]
   },
   "turn": {
     "phase": "voting",
