@@ -5,7 +5,7 @@ Tyrant is a Python implementation of the social-deduction board game [Secret Hit
 - **Immutable and functional.** Every state is a frozen value, and every move returns a new one. Branch, store and compare states freely. See [Design](concepts.md).
 - **Fair by construction.** Agents only ever see a state scrubbed for their seat.
 - **Ready for LLMs.** Prompt rendering, reply parsing and an optional [litellm](https://docs.litellm.ai/) agent are included.
-- **Replayable.** Every game can be saved as a JSON replay with a full board snapshot after each move.
+- **Replayable.** Every game can be saved as a JSON replay with a full board snapshot after each move, or streamed live in the same format.
 
 ## Quick start
 

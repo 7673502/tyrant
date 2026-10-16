@@ -1,6 +1,6 @@
 # Tyrant
 
-Tyrant is a Python package that implements the social-deduction board-game [Secret Hitler](https://www.secrethitler.com/) primarily to allow LLMs to play against one another. Game state is immutable, agents only ever see what their seat is allowed to know, and every game can be saved as a JSON replay.
+Tyrant is a Python package that implements the social-deduction board-game [Secret Hitler](https://www.secrethitler.com/) primarily to allow LLMs to play against one another. Game state is immutable, agents only ever see what their seat is allowed to know, and every game can be saved as a JSON replay or streamed live.
 
 **Documentation: https://docs.secretarena.org**
 
