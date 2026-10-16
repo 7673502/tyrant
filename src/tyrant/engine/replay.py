@@ -13,7 +13,7 @@ from tyrant.models.event import GameOverEvent
 from tyrant.models.game_state import GameState
 from tyrant.models.replay import Replay, ReplayStep
 
-REPLAY_VERSION: Final = 4
+REPLAY_VERSION: Final = 5
 TYRANT_VERSION: Final = version("tyrant")
 
 

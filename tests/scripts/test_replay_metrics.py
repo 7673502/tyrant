@@ -43,11 +43,16 @@ def _speech(uid: int, text: str | None) -> dict:
     return {"type": "speech", "uid": uid, "text": text}
 
 
-def _claim(claim_type: str, uid: int, policies, discarded=None) -> dict:
+def _claim(
+    claim_type: str, uid: int, policies, discarded=None, correction=False
+) -> dict:
     claim = {"type": claim_type, "uid": uid, "policies": policies}
     if discarded is not None:
         claim["discarded"] = discarded
-    return {"type": "claim", "claim": claim}
+    event = {"type": "claim", "claim": claim}
+    if correction:
+        event["correction"] = True
+    return event
 
 
 def _government(president: int, chancellor: int, drawn, discarded, passed) -> list:
@@ -159,12 +164,40 @@ class TestReplayMetrics(unittest.TestCase):
         self.assertEqual(claim_conflicts(self.replay), (1, 0))
 
     def test_claim_conflicts_resolved(self):
-        """Verifies that a later consistent claim resolves the conflict."""
+        """Verifies that a consistent correction resolves the conflict."""
         self.replay["steps"].insert(
             5,
-            _step("speak", [_claim("president_enact", 0, [F, F, L], F)]),
+            _step(
+                "correct_claim",
+                [_claim("president_enact", 0, [F, F, L], F, correction=True)],
+            ),
         )
         self.assertEqual(claim_conflicts(self.replay), (1, 1))
+
+    def test_claim_conflicts_unresolved_by_conflicting_correction(self):
+        """Verifies that a correction that still conflicts leaves the conflict unresolved."""
+        self.replay["steps"].insert(
+            5,
+            _step(
+                "correct_claim",
+                [_claim("president_enact", 0, [L, L, L], L, correction=True)],
+            ),
+        )
+        self.assertEqual(claim_conflicts(self.replay), (1, 0))
+
+    def test_claim_lie_rates_ignore_corrections(self):
+        """Verifies that corrections do not count as new claims in the lie rates."""
+        self.replay["steps"].insert(
+            5,
+            _step(
+                "correct_claim",
+                [_claim("president_enact", 0, [F, F, L], F, correction=True)],
+            ),
+        )
+        self.assertEqual(
+            claim_lie_rates(self.replay),
+            {"liberal": (1, 1, 2), "fascist": (1, 0, 2)},
+        )
 
     def test_claim_conflicts_v2(self):
         """Verifies that a v2 conflict is a received card missing from the claimed draw."""
