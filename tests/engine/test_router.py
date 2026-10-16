@@ -3,8 +3,13 @@ from dataclasses import replace
 from unittest.mock import patch
 
 from tyrant.engine.router import (
+    _chancellor_claims,
+    _chancellor_truth,
     _claim_description,
+    _correction_description,
     _president_claim,
+    _president_claims,
+    _president_truth,
     apply_action,
     get_legal_actions,
 )
@@ -27,11 +32,24 @@ from tyrant.models.action import (
     PresidentVetoResponseAction,
     SpeakAction,
     PassAction,
+    CorrectClaimAction,
 )
-from tyrant.models.claim import InvestigationClaim
+from tyrant.models.claim import (
+    ChancellorEnactClaim,
+    InvestigationClaim,
+    PresidentEnactClaim,
+)
 from tyrant.models.election_tracker import ElectionTracker
 from tyrant.models.enums import GamePhase, Party, PolicyTile, PresidentialPower, Vote
-from tyrant.models.game_state import cast_vote, create_game, nominate_chancellor
+from tyrant.models.event import ClaimEvent
+from tyrant.models.game_state import (
+    GameState,
+    cast_vote,
+    claim_enact,
+    create_game,
+    nominate_chancellor,
+    speak,
+)
 from tyrant.models.knowledge import (
     ChancellorReceiveKnowledge,
     PresidentDiscardKnowledge,
@@ -1247,6 +1265,156 @@ class TestGetLegalActionsEnactClaims(unittest.TestCase):
                 uid=other_uid, policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL)
             ),
         )
+
+
+class TestGetLegalActionsCorrections(unittest.TestCase):
+    F, L = PolicyTile.FASCIST, PolicyTile.LIBERAL
+
+    def _discussion_state(self) -> GameState:
+        """Returns the discussion after a president who drew F, F, L and discarded F lied about passing L, L, and the chancellor truthfully claimed F, L."""
+        F, L = self.F, self.L
+        state = create_game(tuple(range(5)), discussion_enabled=True)
+        president_uid = state.players[state.president_index].uid
+        chancellor_uid = state.players[(state.president_index + 1) % 5].uid
+        state = replace(
+            state,
+            phase=GamePhase.CLAIM_POLICIES,
+            chancellor=chancellor_uid,
+            pending_president_enact_claim=True,
+            pending_chancellor_enact_claim=True,
+            knowledge=(
+                PresidentDiscardKnowledge(
+                    uid=president_uid,
+                    chancellor_uid=chancellor_uid,
+                    discarded=F,
+                    passed=(L, F),
+                ),
+                ChancellorReceiveKnowledge(
+                    uid=chancellor_uid, president_uid=president_uid, policies=(L, F)
+                ),
+            ),
+        )
+        state = claim_enact(
+            state,
+            PresidentEnactClaim(uid=president_uid, policies=(F, L, L), discarded=F),
+        )
+        return claim_enact(
+            state, ChancellorEnactClaim(uid=chancellor_uid, policies=(F, L))
+        )
+
+    def _turn_of(self, state: GameState, uid: int) -> GameState:
+        while state.discussion.current_speaker != uid:
+            state = speak(state, state.discussion.current_speaker, None)
+        return state
+
+    def _government(self, state: GameState) -> tuple[int, int]:
+        event = next(e for e in reversed(state.events) if isinstance(e, ClaimEvent))
+        return event.president_uid, event.chancellor_uid
+
+    def test__get_legal_actions_corrections_immutability(self):
+        """Verifies that the corrections are returned as a tuple without changing the state."""
+        state = self._discussion_state()
+        president_uid, _ = self._government(state)
+        state = self._turn_of(state, president_uid)
+        events_before = state.events
+        actions = get_legal_actions(state, president_uid)
+        self.assertIsInstance(actions, tuple)
+        self.assertEqual(state.events, events_before)
+
+    def test__correction_description_immutability(self):
+        """Verifies that _correction_description returns a new string and leaves its input unchanged."""
+        claim = "you received fascist, liberal"
+        self.assertIsInstance(_correction_description(claim, False), str)
+        self.assertEqual(claim, "you received fascist, liberal")
+
+    def test__president_truth_immutability(self):
+        """Verifies that _president_truth leaves the state's knowledge unchanged."""
+        state = self._discussion_state()
+        knowledge_before = state.knowledge
+        _president_truth(state, self._government(state)[0])
+        self.assertEqual(state.knowledge, knowledge_before)
+
+    def test__chancellor_truth_immutability(self):
+        """Verifies that _chancellor_truth leaves the state's knowledge unchanged."""
+        state = self._discussion_state()
+        knowledge_before = state.knowledge
+        _chancellor_truth(state, self._government(state)[1])
+        self.assertEqual(state.knowledge, knowledge_before)
+
+    def test__president_claims_immutability(self):
+        """Verifies that _president_claims returns a new list for each call."""
+        self.assertIsNot(_president_claims(None), _president_claims(None))
+        self.assertEqual(len(_president_claims(None)), 6)
+
+    def test__chancellor_claims_immutability(self):
+        """Verifies that _chancellor_claims returns a new list for each call."""
+        self.assertIsNot(_chancellor_claims(None), _chancellor_claims(None))
+        self.assertEqual(len(_chancellor_claims(None)), 3)
+
+    def test_president_corrections_follow_speak_and_pass(self):
+        """Verifies that the president is offered every other non-decline claim after speaking and passing, the truth first."""
+        F, L = self.F, self.L
+        state = self._discussion_state()
+        president_uid, _ = self._government(state)
+        actions = get_legal_actions(self._turn_of(state, president_uid), president_uid)
+        self.assertIsInstance(actions[0], SpeakAction)
+        self.assertIsInstance(actions[1], PassAction)
+        corrections = actions[2:]
+        self.assertEqual(len(corrections), 5)
+        self.assertTrue(all(isinstance(a, CorrectClaimAction) for a in corrections))
+        self.assertEqual(
+            corrections[0].claim,
+            PresidentEnactClaim(uid=president_uid, policies=(F, F, L), discarded=F),
+        )
+        self.assertEqual(
+            corrections[0].description,
+            "Correct your claim (truth): you drew fascist, fascist, liberal and "
+            "discarded fascist, so you passed fascist, liberal.",
+        )
+        self.assertTrue(
+            all(
+                a.description.startswith("Correct your claim (lie): ")
+                for a in corrections[1:]
+            )
+        )
+        self.assertNotIn(
+            ((F, L, L), F), [(a.claim.policies, a.claim.discarded) for a in corrections]
+        )
+
+    def test_chancellor_corrections_leave_out_current_claim(self):
+        """Verifies that the chancellor is offered only the claims other than their current one."""
+        state = self._discussion_state()
+        _, chancellor_uid = self._government(state)
+        actions = get_legal_actions(
+            self._turn_of(state, chancellor_uid), chancellor_uid
+        )
+        corrections = actions[2:]
+        self.assertEqual(len(corrections), 2)
+        self.assertTrue(
+            all(
+                a.description.startswith("Correct your claim (lie): ")
+                for a in corrections
+            )
+        )
+        self.assertNotIn((self.F, self.L), [a.claim.policies for a in corrections])
+
+    def test_other_players_get_no_corrections(self):
+        """Verifies that a player outside the government is only offered speaking and passing."""
+        state = self._discussion_state()
+        government = self._government(state)
+        uid = next(p.uid for p in state.players if p.uid not in government)
+        actions = get_legal_actions(self._turn_of(state, uid), uid)
+        self.assertEqual(len(actions), 2)
+
+    def test_apply_correction_records_correction(self):
+        """Verifies that applying a correction records it as a correction claim event."""
+        state = self._discussion_state()
+        president_uid, _ = self._government(state)
+        state = self._turn_of(state, president_uid)
+        correction = get_legal_actions(state, president_uid)[2]
+        new_state = apply_action(state, correction, president_uid)
+        self.assertTrue(new_state.events[-1].correction)
+        self.assertEqual(new_state.events[-1].claim, correction.claim)
 
 
 if __name__ == "__main__":
