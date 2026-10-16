@@ -87,8 +87,10 @@ def _get_legal_actions_discussion(
         return tuple()
 
     return (
-        SpeakAction(description="Say something to the table"),
-        PassAction(description="Stay silent"),
+        SpeakAction(description="Say something new to the table"),
+        PassAction(
+            description="Stay silent (choose this if you would repeat an earlier point)"
+        ),
     )
 
 

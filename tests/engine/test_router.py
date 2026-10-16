@@ -849,6 +849,18 @@ class TestGetLegalActionsDiscussion(unittest.TestCase):
         self.assertIsInstance(actions[0], SpeakAction)
         self.assertIsInstance(actions[1], PassAction)
 
+    def test__get_legal_actions_discussion_descriptions(self):
+        """Ensure the speak option asks for something new and the pass option is suggested for repeats."""
+        state = self._state()
+        actions = get_legal_actions(state, state.discussion.current_speaker)
+        self.assertEqual(
+            [a.description for a in actions],
+            [
+                "Say something new to the table",
+                "Stay silent (choose this if you would repeat an earlier point)",
+            ],
+        )
+
     def test__get_legal_actions_discussion_non_speaker(self):
         """Ensure every player other than the current speaker receives an empty tuple."""
         state = self._state()
