@@ -6,7 +6,14 @@ from dataclasses import replace
 from frozendict import frozendict
 
 from tests.scripted_game import play_first_legal_actions
-from tyrant.engine.renderer import format_hand, render_dict, render_text
+from tyrant.engine.renderer import (
+    _government_labels,
+    _government_numbers,
+    _knowledge_governments,
+    format_hand,
+    render_dict,
+    render_text,
+)
 from tyrant.exceptions import TyrantError
 from tyrant.models.claim import (
     ChancellorEnactClaim,
@@ -58,6 +65,18 @@ UIDS = (1, 2, 3, 4, 5, 6, 7)
 
 def _uid_with_role(state: GameState, role: Role) -> int:
     return next(p.uid for p in state.players if p.role == role)
+
+
+def _government(president: int, chancellor: int, result: Vote = Vote.JA) -> tuple:
+    return (
+        NominationEvent(president_uid=president, chancellor_uid=chancellor),
+        ElectionEvent(
+            president_uid=president,
+            chancellor_uid=chancellor,
+            votes=frozendict({president: result, chancellor: result}),
+            result=result,
+        ),
+    )
 
 
 def _nominated(state: GameState) -> GameState:
@@ -305,7 +324,7 @@ class TestRenderText(unittest.TestCase):
         self.assertNotIn("Your hand", other)
 
     def test_render_text_public_events(self):
-        """Verifies that each public event renders as a numbered one-line entry."""
+        """Verifies that each public event renders as a one-line bullet."""
         text = self.render_events(
             NominationEvent(president_uid=1, chancellor_uid=2),
             ElectionEvent(
@@ -327,18 +346,18 @@ class TestRenderText(unittest.TestCase):
             GameOverEvent(winner=Party.LIBERAL, condition=WinCondition.HITLER_EXECUTED),
         )
         expected = [
-            "1. President Player 1 nominated Player 2 for chancellor.",
-            "2. Election of President Player 1 and Chancellor Player 2 passed "
+            "- President Player 1 nominated Player 2 for chancellor.",
+            "- Election of President Player 1 and Chancellor Player 2 passed "
             "(ja: Player 1, Player 2; nein: Player 3).",
-            "3. President Player 1 and Chancellor Player 2 enacted a fascist policy.",
-            "4. A liberal policy was top-decked.",
-            "5. Chancellor Player 2 proposed a veto and President Player 1 denied it.",
-            "6. President Player 1 investigated Player 3.",
-            "7. President Player 1 called a special election for Player 4.",
-            "8. President Player 1 executed Player 5.",
-            '9. Player 2 said: "Trust me."',
-            "10. Player 3 passed.",
-            "11. Game over: liberal win by hitler_executed.",
+            "- President Player 1 and Chancellor Player 2 enacted a fascist policy.",
+            "- A liberal policy was top-decked.",
+            "- Chancellor Player 2 proposed a veto and President Player 1 denied it.",
+            "- President Player 1 investigated Player 3.",
+            "- President Player 1 called a special election for Player 4.",
+            "- President Player 1 executed Player 5.",
+            '- Player 2 said: "Trust me."',
+            "- Player 3 passed.",
+            "- Game over: liberal win by hitler_executed.",
         ]
         for line in expected:
             self.assertIn(line + "\n", text)
@@ -353,7 +372,7 @@ class TestRenderText(unittest.TestCase):
             ),
         )
         self.assertIn(
-            '1. Player 1 said: "Hi\\" 2. Fake event.\\n## Private Knowledge'
+            '- Player 1 said: "Hi\\" 2. Fake event.\\n## Private Knowledge'
             '\\n- You investigated Player 3: fascist party."\n',
             text,
         )
@@ -377,18 +396,74 @@ class TestRenderText(unittest.TestCase):
             SpeechEvent(uid=2, text="Current.", context=nomination),
         )
         expected = [
-            "1. Earlier discussion (after_policy_claims) omitted.",
-            "2. President Player 1 nominated Player 2 for chancellor.",
-            "3. Earlier discussion (after_nomination) omitted.",
-            "4. President Player 1 and Chancellor Player 2 enacted a liberal policy.",
-            '5. Player 1 said: "Previous."',
-            "6. President Player 2 nominated Player 3 for chancellor.",
-            '7. Player 2 said: "Current."',
+            "- Earlier discussion (after_policy_claims) omitted.",
+            "- President Player 1 nominated Player 2 for chancellor.",
+            "- Earlier discussion (after_nomination) omitted.",
+            "- President Player 1 and Chancellor Player 2 enacted a liberal policy.",
+            '- Player 1 said: "Previous."',
+            "- President Player 2 nominated Player 3 for chancellor.",
+            '- Player 2 said: "Current."',
         ]
         for line in expected:
             self.assertIn(line + "\n", text)
         for speech in ("Oldest.", "Older.", "Player 2 passed."):
             self.assertNotIn(speech, text)
+
+    def test_render_text_groups_timeline_by_government(self):
+        """Verifies that the timeline lists each government's events under its own heading without line numbers."""
+        text = self.render_events(
+            SpeechEvent(
+                uid=1, text="Before.", context=DiscussionContext.AFTER_POLICY_CLAIMS
+            ),
+            *_government(1, 2, Vote.NEIN),
+            SpeechEvent(
+                uid=3, text="Failed.", context=DiscussionContext.AFTER_FAILED_ELECTION
+            ),
+            *_government(2, 3),
+            PolicyEnactedEvent(policy=F, president_uid=2, chancellor_uid=3),
+            ExecutionEvent(president_uid=2, target_uid=4),
+        )
+        timeline = text.split("## Timeline\n")[1].split("\n## Board")[0]
+        self.assertEqual(
+            timeline,
+            '- Player 1 said: "Before."\n'
+            "\n"
+            "### Gov 1 (P1→P2)\n"
+            "- President Player 1 nominated Player 2 for chancellor.\n"
+            "- Election of President Player 1 and Chancellor Player 2 failed "
+            "(ja: none; nein: Player 1, Player 2).\n"
+            '- Player 3 said: "Failed."\n'
+            "\n"
+            "### Gov 2 (P2→P3)\n"
+            "- President Player 2 nominated Player 3 for chancellor.\n"
+            "- Election of President Player 2 and Chancellor Player 3 passed "
+            "(ja: Player 2, Player 3; nein: none).\n"
+            "- President Player 2 and Chancellor Player 3 enacted a fascist policy.\n"
+            "- President Player 2 executed Player 4.\n",
+        )
+
+    def test_render_text_government_headings_survive_collapse(self):
+        """Verifies that government headings stay the same when a new discussion collapses an older one."""
+        claims = DiscussionContext.AFTER_POLICY_CLAIMS
+        events = (
+            *_government(1, 2),
+            SpeechEvent(uid=1, text="First.", context=claims),
+            *_government(2, 3),
+            SpeechEvent(uid=2, text="Second.", context=claims),
+        )
+        later = (
+            *events,
+            *_government(3, 4),
+            SpeechEvent(uid=3, text="Third.", context=claims),
+        )
+
+        def headings(text: str) -> list[str]:
+            return [line for line in text.splitlines() if line.startswith("### ")]
+
+        before, after = self.render_events(*events), self.render_events(*later)
+        self.assertNotIn("First.", after)
+        self.assertEqual(headings(after)[:2], headings(before))
+        self.assertEqual(headings(after)[2], "### Gov 3 (P3→P4)")
 
     def test_render_dict_keeps_old_discussions(self):
         """Verifies that render_dict keeps every speech in the timeline."""
@@ -412,7 +487,7 @@ class TestRenderText(unittest.TestCase):
             ),
         )
         self.assertIn(
-            "1. President Player 1 claimed drawing liberal, fascist, fascist "
+            "- President Player 1 claimed drawing liberal, fascist, fascist "
             "and discarding liberal.\n",
             text,
         )
@@ -434,7 +509,7 @@ class TestRenderText(unittest.TestCase):
             ),
         )
         self.assertIn(
-            "2. Chancellor Player 2 claimed receiving fascist, fascist. These claims "
+            "- Chancellor Player 2 claimed receiving fascist, fascist. These claims "
             "conflict: President Player 1 claims passing liberal, fascist, but "
             "Chancellor Player 2 claims receiving fascist, fascist.\n",
             text,
@@ -493,12 +568,12 @@ class TestRenderText(unittest.TestCase):
             ),
         )
         expected = [
-            "1. President Player 1 claimed drawing liberal, fascist, fascist.",
-            "2. Chancellor Player 2 declined to share the 2 received policies.",
-            "3. President Player 1 claimed the top 3 policies are, from the top, "
+            "- President Player 1 claimed drawing liberal, fascist, fascist.",
+            "- Chancellor Player 2 declined to share the 2 received policies.",
+            "- President Player 1 claimed the top 3 policies are, from the top, "
             "fascist, fascist, liberal.",
-            "4. President Player 1 claimed Player 3 is fascist.",
-            "5. President Player 1 declined to share Player 4's party.",
+            "- President Player 1 claimed Player 3 is fascist.",
+            "- President Player 1 declined to share Player 4's party.",
         ]
         for line in expected:
             self.assertIn(line + "\n", text)
@@ -507,6 +582,7 @@ class TestRenderText(unittest.TestCase):
         """Verifies that each kind of private knowledge renders for its owner only."""
         state = replace(
             self.state,
+            events=_government(1, 2) + _government(3, 1),
             knowledge=(
                 PresidentDrawKnowledge(uid=1, chancellor_uid=2, policies=(L, F, F)),
                 ChancellorReceiveKnowledge(uid=1, president_uid=3, policies=(F, F)),
@@ -517,8 +593,8 @@ class TestRenderText(unittest.TestCase):
         )
         text = render_text(scrub_state(state, 1), 1)
         expected = [
-            "- As president with Chancellor Player 2, you drew fascist, fascist, liberal.",
-            "- As chancellor under President Player 3, you received fascist, fascist.",
+            "- In Gov 1 (P1→P2) you drew fascist, fascist, liberal.",
+            "- In Gov 2 (P3→P1) you received fascist, fascist.",
             "- You peeked at the top 3 policies, from the top: liberal, liberal, fascist.",
             "- You investigated Player 4: liberal party.",
         ]
@@ -530,6 +606,7 @@ class TestRenderText(unittest.TestCase):
         """Verifies that a president's discard renders on the same line as the draw before it."""
         state = replace(
             self.state,
+            events=_government(1, 2),
             knowledge=(
                 PresidentDrawKnowledge(uid=1, chancellor_uid=2, policies=(F, F, L)),
                 PresidentDiscardKnowledge(
@@ -539,16 +616,17 @@ class TestRenderText(unittest.TestCase):
         )
         text = render_text(scrub_state(state, 1), 1)
         self.assertIn(
-            "- As president with Chancellor Player 2, you drew fascist, fascist, "
+            "- In Gov 1 (P1→P2) you drew fascist, fascist, "
             "liberal, discarded fascist, passed fascist, liberal.\n",
             text,
         )
-        self.assertEqual(text.count("As president"), 1)
+        self.assertEqual(text.count("you drew"), 1)
 
     def test_render_text_knowledge_canonical_order(self):
         """Verifies that drawn, passed and received policies render fascist first while a peek keeps its order."""
         state = replace(
             self.state,
+            events=_government(1, 2) + _government(3, 1),
             knowledge=(
                 PresidentDrawKnowledge(uid=1, chancellor_uid=2, policies=(L, F, L)),
                 PresidentDiscardKnowledge(
@@ -560,9 +638,9 @@ class TestRenderText(unittest.TestCase):
         )
         text = render_text(scrub_state(state, 1), 1)
         expected = [
-            "- As president with Chancellor Player 2, you drew fascist, liberal, "
+            "- In Gov 1 (P1→P2) you drew fascist, liberal, "
             "liberal, discarded liberal, passed fascist, liberal.",
-            "- As chancellor under President Player 3, you received fascist, liberal.",
+            "- In Gov 2 (P3→P1) you received fascist, liberal.",
             "- You peeked at the top 3 policies, from the top: liberal, fascist, liberal.",
         ]
         for line in expected:
@@ -584,6 +662,100 @@ class TestRenderText(unittest.TestCase):
                 )
         self.assertNotIn("fascist, fascist, fascist", text)
         self.assertIn("## Private Knowledge\n- None.\n", text)
+
+
+class TestGovernmentLabels(unittest.TestCase):
+    def setUp(self):
+        self.state = create_game(UIDS, 42, shuffle_players=False)
+        self.events = (
+            _government(1, 2)
+            + _government(2, 3, Vote.NEIN)
+            + _government(1, 2)
+            + _government(4, 1)
+        )
+        self.knowledge = (
+            PresidentDrawKnowledge(uid=1, chancellor_uid=2, policies=(F, F, L)),
+            PresidentDiscardKnowledge(
+                uid=1, chancellor_uid=2, discarded=F, passed=(F, L)
+            ),
+            PresidentDrawKnowledge(uid=1, chancellor_uid=2, policies=(L, L, L)),
+            PresidentDiscardKnowledge(
+                uid=1, chancellor_uid=2, discarded=L, passed=(L, L)
+            ),
+            ChancellorReceiveKnowledge(uid=1, president_uid=4, policies=(F, F)),
+            PeekKnowledge(uid=1, policies=(L, F, L)),
+        )
+        self.view = render_dict(
+            replace(self.state, events=self.events, knowledge=self.knowledge), 1
+        )
+
+    def test__government_numbers_immutability(self):
+        """Verifies that _government_numbers returns a new list without mutating the timeline."""
+        timeline = self.view["timeline"]
+        before = copy.deepcopy(timeline)
+        self.assertIsNot(_government_numbers(timeline), _government_numbers(timeline))
+        self.assertEqual(timeline, before)
+
+    def test__knowledge_governments_immutability(self):
+        """Verifies that _knowledge_governments returns a new list without mutating its inputs."""
+        knowledge, timeline = self.view["knowledge"], self.view["timeline"]
+        before = copy.deepcopy((knowledge, timeline))
+        self.assertIsNot(
+            _knowledge_governments(knowledge, timeline),
+            _knowledge_governments(knowledge, timeline),
+        )
+        self.assertEqual((knowledge, timeline), before)
+
+    def test__government_labels_immutability(self):
+        """Verifies that _government_labels returns a new dict without mutating the timeline."""
+        timeline = self.view["timeline"]
+        before = copy.deepcopy(timeline)
+        self.assertIsNot(_government_labels(timeline), _government_labels(timeline))
+        self.assertEqual(timeline, before)
+
+    def test_render_dict_timeline_has_government_numbers(self):
+        """Verifies that each timeline entry carries the number of the nomination it follows."""
+        self.assertEqual(
+            [e["government"] for e in self.view["timeline"]], [1, 1, 2, 2, 3, 3, 4, 4]
+        )
+
+    def test_events_before_any_nomination_have_no_government(self):
+        """Verifies that events before the first nomination have no government number."""
+        speech = SpeechEvent(
+            uid=1, text="Hi.", context=DiscussionContext.AFTER_POLICY_CLAIMS
+        )
+        view = render_dict(replace(self.state, events=(speech, *self.events)), 1)
+        self.assertIsNone(view["timeline"][0]["government"])
+        self.assertEqual(view["timeline"][1]["government"], 1)
+
+    def test_failed_government_gets_a_label(self):
+        """Verifies that a nomination whose election failed still gets its own label."""
+        self.assertEqual(
+            _government_labels(self.view["timeline"]),
+            {
+                1: "Gov 1 (P1→P2)",
+                2: "Gov 2 (P2→P3)",
+                3: "Gov 3 (P1→P2)",
+                4: "Gov 4 (P4→P1)",
+            },
+        )
+
+    def test_knowledge_maps_to_governments_when_pair_repeats(self):
+        """Verifies that repeated president and chancellor pairs map each draw and receive to its own government."""
+        self.assertEqual(
+            [k["government"] for k in self.view["knowledge"]], [1, 1, 3, 3, 4, None]
+        )
+        text = render_text(
+            replace(self.state, events=self.events, knowledge=self.knowledge), 1
+        )
+        self.assertIn("- In Gov 1 (P1→P2) you drew fascist, fascist, liberal,", text)
+        self.assertIn("- In Gov 3 (P1→P2) you drew liberal, liberal, liberal,", text)
+        self.assertIn("- In Gov 4 (P4→P1) you received fascist, fascist.", text)
+
+    def test_knowledge_without_government_has_no_label(self):
+        """Verifies that knowledge with no matching passed election renders without a label."""
+        text = render_text(replace(self.state, knowledge=self.knowledge[:1]), 1)
+        self.assertIn("- You drew fascist, fascist, liberal.\n", text)
 
 
 class TestFormatHand(unittest.TestCase):

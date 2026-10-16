@@ -10,7 +10,7 @@ What each player learned in secret is kept in `GameState.knowledge`, so it survi
 | [`PeekKnowledge`](../reference/models.md#tyrant.models.PeekKnowledge) | A president peeks at the top 3 policies |
 | [`InvestigationKnowledge`](../reference/models.md#tyrant.models.InvestigationKnowledge) | A president learns the party of an investigated player |
 
-[`render_text`](../reference/engine.md#tyrant.engine.render_text) shows a draw and the discard that follows it as one line, such as "As president with Chancellor Player 2, you drew fascist, fascist, liberal, discarded fascist, passed fascist, liberal." Nothing extra is recorded for a veto. The vetoed policies are the two the president passed, and the public `veto` event in the timeline shows that the veto was approved. Drawn, passed and received policies are always listed fascist first; a peek keeps its top-to-bottom order.
+[`render_text`](../reference/engine.md#tyrant.engine.render_text) shows a draw and the discard that follows it as one line, such as "In Gov 3 (P1→P2) you drew fascist, fascist, liberal, discarded fascist, passed fascist, liberal." The label names the [government](rendering.md#governments) the session belonged to. Nothing extra is recorded for a veto. The vetoed policies are the two the president passed, and the public `veto` event in the timeline shows that the veto was approved. Drawn, passed and received policies are always listed fascist first; a peek keeps its top-to-bottom order.
 
 ## Claim options
 

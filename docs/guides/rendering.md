@@ -20,12 +20,12 @@ payload = render_dict(state, uid)
 | `board` | Policies enacted and needed to win, the fascist track, the election tracker, the Hitler zone, veto, and the pile sizes |
 | `government` | The president, the chancellor and the previous government |
 | `turn` | The phase, who the game is waiting on, the active power, the viewer's hand, the winner and the discussion |
-| `timeline` | Every public event |
-| `knowledge` | The viewer's private knowledge |
+| `timeline` | Every public event, each with the `government` number it belongs to |
+| `knowledge` | The viewer's private knowledge, each with the `government` number it belongs to, or `None` for a peek or an investigation |
 
 ## `render_text`
 
-[`render_text`](../reference/engine.md#tyrant.engine.render_text) builds Markdown from the same dict, with sections for the viewer's role and known teammates, the players, the board and election tracker, the government, the current phase, who must act and the discussion topic and round, a numbered timeline of public events and discussion, and the viewer's private knowledge. Hidden values always render as `unknown`.
+[`render_text`](../reference/engine.md#tyrant.engine.render_text) builds Markdown from the same dict, with sections for the viewer's role and known teammates, the players, the board and election tracker, the government, the current phase, who must act and the discussion topic and round, a timeline of public events and discussion, and the viewer's private knowledge. Hidden values always render as `unknown`.
 
 ```markdown
 # Secret Hitler: Player 0's view
@@ -47,3 +47,22 @@ In seat order:
 When a president's and chancellor's policy claims for the same government follow each other in the timeline and disagree, `render_text` adds a sentence to the second claim pointing out the conflict, for example "These claims conflict: President Player 1 claims passing liberal, fascist, but Chancellor Player 2 claims receiving fascist, fascist." The president's claimed passed policies are the claimed draw minus the claimed discard, and order doesn't matter.
 
 To keep prompts small, `render_text` shows speeches from only the last two discussions; older ones collapse into one line each. `render_dict` keeps every speech.
+
+## Governments
+
+Every nomination starts a new government, numbered from 1, including nominations whose election fails. Its label names the president and the nominee, such as `Gov 3 (P2→P4)`. The timeline has no line numbers. Instead, each government's events sit under a `### Gov 3 (P2→P4)` heading, from its nomination up to the next one, including any discussion, presidential power or execution that follows. Events before the first nomination come before any heading. Because labels count nominations, they never change as the game goes on, so players can cite them:
+
+```markdown
+## Timeline
+
+### Gov 1 (P1→P2)
+- President Player 1 nominated Player 2 for chancellor.
+- Election of President Player 1 and Chancellor Player 2 failed (ja: Player 1; nein: Player 2, Player 3).
+
+### Gov 2 (P2→P3)
+- President Player 2 nominated Player 3 for chancellor.
+- Election of President Player 2 and Chancellor Player 3 passed (ja: Player 1, Player 2, Player 3; nein: none).
+- President Player 2 and Chancellor Player 3 enacted a fascist policy.
+```
+
+Private knowledge from a legislative session names its government too, such as "In Gov 2 (P2→P3) you drew fascist, fascist, liberal, discarded liberal, passed fascist, fascist." Knowledge has no timestamp, so the viewer's k-th draw or discard maps to the k-th passed election in which they were president, and their k-th receive to the k-th passed election in which they were chancellor.
