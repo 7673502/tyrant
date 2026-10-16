@@ -118,6 +118,7 @@ class GameState:
         special_election_caller_index: Seat index of the president who called the special election, or `None`.
         discussion_enabled: Whether discussions are held.
         discussion_rounds: How many times the table goes around in each discussion.
+        discussion_contexts: The events that start a discussion when discussions are enabled.
         discussion: The discussion in progress, or `None`.
         events: Every public event, in order.
         knowledge: What each player learned in secret, in order.
@@ -149,6 +150,7 @@ class GameState:
     special_election_caller_index: int | None = None
     discussion_enabled: bool = False
     discussion_rounds: int = 2
+    discussion_contexts: frozenset[DiscussionContext] = frozenset(DiscussionContext)
     discussion: Discussion | None = None
     events: tuple[Event, ...] = ()
     knowledge: tuple[Knowledge, ...] = ()
@@ -161,6 +163,7 @@ def create_game(
     shuffle_players: bool = True,
     discussion_enabled: bool = False,
     discussion_rounds: int = 2,
+    discussion_contexts: frozenset[DiscussionContext] = frozenset(DiscussionContext),
 ) -> GameState:
     """Creates a new game, ready for the first nomination.
 
@@ -171,12 +174,13 @@ def create_game(
         shuffle_players: Whether to shuffle the seating order; otherwise players sit in `uids` order.
         discussion_enabled: Whether to hold discussions.
         discussion_rounds: How many times the table goes around in each discussion.
+        discussion_contexts: The events that start a discussion when discussions are enabled.
 
     Returns:
         The initial game state.
 
     Raises:
-        TyrantError: If the player count, the UIDs, `roles` or `discussion_rounds` are invalid.
+        TyrantError: If the player count, the UIDs, `roles`, `discussion_rounds` or `discussion_contexts` are invalid.
     """
     player_count = len(uids)
     if not (5 <= player_count <= 10):
@@ -187,6 +191,9 @@ def create_game(
         raise TyrantError(
             f"Discussion rounds must be at least 1, got {discussion_rounds}"
         )
+    unknown = [c for c in discussion_contexts if not isinstance(c, DiscussionContext)]
+    if unknown:
+        raise TyrantError(f"Unknown discussion contexts: {unknown}")
 
     num_liberals, num_fascists = ROLE_DISTRIBUTION[player_count]
 
@@ -247,6 +254,7 @@ def create_game(
         current_investigation_result=None,
         discussion_enabled=discussion_enabled,
         discussion_rounds=discussion_rounds,
+        discussion_contexts=frozenset(discussion_contexts),
     )
 
 
@@ -305,8 +313,12 @@ def _advance_to_nomination(state: GameState) -> GameState:
 
 
 def _begin_discussion(state: GameState, context: DiscussionContext) -> GameState:
-    """Starts a discussion with the given context if discussions are enabled and the game is not over."""
-    if not state.discussion_enabled or state.phase == GamePhase.GAME_OVER:
+    """Starts a discussion with the given context if discussions and that context are enabled and the game is not over."""
+    if (
+        not state.discussion_enabled
+        or context not in state.discussion_contexts
+        or state.phase == GamePhase.GAME_OVER
+    ):
         return state
 
     player_count = len(state.players)

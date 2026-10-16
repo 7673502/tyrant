@@ -93,6 +93,7 @@ class TestGameState(BaseGameStateTest):
         )
 
         self.assert_state_immutable(state)
+        self.assertIsInstance(state.discussion_contexts, frozenset)
 
 
 class TestCreateGame(BaseGameStateTest):
@@ -2276,7 +2277,12 @@ class TestDiscussionPhase(BaseGameStateTest):
     )
 
     def _state(
-        self, discussion_enabled: bool = True, discussion_rounds: int = 3
+        self,
+        discussion_enabled: bool = True,
+        discussion_rounds: int = 3,
+        discussion_contexts: frozenset[DiscussionContext] = frozenset(
+            DiscussionContext
+        ),
     ) -> GameState:
         return create_game(
             (1, 2, 3, 4, 5),
@@ -2285,6 +2291,7 @@ class TestDiscussionPhase(BaseGameStateTest):
             shuffle_players=False,
             discussion_enabled=discussion_enabled,
             discussion_rounds=discussion_rounds,
+            discussion_contexts=discussion_contexts,
         )
 
     def _discussing_state(self) -> GameState:
@@ -2453,6 +2460,31 @@ class TestDiscussionPhase(BaseGameStateTest):
             with self.subTest(rounds=rounds):
                 with self.assertRaises(TyrantError):
                     create_game((1, 2, 3, 4, 5), 42, discussion_rounds=rounds)
+
+    def test_create_game_invalid_discussion_contexts(self):
+        """Verifies that an error is raised when a discussion context is unknown."""
+        with self.assertRaises(TyrantError):
+            create_game(
+                (1, 2, 3, 4, 5),
+                42,
+                discussion_contexts=frozenset({"after_lunch"}),
+            )
+
+    def test__begin_discussion_skips_disabled_context(self):
+        """Verifies that a context missing from the enabled contexts starts no discussion."""
+        state = replace(
+            self._state(
+                discussion_contexts=frozenset({DiscussionContext.AFTER_NOMINATION})
+            ),
+            phase=GamePhase.VOTING,
+        )
+        self.assertIs(
+            _begin_discussion(state, DiscussionContext.AFTER_FAILED_ELECTION), state
+        )
+        self.assertEqual(
+            _begin_discussion(state, DiscussionContext.AFTER_NOMINATION).phase,
+            GamePhase.DISCUSSION,
+        )
 
     def test_hooks_enter_discussion_when_enabled(self):
         """Verifies that every hook point enters discussion with the right context, resume phase and speakers."""
