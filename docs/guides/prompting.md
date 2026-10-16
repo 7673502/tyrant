@@ -33,6 +33,10 @@ To see exactly what a model was sent and what it sent back, pass `on_exchange` t
 agent = LLMAgent(0, "anthropic/claude-haiku-5-5", on_exchange=lambda e: print(e["reply"]))
 ```
 
+The callback runs inside `choose_action`, so keep it fast; to send exchanges over the network, put them on an `asyncio.Queue` and send them from another task. An exception it raises leaves the agent like any other: an `AgentError`, `InvalidMoveError` or `TimeoutError` counts as a fault and is retried, and anything else ends the game.
+
+Replays hold neither prompts nor accepted replies, so `on_exchange` is the only way to see them. Used together with `GameRunner`'s [`on_update`](replays.md#live-games), each exchange arrives before the `fault` or `step` message it leads to, so a viewer can attach it to the next of those for the same `uid`. Exchanges from players asked at the same time, such as during a vote, can interleave.
+
 ## Personas
 
 `LLMAgent` takes an optional `persona`, a short description of how that player plays:

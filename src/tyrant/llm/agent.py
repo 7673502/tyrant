@@ -22,7 +22,7 @@ _NO_USAGE = frozendict(prompt_tokens=0, completion_tokens=0, cached_tokens=0, co
 class LLMAgent:
     """An agent that plays through any model litellm supports.
 
-    Each turn it sends `SYSTEM_PROMPT`, followed by the persona if one is set, as the system message and `build_prompt` as the user message, then reads the reply with `parse_action` and `parse_notes`. When a reply is rejected, the next call for the same state adds that reply and the reason to the conversation. Provider and network errors are raised as `AgentError`. When `on_exchange` is set, it is called once for each provider call with the messages sent and what came back.
+    Each turn it sends `SYSTEM_PROMPT`, followed by the persona if one is set, as the system message and `build_prompt` as the user message, then reads the reply with `parse_action` and `parse_notes`. When a reply is rejected, the next call for the same state adds that reply and the reason to the conversation. Provider and network errors are raised as `AgentError`. When `on_exchange` is set, it is called once for each provider call with the messages sent and what came back; an exception it raises propagates out of `choose_action`.
 
     Attributes:
         uid: The player's unique ID.

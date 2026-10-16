@@ -67,7 +67,7 @@ Pass `on_update` to `GameRunner` to follow a game as it is played, for example t
 - `{"type": "fault", "fault": ...}` after each failed attempt, holding the same entry as in `faults`. It arrives before the step it points at.
 - `{"type": "end", "result": ...}` when the game ends.
 
-Appending each `step` and `fault` to the `start` replay and setting `result` gives the same data as `replay_dict`, so a viewer can use one code path for files and live games. If an agent raises an unexpected exception, the game ends without an `end` message.
+Appending each `step` and `fault` to the `start` replay and setting `result` gives the same data as `replay_dict`, so a viewer can use one code path for files and live games. If an agent or the callback itself raises an unexpected exception, the game ends without an `end` message.
 
 ```python
 import json
@@ -76,7 +76,7 @@ runner = GameRunner(agents, on_update=lambda message: print(json.dumps(message))
 await runner.run()
 ```
 
-The callback runs inside the game loop, so keep it fast; to send messages over the network, put them on an `asyncio.Queue` and send them from another task. Like a replay file, the messages show every role, hand and note, so a public audience sees everything as it happens.
+The callback runs inside the game loop, so keep it fast; to send messages over the network, put them on an `asyncio.Queue` and send them from another task. Like a replay file, the messages show every role, hand and note, so a public audience sees everything as it happens. Neither the messages nor a replay file hold the prompts sent to an `LLMAgent` or its accepted replies; pass [`on_exchange`](prompting.md#inspecting-exchanges) to the agent for those.
 
 ## Snapshots
 
