@@ -102,7 +102,9 @@ class LLMAgent:
                 {
                     "role": "user",
                     "content": f"Your previous reply was rejected: {error}. "
-                    "Choose again from Your Options above.",
+                    "Choose again from Your Options above. Reply with plain text, "
+                    'then end with one JSON object like {"action": 2, "notes": "…"}. '
+                    "Do not use tool-call or XML syntax.",
                 }
             )
         try:
