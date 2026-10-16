@@ -70,6 +70,17 @@ class PolicyEnactedEvent(Event):
 
 
 @dataclass(frozen=True)
+class DeckShuffledEvent(Event):
+    """The discard pile was shuffled into the draw pile because fewer than 3 policies were left to draw.
+
+    Attributes:
+        draw_pile: Number of policies in the draw pile after the shuffle.
+    """
+
+    draw_pile: int
+
+
+@dataclass(frozen=True)
 class VetoEvent(Event):
     """The president answered the chancellor's veto proposal.
 

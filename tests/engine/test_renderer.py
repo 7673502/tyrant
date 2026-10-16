@@ -34,6 +34,7 @@ from tyrant.models.enums import (
 )
 from tyrant.models.event import (
     ClaimEvent,
+    DeckShuffledEvent,
     ElectionEvent,
     ExecutionEvent,
     GameOverEvent,
@@ -341,6 +342,7 @@ class TestRenderText(unittest.TestCase):
             ),
             PolicyEnactedEvent(policy=F, president_uid=1, chancellor_uid=2),
             PolicyEnactedEvent(policy=L, president_uid=None, chancellor_uid=None),
+            DeckShuffledEvent(draw_pile=14),
             VetoEvent(president_uid=1, chancellor_uid=2, approved=False),
             InvestigationEvent(president_uid=1, target_uid=3),
             SpecialElectionEvent(president_uid=1, target_uid=4),
@@ -357,6 +359,7 @@ class TestRenderText(unittest.TestCase):
             "(ja: Player 1, Player 2; nein: Player 3).",
             "- President Player 1 and Chancellor Player 2 enacted a fascist policy.",
             "- A liberal policy was top-decked.",
+            "- The discard pile was shuffled into the draw pile (now 14 policies).",
             "- Chancellor Player 2 proposed a veto and President Player 1 denied it.",
             "- President Player 1 investigated Player 3.",
             "- President Player 1 called a special election for Player 4.",

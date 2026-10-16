@@ -26,7 +26,7 @@ from tyrant.models.enums import (
     Role,
     Vote,
 )
-from tyrant.models.event import ClaimEvent, SpeechEvent
+from tyrant.models.event import ClaimEvent, DeckShuffledEvent, SpeechEvent
 from tyrant.models.game_state import (
     DEFAULT_DISCUSSION_CONTEXTS,
     GameState,
@@ -1682,12 +1682,16 @@ class TestTermLimited(BaseGameStateTest):
 
 
 class TestEnsureDeckReady(BaseGameStateTest):
+    def shuffles(self, state: GameState) -> list[DeckShuffledEvent]:
+        return [e for e in state.events if isinstance(e, DeckShuffledEvent)]
+
     def test__ensure_deck_ready_no_shuffle(self):
         """Ensures correctness after no shuffle is required when function is called."""
         state = create_game((1, 2, 3, 4, 5), 42)
         new_state = _ensure_deck_ready(state)
         self.assertFalse(new_state.deck_shuffled_last_action)
         self.assertEqual(len(new_state.deck.draw_pile), 17)
+        self.assertEqual(self.shuffles(new_state), [])
 
     def test__ensure_deck_ready_yes_shuffle(self):
         """Ensures correctness when shuffle is required after function is called."""
@@ -1702,6 +1706,7 @@ class TestEnsureDeckReady(BaseGameStateTest):
         new_state = _ensure_deck_ready(state)
         self.assertTrue(new_state.deck_shuffled_last_action)
         self.assertEqual(len(new_state.deck.draw_pile), 12)
+        self.assertEqual(self.shuffles(new_state), [DeckShuffledEvent(draw_pile=12)])
         self.assertEqual(len(new_state.deck.discard_pile), 0)
 
     def test__ensure_deck_ready_reshuffle_immutability(self):
@@ -1740,6 +1745,7 @@ class TestEnsureDeckReady(BaseGameStateTest):
         new_state = _resolve_election(state)
         self.assertTrue(new_state.deck_shuffled_last_action)
         self.assertEqual(len(new_state.deck.draw_pile), 0)
+        self.assertEqual(self.shuffles(new_state), [DeckShuffledEvent(draw_pile=3)])
 
     def test__ensure_deck_ready_before_policy_peek(self):
         """Before president peeks 3, ensure reshuffle occurs (set up so <3 cards in the draw pile)."""
@@ -1754,6 +1760,7 @@ class TestEnsureDeckReady(BaseGameStateTest):
         self.assertTrue(new_state.deck_shuffled_last_action)
         self.assertEqual(len(new_state.drawn_policies), 3)
         self.assertEqual(len(new_state.deck.draw_pile), 3)
+        self.assertEqual(self.shuffles(new_state), [DeckShuffledEvent(draw_pile=3)])
 
     def test__ensure_deck_ready_before_top_deck(self):
         """Before a top deck occurs, ensure reshuffle occurs (set up so <3 cards in the draw pile)."""
@@ -1777,6 +1784,7 @@ class TestEnsureDeckReady(BaseGameStateTest):
         new_state = _resolve_election(state)
         self.assertTrue(new_state.deck_shuffled_last_action)
         self.assertEqual(len(new_state.deck.draw_pile), 2)
+        self.assertEqual(self.shuffles(new_state), [DeckShuffledEvent(draw_pile=3)])
 
     def test__ensure_deck_ready_before_veto_top_deck(self):
         """Before a top deck occurs after a veto, ensure reshuffle occurs (set up so <3 cards in the draw pile)."""
@@ -1797,6 +1805,7 @@ class TestEnsureDeckReady(BaseGameStateTest):
         new_state = president_veto_response(state, True)
         self.assertTrue(new_state.deck_shuffled_last_action)
         self.assertEqual(len(new_state.deck.draw_pile), 4)
+        self.assertEqual(self.shuffles(new_state), [DeckShuffledEvent(draw_pile=5)])
 
     def test__ensure_deck_ready_transition_functions(self):
         """Ensures every transition function that does not make use of _ensure_deck_ready resets the flag to False."""

@@ -37,6 +37,7 @@ from tyrant.models.enums import (
 )
 from tyrant.models.event import (
     ClaimEvent,
+    DeckShuffledEvent,
     ElectionEvent,
     Event,
     ExecutionEvent,
@@ -520,7 +521,7 @@ def nominate_chancellor(state: GameState, chancellor_uid: int) -> GameState:
 
 
 def _ensure_deck_ready(state: GameState) -> GameState:
-    """Shuffles the discard pile into the draw pile if fewer than three policies remain."""
+    """Shuffles the discard pile into the draw pile if fewer than three policies remain, recording the shuffle as an event."""
     if len(state.deck.draw_pile) < 3:
         rng = Random()
         rng.setstate(state.rng_state)
@@ -530,6 +531,8 @@ def _ensure_deck_ready(state: GameState) -> GameState:
             deck=new_deck,
             rng_state=rng.getstate(),
             deck_shuffled_last_action=True,
+            events=state.events
+            + (DeckShuffledEvent(draw_pile=len(new_deck.draw_pile)),),
         )
     else:
         return replace(state, deck_shuffled_last_action=False)

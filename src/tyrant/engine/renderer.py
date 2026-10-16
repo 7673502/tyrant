@@ -330,6 +330,11 @@ def _timeline_line(entry: dict) -> str:
                 f"President {_player(entry['president_uid'])} and Chancellor "
                 f"{_player(entry['chancellor_uid'])} enacted a {entry['policy']} policy."
             )
+        case "deck_shuffled":
+            return (
+                "The discard pile was shuffled into the draw pile "
+                f"(now {entry['draw_pile']} policies)."
+            )
         case "veto":
             response = "approved" if entry["approved"] else "denied"
             return (
