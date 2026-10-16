@@ -7,6 +7,7 @@ Every public game event is appended to `GameState.events`, in order. Each entry 
 | [`NominationEvent`](../reference/models.md#tyrant.models.NominationEvent) | The president nominates a chancellor |
 | [`ElectionEvent`](../reference/models.md#tyrant.models.ElectionEvent) | An election resolves, with every player's vote and the result |
 | [`PolicyEnactedEvent`](../reference/models.md#tyrant.models.PolicyEnactedEvent) | A policy is enacted, with its president and chancellor, or with both set to `None` for a top-deck |
+| [`DeckShuffledEvent`](../reference/models.md#tyrant.models.DeckShuffledEvent) | Fewer than 3 policies are left to draw, so the discard pile is shuffled into the draw pile, with the new draw pile size |
 | [`VetoEvent`](../reference/models.md#tyrant.models.VetoEvent) | The president approves or denies a chancellor's veto |
 | [`ClaimEvent`](../reference/models.md#tyrant.models.ClaimEvent) | A player makes a claim, linked to its government or power, and to its target for an investigation. A president's [`PresidentEnactClaim`](../reference/models.md#tyrant.models.PresidentEnactClaim) names the 3 drawn policies and the one discarded. A [claim correction](discussion.md#correcting-a-claim) is a `ClaimEvent` with `correction=True` |
 | [`InvestigationEvent`](../reference/models.md#tyrant.models.InvestigationEvent), [`SpecialElectionEvent`](../reference/models.md#tyrant.models.SpecialElectionEvent), [`ExecutionEvent`](../reference/models.md#tyrant.models.ExecutionEvent) | A presidential power is used, with the president and target |

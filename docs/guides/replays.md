@@ -49,7 +49,7 @@ The file holds the setup with every hidden role, then one entry per applied acti
 
 `agent` describes what plays each player: the agent's class name as `type`, plus its `profile` if it has one. [`LLMAgent`](../reference/llm.md#tyrant.llm.agent.LLMAgent)'s profile holds its `model` and `persona`. `agent` is `null` for a `Replay` built without agents. Each step's `notes` holds the acting agent's private notes after the step, or `null` for agents that keep none.
 
-Each step lists the events and private knowledge its action produced. `fallback` is `true` when the agent failed every attempt and the runner played an action for it (a pass during discussion, otherwise a random legal action), so a step with `fallback: false` was the agent's own choice. Version 1 files have no `fallback` field and can't tell the two apart. Version 2 files have no `president_discard` knowledge and no `discarded` field in `president_enact` claims. Actions leave out `description` and `message`; speech text is in the step's `speech` event. `result` is `null` if the game has not ended.
+Each step lists the events and private knowledge its action produced. `fallback` is `true` when the agent failed every attempt and the runner played an action for it (a pass during discussion, a declined claim when one is offered, otherwise a random legal action), so a step with `fallback: false` was the agent's own choice. Version 1 files have no `fallback` field and can't tell the two apart. Version 2 files have no `president_discard` knowledge and no `discarded` field in `president_enact` claims. Actions leave out `description` and `message`; speech text is in the step's `speech` event. `result` is `null` if the game has not ended.
 
 ## Faults
 
