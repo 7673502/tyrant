@@ -52,6 +52,7 @@ from tyrant.models.game_state import (
     president_veto_response,
     scrub_state,
     speak,
+    term_limited,
 )
 from tyrant.models.player import Player
 
@@ -1642,6 +1643,42 @@ class TestExecutePlayer(BaseGameStateTest):
 
         with self.assertRaises(InvalidMoveError):
             _ = execute_player(state, target_uid)
+
+
+class TestTermLimited(BaseGameStateTest):
+    def test_term_limited_immutability(self):
+        """Verifies that term_limited returns a tuple without mutating the input state."""
+        state = replace(
+            create_game(tuple(range(1, 8)), 42),
+            previous_president=1,
+            previous_chancellor=2,
+        )
+        before = replace(state)
+        limited = term_limited(state)
+        self.assertIsInstance(limited, tuple)
+        self.assertEqual(state, before)
+
+    def test_term_limited_none_before_first_government(self):
+        """Verifies that nobody is term-limited before any government is elected."""
+        self.assertEqual(term_limited(create_game(tuple(range(1, 8)), 42)), ())
+
+    def test_term_limited_both_over_five_alive(self):
+        """Verifies that the previous chancellor and president are term-limited while more than 5 players are alive."""
+        state = replace(
+            create_game(tuple(range(1, 7)), 42),
+            previous_president=1,
+            previous_chancellor=2,
+        )
+        self.assertEqual(term_limited(state), (2, 1))
+
+    def test_term_limited_only_chancellor_at_five_alive(self):
+        """Verifies that only the previous chancellor is term-limited when 5 or fewer players are alive."""
+        state = replace(
+            create_game(tuple(range(1, 6)), 42),
+            previous_president=1,
+            previous_chancellor=2,
+        )
+        self.assertEqual(term_limited(state), (2,))
 
 
 class TestEnsureDeckReady(BaseGameStateTest):

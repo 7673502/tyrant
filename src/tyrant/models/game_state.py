@@ -455,6 +455,24 @@ def correct_claim(
     )
 
 
+def term_limited(state: GameState) -> tuple[int, ...]:
+    """Returns the UIDs of the players who cannot be nominated chancellor because of term limits.
+
+    The previous chancellor is always term-limited, and the previous president is too while more than 5 players are alive.
+
+    Args:
+        state: The current game state.
+
+    Returns:
+        The previous chancellor's UID, then the previous president's, leaving out any that do not apply.
+    """
+    alive_count = sum(1 for p in state.players if p.is_alive)
+    limited = [state.previous_chancellor]
+    if alive_count > 5:
+        limited.append(state.previous_president)
+    return tuple(uid for uid in limited if uid is not None)
+
+
 def nominate_chancellor(state: GameState, chancellor_uid: int) -> GameState:
     """Nominates a chancellor for the current president.
 
@@ -482,17 +500,10 @@ def nominate_chancellor(state: GameState, chancellor_uid: int) -> GameState:
     if not chancellor.is_alive:
         raise InvalidMoveError("Cannot nominate a dead player")
 
-    alive_count = sum(1 for p in state.players if p.is_alive)
-    if alive_count > 5:
-        if chancellor_uid in (state.previous_president, state.previous_chancellor):
-            raise InvalidMoveError(
-                "Target cannot be previous president or chancellor when > 5 players are alive"
-            )
-    else:
-        if chancellor_uid == state.previous_chancellor:
-            raise InvalidMoveError(
-                "Target cannot be previous chancellor when <= 5 players are alive"
-            )
+    if chancellor_uid in term_limited(state):
+        raise InvalidMoveError(
+            f"Player {chancellor_uid} is term-limited: the previous chancellor, or the previous president when more than 5 players are alive"
+        )
 
     new_state = replace(
         state,
