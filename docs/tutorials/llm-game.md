@@ -88,4 +88,4 @@ from tyrant import write_replay
 write_replay(runner.replay, "game.json.gz")
 ```
 
-The replay also keeps every fault with the raw text of a rejected reply. See [Replays](../guides/replays.md) for the file format.
+The replay also records each player's model and persona, each agent's notes after every step, and every fault with the raw text of a rejected reply. To watch a game as it is played, pass `on_update` to `GameRunner`. See [Replays](../guides/replays.md) for the file format and live updates.

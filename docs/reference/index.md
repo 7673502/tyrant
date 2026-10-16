@@ -13,8 +13,8 @@ Each subpackage exports its full vocabulary:
 | [`tyrant.models`](models.md) | Every model, action, event, claim, knowledge and enum type, plus `create_game` and `scrub_state` |
 | [`tyrant.engine`](engine.md) | `GameRunner`, `get_legal_actions`, `apply_action`, the renderer and the replay functions |
 | [`tyrant.agents`](agents.md) | `RandomAgent` and `BiasedRandomAgent` |
-| [`tyrant.llm`](llm.md) | `SYSTEM_PROMPT`, `build_prompt`, `parse_action`, `parse_notes` and `MAX_NOTES_LENGTH` |
+| [`tyrant.llm`](llm.md) | `SYSTEM_PROMPT`, `system_prompt`, `build_prompt`, `parse_action`, `parse_notes` and `MAX_NOTES_LENGTH` |
 | [`tyrant.llm.agent`](llm.md#tyrant.llm.agent) | `LLMAgent`, which needs the `llm` extra |
-| [`tyrant.exceptions`](exceptions.md) | `TyrantError` and `InvalidMoveError` |
+| [`tyrant.exceptions`](exceptions.md) | `TyrantError`, `InvalidMoveError` and `AgentError` |
 
 Anything not listed in a package's `__all__` is internal and may change.
