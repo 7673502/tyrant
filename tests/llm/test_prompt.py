@@ -80,6 +80,10 @@ class TestSystemPrompt(unittest.TestCase):
         self.assertIn("`notes`", RESPONSE_FORMAT)
         self.assertIn(str(MAX_NOTES_LENGTH), RESPONSE_FORMAT)
 
+    def test_response_format_discourages_restating_state_in_notes(self):
+        """Verifies that the response format tells agents not to copy the shown state into their notes."""
+        self.assertIn("Don't copy the board, players or timeline", RESPONSE_FORMAT)
+
     def test_rules_encourage_passing(self):
         """Verifies that the rules tell players to stay silent unless they have something new to say."""
         self.assertIn(
