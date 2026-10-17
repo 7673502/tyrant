@@ -1,68 +1,89 @@
 import asyncio
 from collections.abc import Callable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
-from tyrant.engine.renderer import render_text
+from tyrant.exceptions import InvalidMoveError, TyrantError
 from tyrant.models.action import Action, SpeakAction
 from tyrant.models.game_state import GameState
 
 
-class HumanAgent:
-    """An agent played by a person at the terminal.
+@dataclass(frozen=True)
+class PendingTurn:
+    """A turn waiting for a person's choice.
 
-    Each turn it shows the player's view and the offered actions as numbered options, reads a number until a valid one is entered and, for a speech, reads the message. Input is read in a worker thread, so other agents keep running while it waits. Run it with `GameRunner(timeout=None)`: a timed-out prompt cannot be cancelled and would swallow the next line typed.
+    Attributes:
+        state: The game state, scrubbed for the player.
+        valid_actions: The actions the player may take now.
+    """
+
+    state: GameState
+    valid_actions: tuple[Action, ...]
+
+
+class HumanAgent:
+    """An agent whose choices come from outside code, such as a web server or a UI.
+
+    When asked for an action it publishes the turn on `pending`, calls `on_turn` if set, and waits until `submit` is called. If the runner times out the attempt, the turn is withdrawn and `pending` is cleared. `submit` must be called from the event loop the game runs on.
 
     Attributes:
         uid: The player's unique ID.
-        input_fn: Shows a prompt and returns the line the player typed.
-        output_fn: Shows text to the player.
+        pending: The turn waiting for a choice, or `None`.
+        on_turn: Called with each new turn, or `None`.
     """
 
-    def __init__(
-        self,
-        uid: int,
-        input_fn: Callable[[str], str] = input,
-        output_fn: Callable[[str], None] = print,
-    ):
+    def __init__(self, uid: int, on_turn: Callable[[PendingTurn], None] | None = None):
         """Creates the agent.
 
         Args:
             uid: The player's unique ID.
-            input_fn: Shows a prompt and returns the line the player typed.
-            output_fn: Shows text to the player.
+            on_turn: Called with each new turn, for example to push it to the player, or `None`.
         """
         self.uid = uid
-        self.input_fn = input_fn
-        self.output_fn = output_fn
+        self.on_turn = on_turn
+        self.pending: PendingTurn | None = None
+        self._choice: asyncio.Future[Action] | None = None
 
     async def choose_action(
         self, state: GameState, valid_actions: tuple[Action, ...]
     ) -> Action:
-        """Shows the player's view and options and returns the one they pick.
+        """Publishes the turn and waits for `submit`.
 
         Args:
             state: The game state, scrubbed for this agent.
             valid_actions: The actions this agent may take now.
 
         Returns:
-            The offered action the player picked, with their message filled in for a speech.
+            The submitted action.
         """
-        self.output_fn(render_text(state, self.uid))
-        self.output_fn("## Your Options")
-        for number, action in enumerate(valid_actions, start=1):
-            self.output_fn(f"{number}. {action.description}")
+        self._choice = asyncio.get_running_loop().create_future()
+        self.pending = PendingTurn(state=state, valid_actions=valid_actions)
+        if self.on_turn is not None:
+            self.on_turn(self.pending)
+        try:
+            return await self._choice
+        finally:
+            self.pending = None
+            self._choice = None
 
-        count = len(valid_actions)
-        while True:
-            reply = (
-                await asyncio.to_thread(self.input_fn, f"Choose 1-{count}: ")
-            ).strip()
-            if reply.isdigit() and 1 <= int(reply) <= count:
-                break
-            self.output_fn(f"Enter a number from 1 to {count}.")
+    def submit(self, index: int, message: str = "") -> None:
+        """Chooses an action for the pending turn.
 
-        action = valid_actions[int(reply) - 1]
+        Args:
+            index: Index of the chosen action in `pending.valid_actions`.
+            message: What the player says, used only when the chosen action is a `SpeakAction`.
+
+        Raises:
+            TyrantError: If no turn is pending.
+            InvalidMoveError: If `index` is out of range.
+        """
+        if self.pending is None or self._choice is None or self._choice.done():
+            raise TyrantError("No turn is pending")
+        valid_actions = self.pending.valid_actions
+        if not 0 <= index < len(valid_actions):
+            raise InvalidMoveError(
+                f"Index {index} is out of range for {len(valid_actions)} actions"
+            )
+        action = valid_actions[index]
         if isinstance(action, SpeakAction):
-            message = await asyncio.to_thread(self.input_fn, "Your message: ")
-            return replace(action, message=message.strip())
-        return action
+            action = replace(action, message=message)
+        self._choice.set_result(action)
