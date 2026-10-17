@@ -97,4 +97,18 @@ Random play is a useful baseline. `examples/basic_usage.py` plays 1,000 ten-play
 uv run python examples/basic_usage.py
 ```
 
+## Play a game yourself
+
+[`HumanAgent`](../reference/agents.md#tyrant.agents.HumanAgent) lets you take a seat. On each of your turns it prints your view and your options, numbered from 1. Type a number to choose an option, and type your message when you choose to speak. `examples/human_game.py` seats you as player 0 against four random agents:
+
+```python
+--8<-- "examples/human_game.py"
+```
+
+```sh
+uv run python examples/human_game.py
+```
+
+Pass `timeout=None` so the runner waits for you as long as it takes. A timed-out prompt can't be cancelled and would swallow the next line you type.
+
 Next, [write your own agent](custom-agent.md).
