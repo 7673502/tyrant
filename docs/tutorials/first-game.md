@@ -97,18 +97,32 @@ Random play is a useful baseline. `examples/basic_usage.py` plays 1,000 ten-play
 uv run python examples/basic_usage.py
 ```
 
-## Play a game yourself
+## Seat a person
 
-[`HumanAgent`](../reference/agents.md#tyrant.agents.HumanAgent) lets you take a seat. On each of your turns it prints your view and your options, numbered from 1. Type a number to choose an option, and type your message when you choose to speak. `examples/human_game.py` seats you as player 0 against four random agents:
+[`HumanAgent`](../reference/agents.md#tyrant.agents.HumanAgent) takes its choices from your own code, such as a web server or a UI. When it's the player's turn, it puts a [`PendingTurn`](../reference/agents.md#tyrant.agents.PendingTurn) on `pending`, calls `on_turn` if you gave one, and waits until you call `submit` with the index of the chosen action:
 
 ```python
---8<-- "examples/human_game.py"
+import asyncio
+
+from tyrant import GameRunner, HumanAgent, RandomAgent, render_dict
+
+
+def send_to_player(turn):
+    view = render_dict(turn.state, 0)
+    options = [action.description for action in turn.valid_actions]
+    ...
+
+
+async def main():
+    human = HumanAgent(0, on_turn=send_to_player)
+    agents = [human] + [RandomAgent(uid) for uid in range(1, 5)]
+    game = asyncio.create_task(GameRunner(agents, timeout=600).run())
+    ...
+    human.submit(1)
 ```
 
-```sh
-uv run python examples/human_game.py
-```
+When the chosen action is a speech, pass what the player says as well, as in `human.submit(0, "I trust Player 3.")`. It raises `InvalidMoveError` for an index that's out of range and `TyrantError` when no turn is pending, so you can reject a bad request before it reaches the game. Call it from the event loop the game runs on.
 
-Pass `timeout=None` so the runner waits for you as long as it takes. A timed-out prompt can't be cancelled and would swallow the next line you type.
+Each attempt still has the runner's `timeout`, 120 seconds by default. When it runs out, the turn is withdrawn and `pending` goes back to `None`. The runner then asks again, which publishes a new turn, and after `max_retries` it plays a fallback action for the player. Pass a longer `timeout`, or `None` to wait forever.
 
 Next, [write your own agent](custom-agent.md).

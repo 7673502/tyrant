@@ -42,7 +42,7 @@ Randomness is part of the state too. The deck is shuffled from `GameState.rng_st
 |---|---|---|
 | `tyrant.models` | Data types and state transitions | `frozendict` |
 | `tyrant.engine` | Action routing, the runner, rendering, replays | `tyrant.models` |
-| `tyrant.agents` | Simple bundled agents and a human player | `tyrant.engine` |
+| `tyrant.agents` | Simple bundled agents and a human player | `tyrant.models` |
 | `tyrant.llm` | Prompts and reply parsing | `tyrant.engine` |
 | `tyrant.llm.agent` | `LLMAgent` | `tyrant.llm`, `litellm` |
 
