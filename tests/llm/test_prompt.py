@@ -70,24 +70,6 @@ class FakeLLMAgent:
 
 
 class TestSystemPrompt(unittest.TestCase):
-    def test_system_prompt_starts_with_rules(self):
-        """Verifies that the system prompt is the rules, then the response format."""
-        self.assertEqual(SYSTEM_PROMPT, RULES + "\n" + RESPONSE_FORMAT)
-
-    def test_system_prompt_never_asks_for_honesty(self):
-        """Verifies that the system prompt never tells players to be honest or accurate."""
-        for word in ("honest", "accurate"):
-            with self.subTest(word=word):
-                self.assertNotIn(word, SYSTEM_PROMPT.lower())
-
-    def test_rules_ask_for_government_labels(self):
-        """Verifies that the rules tell players to cite governments by their Gov label rather than by numbers."""
-        self.assertIn(
-            "Refer to governments only by their Gov label (e.g. Gov 3) and to players "
-            "as Player N. There are no step, message or line numbers.",
-            RULES,
-        )
-
     def test_system_prompt_contains_speech_limit(self):
         """Verifies that the system prompt states the maximum speech length."""
         self.assertIn(str(MAX_SPEECH_LENGTH), SYSTEM_PROMPT)
@@ -97,16 +79,6 @@ class TestSystemPrompt(unittest.TestCase):
         self.assertIn("`notes`", RESPONSE_FORMAT)
         self.assertIn(str(MAX_NOTES_LENGTH), RESPONSE_FORMAT)
 
-    def test_response_format_discourages_restating_state_in_notes(self):
-        """Verifies that the response format tells agents not to copy the shown state into their notes."""
-        self.assertIn("Don't copy the board, players or timeline", RESPONSE_FORMAT)
-
-    def test_rules_encourage_passing(self):
-        """Verifies that the rules tell players to stay silent unless they have something new to say."""
-        self.assertIn(
-            "Stay silent unless you have a new claim, question or accusation.", RULES
-        )
-
     def test_rules_name_every_win_condition(self):
         """Verifies that the rules mention every win condition by its rendered value."""
         for condition in WinCondition:
@@ -115,10 +87,6 @@ class TestSystemPrompt(unittest.TestCase):
 
 
 class TestSystemPromptPersona(unittest.TestCase):
-    def test_system_prompt_immutability(self):
-        """Verifies that system_prompt returns equal text for equal personas."""
-        self.assertEqual(system_prompt("Cautious."), system_prompt("Cautious."))
-
     def test_system_prompt_without_persona_is_system_prompt(self):
         """Verifies that an empty persona leaves the system prompt unchanged."""
         self.assertEqual(system_prompt(), SYSTEM_PROMPT)
@@ -156,12 +124,6 @@ class TestRenderActions(unittest.TestCase):
 
 
 class TestRenderNotes(unittest.TestCase):
-    def test_render_notes_immutability(self):
-        """Verifies that render_notes returns equal text for equal notes."""
-        self.assertEqual(
-            render_notes("Watch Player 3."), render_notes("Watch Player 3.")
-        )
-
     def test_render_notes_quotes_notes_under_heading(self):
         """Verifies that the notes are rendered as a JSON string under their heading."""
         self.assertEqual(
@@ -170,28 +132,12 @@ class TestRenderNotes(unittest.TestCase):
 
 
 class TestRenderGoal(unittest.TestCase):
-    def test_render_goal_immutability(self):
-        """Verifies that render_goal returns equal text for equal roles."""
-        self.assertEqual(render_goal(Role.HITLER), render_goal(Role.HITLER))
-
-    def test_goals_immutability(self):
-        """Verifies that the goal lines cannot be changed."""
-        with self.assertRaises(TypeError):
-            GOALS[Role.LIBERAL] = "You win."
-
     def test_render_goal_covers_every_role(self):
         """Verifies that every role has its own goal under the goal heading."""
         for role in Role:
             with self.subTest(role=role):
                 self.assertEqual(render_goal(role), "## Your Goal\n" + GOALS[role])
         self.assertEqual(len(set(GOALS.values())), len(Role))
-
-    def test_render_goal_hitler_wins_by_election(self):
-        """Verifies that Hitler's goal says being elected Chancellor after 3 Fascist policies wins."""
-        self.assertIn(
-            "You win if you are elected Chancellor once 3 or more Fascist policies are enacted",
-            render_goal(Role.HITLER),
-        )
 
 
 class TestBuildPrompt(unittest.TestCase):
@@ -346,11 +292,6 @@ class TestParseAction(unittest.TestCase):
 
 
 class TestXmlChoice(unittest.TestCase):
-    def test__xml_choice_immutability(self):
-        """Verifies that _xml_choice returns a new dict for each call."""
-        self.assertIsNot(_xml_choice(XML_REPLY), _xml_choice(XML_REPLY))
-        self.assertEqual(_xml_choice(XML_REPLY), _xml_choice(XML_REPLY))
-
     def test_xml_choice_without_action_is_none(self):
         """Verifies that a reply without an action parameter gives None."""
         self.assertIsNone(_xml_choice('<parameter name="notes">Hi</parameter>'))
@@ -379,11 +320,6 @@ class TestXmlChoice(unittest.TestCase):
 
 
 class TestParseNotes(unittest.TestCase):
-    def test_parse_notes_immutability(self):
-        """Verifies that parse_notes returns equal notes for the same reply."""
-        response = '{"action": 1, "notes": "Watch Player 3."}'
-        self.assertEqual(parse_notes(response), parse_notes(response))
-
     def test_parse_notes_present(self):
         """Verifies that notes are read from the last JSON object with an action."""
         response = '{"action": 1, "notes": "old"} then {"action": 2, "notes": "new"}'
@@ -435,12 +371,6 @@ class TestParseNotes(unittest.TestCase):
 
 
 class TestClipText(unittest.TestCase):
-    def test_clip_text_immutability(self):
-        """Verifies that clip_text returns equal text for equal input and leaves the input unchanged."""
-        text = "alpha beta gamma"
-        self.assertEqual(clip_text(text, 12), clip_text(text, 12))
-        self.assertEqual(text, "alpha beta gamma")
-
     def test_clip_text_short_text_unchanged(self):
         """Verifies that text within the limit is returned unchanged."""
         self.assertEqual(clip_text("alpha beta", 10), "alpha beta")

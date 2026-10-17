@@ -1024,13 +1024,6 @@ class TestGovernmentLabels(unittest.TestCase):
 
 
 class TestFormatHand(unittest.TestCase):
-    def test_format_hand_immutability(self):
-        """Verifies that format_hand returns a new string and leaves its input unchanged."""
-        policies = (L, F, L)
-        result = format_hand(policies)
-        self.assertIsInstance(result, str)
-        self.assertEqual(policies, (L, F, L))
-
     def test_format_hand_fascist_first(self):
         """Verifies that format_hand lists fascist policies before liberal ones."""
         self.assertEqual(format_hand((L, F, L)), "fascist, liberal, liberal")

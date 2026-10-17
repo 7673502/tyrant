@@ -53,7 +53,7 @@ class TestBoard(unittest.TestCase):
 
                 self.assertTrue(board.veto_power_unlocked)
 
-    def test_immutability(self):
+    def test_board_immutability(self):
         """Tests that the Board dataclass is frozen and cannot be mutated."""
         for count in range(5, 11):
             with self.subTest(player_count=count):

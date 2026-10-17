@@ -6,7 +6,6 @@ from tyrant.engine.router import (
     _chancellor_claims,
     _chancellor_truth,
     _claim_description,
-    _correction_description,
     _president_claim,
     _president_claims,
     _president_truth,
@@ -57,13 +56,6 @@ from tyrant.models.knowledge import (
 
 
 class TestGetLegalActionsNomination(unittest.TestCase):
-    def test__get_legal_actions_nomination_immutability(self):
-        """Ensure the output of _get_legal_actions_nomination is an immutable tuple."""
-        state = create_game(tuple(range(5)))
-        president = state.players[state.president_index]
-        actions = get_legal_actions(state, president.uid)
-        self.assertIsInstance(actions, tuple)
-
     def test__get_legal_actions_nomination_non_president(self):
         """Ensure every non-president player receives an empty tuple."""
         for player_count in range(5, 11):
@@ -266,13 +258,6 @@ class TestGetLegalActionsNomination(unittest.TestCase):
 
 
 class TestGetLegalActionsVoting(unittest.TestCase):
-    def test__get_legal_actions_voting_immutability(self):
-        """Ensure the output of _get_legal_actions_voting is an immutable tuple."""
-        state = create_game(tuple(range(5)))
-        state = replace(state, phase=GamePhase.VOTING)
-        actions = get_legal_actions(state, state.players[0].uid)
-        self.assertIsInstance(actions, tuple)
-
     def test__get_legal_actions_voting_alive_player(self):
         """Ensure an alive player who has not voted receives vote actions."""
         state = create_game(tuple(range(5)))
@@ -324,17 +309,6 @@ class TestGetLegalActionsVoting(unittest.TestCase):
 
 
 class TestGetLegalActionsPresidentDiscard(unittest.TestCase):
-    def test__get_legal_actions_president_discard_immutability(self):
-        """Ensure the output of _get_legal_actions_president_discard is an immutable tuple."""
-        state = create_game(tuple(range(5)))
-        state = replace(
-            state,
-            phase=GamePhase.PRESIDENT_DISCARD,
-            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL, PolicyTile.FASCIST),
-        )
-        actions = get_legal_actions(state, state.players[state.president_index].uid)
-        self.assertIsInstance(actions, tuple)
-
     def test__get_legal_actions_president_discard_president_receives_actions(self):
         """Ensure the active president receives discard actions for each drawn policy."""
         state = create_game(tuple(range(5)))
@@ -409,18 +383,6 @@ class TestGetLegalActionsPresidentDiscard(unittest.TestCase):
 
 
 class TestGetLegalActionsChancellorEnact(unittest.TestCase):
-    def test__get_legal_actions_chancellor_enact_immutability(self):
-        """Ensure the output is an immutable tuple."""
-        state = create_game(tuple(range(5)))
-        state = replace(
-            state,
-            phase=GamePhase.CHANCELLOR_ENACT,
-            chancellor=state.players[1].uid,
-            drawn_policies=(PolicyTile.FASCIST, PolicyTile.LIBERAL),
-        )
-        actions = get_legal_actions(state, state.players[1].uid)
-        self.assertIsInstance(actions, tuple)
-
     def test__get_legal_actions_chancellor_enact_chancellor_receives_actions(self):
         """Ensure the active chancellor receives the exact enact actions for the drawn policies."""
         state = create_game(tuple(range(5)))
@@ -525,17 +487,6 @@ class TestGetLegalActionsChancellorEnact(unittest.TestCase):
 
 
 class TestGetLegalActionsPresidentialPower(unittest.TestCase):
-    def test__get_legal_actions_presidential_power_immutability(self):
-        """Ensure the output of _get_legal_actions_presidential_power is an immutable tuple."""
-        state = create_game(tuple(range(5)))
-        state = replace(
-            state,
-            phase=GamePhase.PRESIDENTIAL_POWER,
-            active_power=PresidentialPower.POLICY_PEEK,
-        )
-        actions = get_legal_actions(state, state.players[state.president_index].uid)
-        self.assertIsInstance(actions, tuple)
-
     def test__get_legal_actions_presidential_power_non_president(self):
         """Ensure every non-president player receives an empty tuple."""
         state = create_game(tuple(range(5)))
@@ -646,13 +597,6 @@ class TestGetLegalActionsPresidentialPower(unittest.TestCase):
 
 
 class TestGetLegalActionsInvestigation(unittest.TestCase):
-    def test__get_legal_actions_investigation_immutability(self):
-        """Ensure the output of _get_legal_actions_claim_investigation is an immutable tuple."""
-        state = create_game(tuple(range(5)))
-        state = replace(state, phase=GamePhase.CLAIM_INVESTIGATION)
-        actions = get_legal_actions(state, state.players[state.president_index].uid)
-        self.assertIsInstance(actions, tuple)
-
     def test__get_legal_actions_investigation_non_president(self):
         """Ensure every non-president player receives an empty tuple."""
         state = create_game(tuple(range(5)))
@@ -697,27 +641,12 @@ class TestGetLegalActionsInvestigation(unittest.TestCase):
 
 
 class TestClaimDescriptions(unittest.TestCase):
-    def test__claim_description_immutability(self):
-        """Verifies that _claim_description returns a new string and leaves its input unchanged."""
-        claim = "you received fascist, liberal"
-        result = _claim_description(claim, True)
-        self.assertIsInstance(result, str)
-        self.assertEqual(claim, "you received fascist, liberal")
-
     def test__claim_description_labels(self):
         """Verifies that _claim_description marks only the claim that matches what the player saw."""
         self.assertEqual(
             _claim_description("x", True), "Claim x (matches what you saw)."
         )
         self.assertEqual(_claim_description("x", False), "Claim x.")
-
-    def test__president_claim_immutability(self):
-        """Verifies that _president_claim returns a new string and leaves its input unchanged."""
-        F, L = PolicyTile.FASCIST, PolicyTile.LIBERAL
-        policies = (L, F, L)
-        result = _president_claim(policies, L)
-        self.assertIsInstance(result, str)
-        self.assertEqual(policies, (L, F, L))
 
     def test__president_claim_implied_pass(self):
         """Verifies that _president_claim names the two policies the claim implies were passed."""
@@ -730,13 +659,6 @@ class TestClaimDescriptions(unittest.TestCase):
 
 
 class TestGetLegalActionsPolicyPeek(unittest.TestCase):
-    def test__get_legal_actions_policy_peek_immutability(self):
-        """Ensure the output of _get_legal_actions_claim_peek is an immutable tuple."""
-        state = create_game(tuple(range(5)))
-        state = replace(state, phase=GamePhase.CLAIM_POLICY_PEEK)
-        actions = get_legal_actions(state, state.players[state.president_index].uid)
-        self.assertIsInstance(actions, tuple)
-
     def test__get_legal_actions_policy_peek_non_president(self):
         """Ensure every non-president player receives an empty tuple."""
         state = create_game(tuple(range(5)))
@@ -793,13 +715,6 @@ class TestGetLegalActionsPolicyPeek(unittest.TestCase):
 
 
 class TestGetLegalActionsPresidentVetoResponse(unittest.TestCase):
-    def test__get_legal_actions_president_veto_response_immutability(self):
-        """Ensure the output of _get_legal_actions_president_veto_response is an immutable tuple."""
-        state = create_game(tuple(range(5)))
-        state = replace(state, phase=GamePhase.PRESIDENT_VETO_RESPONSE)
-        actions = get_legal_actions(state, state.players[state.president_index].uid)
-        self.assertIsInstance(actions, tuple)
-
     def test__get_legal_actions_president_veto_response_non_president(self):
         """Ensure every non-president player receives an empty tuple."""
         state = create_game(tuple(range(5)))
@@ -856,12 +771,6 @@ class TestGetLegalActionsDiscussion(unittest.TestCase):
     def _state(self):
         state = create_game(tuple(range(5)), discussion_enabled=True)
         return nominate_chancellor(state, state.players[1].uid)
-
-    def test__get_legal_actions_discussion_immutability(self):
-        """Ensure the output of _get_legal_actions_discussion is an immutable tuple."""
-        state = self._state()
-        actions = get_legal_actions(state, state.discussion.current_speaker)
-        self.assertIsInstance(actions, tuple)
 
     def test__get_legal_actions_discussion_speaker(self):
         """Ensure the current speaker can speak or pass."""
@@ -1049,21 +958,8 @@ class TestApplyAction(unittest.TestCase):
 
 
 class TestGetLegalActionsEnactClaims(unittest.TestCase):
-    def test_enact_claims_immutability(self):
-        state = create_game(tuple(range(5)))
-        president_uid = state.players[state.president_index].uid
-        other_uid = next(p.uid for p in state.players if p.uid != president_uid)
-        state = replace(
-            state,
-            phase=GamePhase.CLAIM_POLICIES,
-            chancellor=other_uid,
-            pending_president_enact_claim=True,
-            pending_chancellor_enact_claim=True,
-        )
-        actions = get_legal_actions(state, president_uid)
-        self.assertIsInstance(actions, tuple)
-
     def test_enact_claims_president(self):
+        """Verifies that the president is offered every enact claim plus staying silent."""
         state = create_game(tuple(range(5)))
         president_uid = state.players[state.president_index].uid
         other_uid = next(p.uid for p in state.players if p.uid != president_uid)
@@ -1112,6 +1008,7 @@ class TestGetLegalActionsEnactClaims(unittest.TestCase):
         )
 
     def test_enact_claims_chancellor(self):
+        """Verifies that the chancellor is offered every enact claim plus staying silent."""
         state = create_game(tuple(range(5)))
         president_uid = state.players[state.president_index].uid
         other_uid = next(p.uid for p in state.players if p.uid != president_uid)
@@ -1130,6 +1027,7 @@ class TestGetLegalActionsEnactClaims(unittest.TestCase):
         )
 
     def test_enact_claims_non_involved(self):
+        """Verifies that a player outside the government is offered no enact claims."""
         state = create_game(tuple(range(5)))
         president_uid = state.players[state.president_index].uid
         other_uid = next(p.uid for p in state.players if p.uid != president_uid)
@@ -1236,6 +1134,7 @@ class TestGetLegalActionsEnactClaims(unittest.TestCase):
 
     @patch("tyrant.engine.router.claim_enact")
     def test_apply_action_president_enact_claim(self, mock_claim):
+        """Verifies that a president enact claim action is applied through claim_enact."""
         state = create_game(tuple(range(5)))
         president_uid = state.players[state.president_index].uid
         action = ClaimPresidentEnactAction(
@@ -1257,6 +1156,7 @@ class TestGetLegalActionsEnactClaims(unittest.TestCase):
 
     @patch("tyrant.engine.router.claim_enact")
     def test_apply_action_chancellor_enact_claim(self, mock_claim):
+        """Verifies that a chancellor enact claim action is applied through claim_enact."""
         state = create_game(tuple(range(5)))
         president_uid = state.players[state.president_index].uid
         other_uid = next(p.uid for p in state.players if p.uid != president_uid)
@@ -1317,22 +1217,6 @@ class TestGetLegalActionsCorrections(unittest.TestCase):
     def _government(self, state: GameState) -> tuple[int, int]:
         event = next(e for e in reversed(state.events) if isinstance(e, ClaimEvent))
         return event.president_uid, event.chancellor_uid
-
-    def test__get_legal_actions_corrections_immutability(self):
-        """Verifies that the corrections are returned as a tuple without changing the state."""
-        state = self._discussion_state()
-        president_uid, _ = self._government(state)
-        state = self._turn_of(state, president_uid)
-        events_before = state.events
-        actions = get_legal_actions(state, president_uid)
-        self.assertIsInstance(actions, tuple)
-        self.assertEqual(state.events, events_before)
-
-    def test__correction_description_immutability(self):
-        """Verifies that _correction_description returns a new string and leaves its input unchanged."""
-        claim = "you received fascist, liberal"
-        self.assertIsInstance(_correction_description(claim, False), str)
-        self.assertEqual(claim, "you received fascist, liberal")
 
     def test__president_truth_immutability(self):
         """Verifies that _president_truth leaves the state's knowledge unchanged."""

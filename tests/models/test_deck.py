@@ -70,7 +70,7 @@ class TestDeck(unittest.TestCase):
         self.assertEqual(len(deck.draw_pile), 4)
         self.assertEqual(len(deck.discard_pile), 0)
 
-    def test_immutability(self):
+    def test_deck_immutability(self):
         """Tests that the Deck dataclass is frozen and cannot be mutated."""
         with self.assertRaises(FrozenInstanceError):
             self.deck.draw_pile = ()

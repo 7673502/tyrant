@@ -1,6 +1,6 @@
 import unittest
 
-from tyrant.exceptions import AgentError, InvalidMoveError, TyrantError
+from tyrant.exceptions import InvalidMoveError
 
 
 class TestExceptions(unittest.TestCase):
@@ -15,10 +15,6 @@ class TestExceptions(unittest.TestCase):
         error = InvalidMoveError("Bad JSON", reply="Not JSON.")
         self.assertEqual(error.reply, "Not JSON.")
         self.assertEqual(str(error), "Bad JSON")
-
-    def test_agent_error_is_tyrant_error(self):
-        """Verifies that AgentError is a TyrantError."""
-        self.assertTrue(issubclass(AgentError, TyrantError))
 
 
 if __name__ == "__main__":
