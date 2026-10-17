@@ -1,6 +1,6 @@
 """A Secret Hitler engine for LLMs, search agents and people."""
 
-from tyrant.agents import BiasedRandomAgent, RandomAgent
+from tyrant.agents import BiasedRandomAgent, HumanAgent, RandomAgent
 from tyrant.engine import (
     GameRunner,
     apply_action,
@@ -42,6 +42,7 @@ __all__ = [
     "GamePhase",
     "GameRunner",
     "GameState",
+    "HumanAgent",
     "InvalidMoveError",
     "Knowledge",
     "Party",
