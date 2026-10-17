@@ -55,7 +55,7 @@ class TestBallotBox(unittest.TestCase):
         self.assertEqual(self.ballot_box.vote_count, 1)
         self.assertEqual(self.ballot_box.result, Vote.JA)
 
-    def test_immutability(self):
+    def test_ballot_box_immutability(self):
         """Tests that the BallotBox dataclass is frozen and cannot be mutated."""
         with self.assertRaises(FrozenInstanceError):
             self.ballot_box.votes = {}

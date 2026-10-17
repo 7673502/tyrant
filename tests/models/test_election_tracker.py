@@ -27,7 +27,7 @@ class TestElectionTracker(unittest.TestCase):
         tracker, passed = increment_election_tracker(tracker)
         self.assertTrue(passed)
 
-    def test_immutability(self):
+    def test_election_tracker_immutability(self):
         """Tests that the ElectionTracker dataclass is frozen and cannot be mutated."""
         with self.assertRaises(FrozenInstanceError):
             self.election_tracker.failed_elections = 1

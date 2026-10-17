@@ -5,7 +5,7 @@ from tyrant.models.enums import Party, Role
 
 
 class TestPlayer(unittest.TestCase):
-    def test_immutability(self):
+    def test_player_immutability(self):
         """Tests that the Player dataclass is frozen and cannot be mutated."""
         player = Player(uid=1, party=Party.LIBERAL, role=Role.LIBERAL)
         with self.assertRaises(FrozenInstanceError):

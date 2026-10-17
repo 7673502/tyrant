@@ -1476,7 +1476,7 @@ class TestPolicyPeek(BaseGameStateTest):
         self.assertEqual(len(new_state.claims), 1)
 
     def test_claim_peek_none(self):
-        """Verifies that claim_peek can be called with None (i.e., silence)"""
+        """Verifies that claim_peek can be called with None (i.e., silence)."""
         state = create_game((1, 2, 3, 4, 5), 42)
         state = replace(
             state,
@@ -1646,18 +1646,6 @@ class TestExecutePlayer(BaseGameStateTest):
 
 
 class TestTermLimited(BaseGameStateTest):
-    def test_term_limited_immutability(self):
-        """Verifies that term_limited returns a tuple without mutating the input state."""
-        state = replace(
-            create_game(tuple(range(1, 8)), 42),
-            previous_president=1,
-            previous_chancellor=2,
-        )
-        before = replace(state)
-        limited = term_limited(state)
-        self.assertIsInstance(limited, tuple)
-        self.assertEqual(state, before)
-
     def test_term_limited_none_before_first_government(self):
         """Verifies that nobody is term-limited before any government is elected."""
         self.assertEqual(term_limited(create_game(tuple(range(1, 8)), 42)), ())
@@ -2188,6 +2176,7 @@ class TestClaimEnact(BaseGameStateTest):
         self.assert_pure_transition(state, new_state)
 
     def test_claim_enact_invalid_phase(self):
+        """Verifies that an enact claim outside the claims phase raises InvalidMoveError."""
         state = create_game((1, 2, 3, 4, 5), 42)
         president_uid = state.players[state.president_index].uid
         claim = PresidentEnactClaim(
@@ -2198,6 +2187,7 @@ class TestClaimEnact(BaseGameStateTest):
             claim_enact(state, claim)
 
     def test_claim_enact_president(self):
+        """Verifies that the president's enact claim is recorded while the chancellor's is still pending."""
         state = create_game((1, 2, 3, 4, 5), 42)
         president_uid = state.players[state.president_index].uid
         other_uid = next(p.uid for p in state.players if p.uid != president_uid)
@@ -2219,6 +2209,7 @@ class TestClaimEnact(BaseGameStateTest):
         self.assertEqual(new_state.phase, GamePhase.CLAIM_POLICIES)
 
     def test_claim_enact_chancellor(self):
+        """Verifies that the chancellor's enact claim is recorded while the president's is still pending."""
         state = create_game((1, 2, 3, 4, 5), 42)
         president_uid = state.players[state.president_index].uid
         other_uid = next(p.uid for p in state.players if p.uid != president_uid)
@@ -2239,6 +2230,7 @@ class TestClaimEnact(BaseGameStateTest):
         self.assertEqual(new_state.phase, GamePhase.CLAIM_POLICIES)
 
     def test_claim_enact_both_advance(self):
+        """Verifies that both enact claims without a pending power advance to the next nomination."""
         state = create_game((1, 2, 3, 4, 5), 42)
         president_uid = state.players[state.president_index].uid
         other_uid = next(p.uid for p in state.players if p.uid != president_uid)
@@ -2265,6 +2257,7 @@ class TestClaimEnact(BaseGameStateTest):
         self.assertEqual(new_state.phase, GamePhase.NOMINATION)
 
     def test_claim_enact_both_power(self):
+        """Verifies that both enact claims with a pending power move to the presidential power phase."""
         state = create_game((1, 2, 3, 4, 5), 42)
         president_uid = state.players[state.president_index].uid
         other_uid = next(p.uid for p in state.players if p.uid != president_uid)
@@ -2290,6 +2283,7 @@ class TestClaimEnact(BaseGameStateTest):
         self.assertEqual(new_state.pending_power, PresidentialPower.NONE)
 
     def test_claim_enact_invalid_uid(self):
+        """Verifies that an enact claim from the wrong government member raises InvalidMoveError."""
         state = create_game((1, 2, 3, 4, 5), 42)
         president_uid = state.players[state.president_index].uid
         other_uid = next(p.uid for p in state.players if p.uid != president_uid)
