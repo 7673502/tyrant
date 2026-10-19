@@ -7,18 +7,15 @@ from frozendict import frozendict
 
 from tests.scripted_game import play_first_legal_actions
 from tyrant.engine.renderer import (
-    _claim_statuses,
-    _voting_reminders,
+    _superseded_claims,
     _government_labels,
     _government_numbers,
-    _in_discussion,
     _knowledge_governments,
     format_hand,
     render_dict,
     render_text,
 )
 from tyrant.exceptions import TyrantError
-from tyrant.models.board import FASCIST_TRACKS
 from tyrant.models.claim import (
     ChancellorEnactClaim,
     InvestigationClaim,
@@ -151,35 +148,6 @@ class TestRenderDict(unittest.TestCase):
         self.assertEqual(board["election_tracker"], 0)
         self.assertEqual(board["draw_pile"], 17)
         self.assertEqual(len(board["fascist_track"]), 6)
-
-    def test_render_dict_policies_left_count_hand_in_play(self):
-        """Verifies that the policies not yet enacted match the draw pile, the discard pile and the hand in play."""
-        state = _nominated(self.state)
-        for player in state.players:
-            state = cast_vote(state, player.uid, Vote.JA)
-        self.assertEqual(state.phase, GamePhase.PRESIDENT_DISCARD)
-        tiles = state.deck.draw_pile + state.deck.discard_pile + state.drawn_policies
-        board = render_dict(state, 1)["board"]
-        self.assertEqual(board["liberal_policies_left"], tiles.count(L))
-        self.assertEqual(board["fascist_policies_left"], tiles.count(F))
-
-    def test_render_dict_next_fascist_power_per_track(self):
-        """Verifies that the next fascist power follows the 5, 7 and 9 player tracks and that the sixth policy wins."""
-        for count in (5, 7, 9):
-            state = create_game(tuple(range(1, count + 1)), 42)
-            for played in range(6):
-                with self.subTest(player_count=count, fascist_played=played):
-                    board = render_dict(
-                        replace(
-                            state, board=replace(state.board, fascist_played=played)
-                        ),
-                        1,
-                    )["board"]
-                    self.assertEqual(board["next_fascist_policy_wins"], played == 5)
-                    expected = (
-                        "none" if played == 5 else FASCIST_TRACKS[count][played].value
-                    )
-                    self.assertEqual(board["next_fascist_power"], expected)
 
     def test_render_dict_term_limited(self):
         """Verifies that the government section lists the term-limited players."""
@@ -315,25 +283,6 @@ class TestRenderText(unittest.TestCase):
             ],
         )
 
-    def test_render_text_board_helpers(self):
-        """Verifies that the board shows the policies not yet enacted and what the next fascist policy grants."""
-        state = replace(self.state, board=replace(self.state.board, fascist_played=2))
-        text = render_text(scrub_state(state, 1), 1)
-        self.assertIn(
-            "- Policies not yet enacted: 6 liberal, 9 fascist (in the draw pile, "
-            "the discard pile and any hand in play)\n",
-            text,
-        )
-        self.assertIn("- Next fascist policy grants: call_special_election\n", text)
-
-    def test_render_text_next_fascist_policy_wins(self):
-        """Verifies that the board says the next fascist policy wins once 5 are enacted."""
-        state = replace(self.state, board=replace(self.state.board, fascist_played=5))
-        self.assertIn(
-            "- Next fascist policy: wins the game for the fascists\n",
-            render_text(scrub_state(state, 1), 1),
-        )
-
     def test_render_text_term_limited(self):
         """Verifies that the government section names each term-limited player and why."""
         state = replace(self.state, previous_president=3, previous_chancellor=5)
@@ -346,73 +295,6 @@ class TestRenderText(unittest.TestCase):
             "- Can't be nominated chancellor next: none\n",
             render_text(scrub_state(self.state, 1), 1),
         )
-
-    def voting_state(self) -> GameState:
-        state = _nominated(replace(self.state, discussion_enabled=True))
-        while state.phase == GamePhase.DISCUSSION:
-            uid = state.discussion.current_speaker
-            text = f"I trust Player {uid}." if uid in (1, 3) else None
-            state = speak(state, uid, text)
-        return state
-
-    def test__voting_reminders_immutability(self):
-        """Verifies that _voting_reminders returns a new list without mutating the view."""
-        view = render_dict(self.voting_state(), 1)
-        before = copy.deepcopy(view)
-        self.assertIsNot(_voting_reminders(view), _voting_reminders(view))
-        self.assertEqual(view, before)
-
-    def test_render_text_voting_reminders_for_president(self):
-        """Verifies that the president is reminded during the vote that they nominated this government and what they said."""
-        state = self.voting_state()
-        self.assertEqual(state.phase, GamePhase.VOTING)
-        president = state.players[state.president_index].uid
-        text = render_text(state, president)
-        self.assertIn("- You nominated this government.\n", text)
-        self.assertNotIn("You are the nominee", text)
-        self.assertIn(
-            f'- What you said about this government: "I trust Player {president}."\n',
-            text,
-        )
-
-    def test_render_text_voting_reminders_for_nominee(self):
-        """Verifies that the nominee is reminded during the vote that they are the nominee."""
-        state = self.voting_state()
-        text = render_text(state, state.chancellor)
-        self.assertIn("- You are the nominee.\n", text)
-        self.assertNotIn("You nominated this government", text)
-
-    def test_render_text_voting_reminders_quote_only_own_speech(self):
-        """Verifies that a voter who passed in this nomination's discussion is not quoted, while a voter who spoke is."""
-        state = self.voting_state()
-        silent = next(
-            p.uid
-            for p in state.players
-            if p.uid not in (1, 3, state.chancellor)
-            and p.uid != state.players[state.president_index].uid
-        )
-        self.assertNotIn("What you said", render_text(state, silent))
-        speaker = next(
-            uid
-            for uid in (1, 3)
-            if uid not in (state.chancellor, state.players[state.president_index].uid)
-        )
-        self.assertIn(
-            f'- What you said about this government: "I trust Player {speaker}."\n',
-            render_text(state, speaker),
-        )
-
-    def test_render_text_voting_reminders_only_while_voting(self):
-        """Verifies that no voting reminders are shown outside the voting phase."""
-        state = _nominated(replace(self.state, discussion_enabled=True))
-        president = state.players[state.president_index].uid
-        state = speak(state, state.discussion.current_speaker, "Hello.")
-        self.assertEqual(state.phase, GamePhase.DISCUSSION)
-        for uid in (president, state.chancellor):
-            text = render_text(state, uid)
-            self.assertNotIn("You nominated this government", text)
-            self.assertNotIn("You are the nominee", text)
-            self.assertNotIn("What you said", text)
 
     def test_render_text_discussion_round(self):
         """Verifies that the current turn shows the discussion round only during discussion."""
@@ -523,8 +405,8 @@ class TestRenderText(unittest.TestCase):
         self.assertEqual(text.count("## Private Knowledge\n"), 1)
         self.assertNotIn("\n- You investigated Player 3", text)
 
-    def test_render_text_omits_old_discussions(self):
-        """Verifies that only the last two discussions keep their speeches while other events stay."""
+    def test_render_text_shows_every_discussion(self):
+        """Verifies that every discussion keeps all of its speeches and passes."""
         nomination, claims = (
             DiscussionContext.AFTER_NOMINATION,
             DiscussionContext.AFTER_POLICY_CLAIMS,
@@ -540,9 +422,10 @@ class TestRenderText(unittest.TestCase):
             SpeechEvent(uid=2, text="Current.", context=nomination),
         )
         expected = [
-            "- Earlier discussion (after_policy_claims) omitted.",
+            '- Player 1 said: "Oldest."',
+            "- Player 2 passed.",
             "- President Player 1 nominated Player 2 for chancellor.",
-            "- Earlier discussion (after_nomination) omitted.",
+            '- Player 1 said: "Older."',
             "- President Player 1 and Chancellor Player 2 enacted a liberal policy.",
             '- Player 1 said: "Previous."',
             "- President Player 2 nominated Player 3 for chancellor.",
@@ -550,8 +433,7 @@ class TestRenderText(unittest.TestCase):
         ]
         for line in expected:
             self.assertIn(line + "\n", text)
-        for speech in ("Oldest.", "Older.", "Player 2 passed."):
-            self.assertNotIn(speech, text)
+        self.assertNotIn("omitted", text)
 
     def test_render_text_groups_timeline_by_government(self):
         """Verifies that the timeline lists each government's events under its own heading without line numbers."""
@@ -586,29 +468,6 @@ class TestRenderText(unittest.TestCase):
             "- President Player 2 executed Player 4.\n",
         )
 
-    def test_render_text_government_headings_survive_collapse(self):
-        """Verifies that government headings stay the same when a new discussion collapses an older one."""
-        claims = DiscussionContext.AFTER_POLICY_CLAIMS
-        events = (
-            *_government(1, 2),
-            SpeechEvent(uid=1, text="First.", context=claims),
-            *_government(2, 3),
-            SpeechEvent(uid=2, text="Second.", context=claims),
-        )
-        later = (
-            *events,
-            *_government(3, 4),
-            SpeechEvent(uid=3, text="Third.", context=claims),
-        )
-
-        def headings(text: str) -> list[str]:
-            return [line for line in text.splitlines() if line.startswith("### ")]
-
-        before, after = self.render_events(*events), self.render_events(*later)
-        self.assertNotIn("First.", after)
-        self.assertEqual(headings(after)[:2], headings(before))
-        self.assertEqual(headings(after)[2], "### Gov 3 (P3→P4)")
-
     def test_render_dict_keeps_old_discussions(self):
         """Verifies that render_dict keeps every speech in the timeline."""
         speech = SpeechEvent(
@@ -636,47 +495,6 @@ class TestRenderText(unittest.TestCase):
             text,
         )
 
-    def test_render_text_points_out_conflicting_claims(self):
-        """Verifies that a chancellor's claim that contradicts the president's claimed pass is flagged."""
-        text = self.render_events(
-            ClaimEvent(
-                claim=PresidentEnactClaim(uid=1, policies=(L, F, F), discarded=F),
-                president_uid=1,
-                chancellor_uid=2,
-                target_uid=None,
-            ),
-            ClaimEvent(
-                claim=ChancellorEnactClaim(uid=2, policies=(F, F)),
-                president_uid=1,
-                chancellor_uid=2,
-                target_uid=None,
-            ),
-        )
-        self.assertIn(
-            "- Chancellor Player 2 claimed receiving fascist, fascist. These claims "
-            "conflict: President Player 1 claims passing liberal, fascist, but "
-            "Chancellor Player 2 claims receiving fascist, fascist.\n",
-            text,
-        )
-
-    def test_render_text_consistent_claims_have_no_conflict(self):
-        """Verifies that claims agreeing on the passed policies, in any order, are not flagged."""
-        text = self.render_events(
-            ClaimEvent(
-                claim=ChancellorEnactClaim(uid=2, policies=(F, L)),
-                president_uid=1,
-                chancellor_uid=2,
-                target_uid=None,
-            ),
-            ClaimEvent(
-                claim=PresidentEnactClaim(uid=1, policies=(L, F, F), discarded=F),
-                president_uid=1,
-                chancellor_uid=2,
-                target_uid=None,
-            ),
-        )
-        self.assertNotIn("conflict", text)
-
     def _claim(self, claim, correction: bool = False) -> ClaimEvent:
         return ClaimEvent(
             claim=claim,
@@ -699,8 +517,8 @@ class TestRenderText(unittest.TestCase):
             self._claim(correction, correction=True),
         )
 
-    def test_render_text_resolved_conflict_is_reported_once(self):
-        """Verifies that a correction that resolves a conflict replaces the conflict line with one resolved note."""
+    def test_render_text_president_correction(self):
+        """Verifies that a president's correction names the new claim and marks the claim it replaced."""
         text = self.render_events(
             *self._corrected_government(
                 PresidentEnactClaim(uid=1, policies=(F, F, L), discarded=F)
@@ -716,28 +534,9 @@ class TestRenderText(unittest.TestCase):
         )
         self.assertIn(
             "- President Player 1 corrected their claim: drew fascist, fascist, "
-            "liberal, discarded fascist, so passed fascist, liberal. These claims "
-            "conflicted until Player 1 corrected their claim.\n",
+            "liberal, discarded fascist, so passed fascist, liberal.\n",
             text,
         )
-        self.assertNotIn("These claims conflict:", text)
-        self.assertEqual(text.count("conflicted"), 1)
-
-    def test_render_text_unresolved_conflict_follows_latest_claim(self):
-        """Verifies that a correction that still conflicts is flagged once, after the correction."""
-        text = self.render_events(
-            *self._corrected_government(
-                PresidentEnactClaim(uid=1, policies=(L, L, L), discarded=L)
-            )
-        )
-        self.assertIn(
-            "- President Player 1 corrected their claim: drew liberal, liberal, "
-            "liberal, discarded liberal, so passed liberal, liberal. These claims "
-            "conflict: President Player 1 claims passing liberal, liberal, but "
-            "Chancellor Player 2 claims receiving fascist, liberal.\n",
-            text,
-        )
-        self.assertEqual(text.count("conflict"), 1)
 
     def test_render_text_chancellor_correction(self):
         """Verifies that a chancellor's correction names the policies they now claim to have received."""
@@ -750,52 +549,8 @@ class TestRenderText(unittest.TestCase):
             text,
         )
         self.assertIn(
-            "- Chancellor Player 2 corrected their claim: received liberal, liberal. "
-            "These claims conflicted until Player 2 corrected their claim.\n",
+            "- Chancellor Player 2 corrected their claim: received liberal, liberal.\n",
             text,
-        )
-
-    def test_render_text_correction_does_not_split_discussion(self):
-        """Verifies that a correction inside a discussion keeps it counted as one discussion when old ones are collapsed."""
-        claims = DiscussionContext.AFTER_POLICY_CLAIMS
-        text = self.render_events(
-            *_government(1, 2),
-            self._claim(PresidentEnactClaim(uid=1, policies=(F, L, L), discarded=F)),
-            self._claim(ChancellorEnactClaim(uid=2, policies=(F, L))),
-            SpeechEvent(uid=3, text="Before the correction.", context=claims),
-            self._claim(
-                PresidentEnactClaim(uid=1, policies=(F, F, L), discarded=F),
-                correction=True,
-            ),
-            SpeechEvent(uid=4, text="After the correction.", context=claims),
-            NominationEvent(president_uid=2, chancellor_uid=3),
-            SpeechEvent(
-                uid=2, text="Current.", context=DiscussionContext.AFTER_NOMINATION
-            ),
-        )
-        for speech in ("Before the correction.", "After the correction.", "Current."):
-            self.assertIn(speech, text)
-        self.assertNotIn("omitted", text)
-
-    def test_render_text_collapsed_discussion_keeps_correction(self):
-        """Verifies that a collapsed discussion still shows its correction and one omitted line."""
-        claims = DiscussionContext.AFTER_POLICY_CLAIMS
-        nomination = DiscussionContext.AFTER_NOMINATION
-        text = self.render_events(
-            *self._corrected_government(
-                PresidentEnactClaim(uid=1, policies=(F, F, L), discarded=F)
-            ),
-            SpeechEvent(uid=4, text="Old.", context=claims),
-            NominationEvent(president_uid=2, chancellor_uid=3),
-            SpeechEvent(uid=2, text="Newer.", context=nomination),
-            NominationEvent(president_uid=3, chancellor_uid=4),
-            SpeechEvent(uid=3, text="Newest.", context=nomination),
-        )
-        self.assertNotIn("Those differ.", text)
-        self.assertNotIn("Old.", text)
-        self.assertIn("- President Player 1 corrected their claim:", text)
-        self.assertEqual(
-            text.count("Earlier discussion (after_policy_claims) omitted."), 1
         )
 
     def test_render_text_claims(self):
@@ -1033,45 +788,41 @@ class TestFormatHand(unittest.TestCase):
         self.assertEqual(format_hand(["liberal", "fascist"]), "fascist, liberal")
 
 
-class TestClaimStatuses(unittest.TestCase):
-    def _timeline(self) -> list[dict]:
+class TestSupersededClaims(unittest.TestCase):
+    def _timeline(self, *claims: ClaimEvent) -> list[dict]:
         state = create_game(UIDS, 42, shuffle_players=False)
-        events = (
-            *_government(1, 2),
-            ClaimEvent(
-                claim=PresidentEnactClaim(uid=1, policies=(F, L, L), discarded=F),
-                president_uid=1,
-                chancellor_uid=2,
-                target_uid=None,
-            ),
-            ClaimEvent(
-                claim=ChancellorEnactClaim(uid=2, policies=(F, L)),
-                president_uid=1,
-                chancellor_uid=2,
-                target_uid=None,
-            ),
-        )
+        events = (*_government(1, 2), *claims)
         return render_dict(replace(state, events=events), 1)["timeline"]
 
-    def test__claim_statuses_immutability(self):
-        """Verifies that _claim_statuses returns new collections and leaves the timeline unchanged."""
-        timeline = self._timeline()
+    def _claim(self, claim, correction: bool = False) -> ClaimEvent:
+        return ClaimEvent(
+            claim=claim,
+            president_uid=1,
+            chancellor_uid=2,
+            target_uid=None,
+            correction=correction,
+        )
+
+    def test__superseded_claims_immutability(self):
+        """Verifies that _superseded_claims returns a new set and leaves the timeline unchanged."""
+        timeline = self._timeline(
+            self._claim(PresidentEnactClaim(uid=1, policies=(F, L, L), discarded=F))
+        )
         before = copy.deepcopy(timeline)
-        self.assertEqual(_claim_statuses(timeline), _claim_statuses(timeline))
+        self.assertIsNot(_superseded_claims(timeline), _superseded_claims(timeline))
         self.assertEqual(timeline, before)
 
-    def test__claim_statuses_flags_last_claim(self):
-        """Verifies that a conflict is attached only to the government's last policy claim."""
-        superseded, statuses = _claim_statuses(self._timeline())
-        self.assertEqual(superseded, set())
-        self.assertEqual(list(statuses), [3])
-
-    def test__in_discussion_immutability(self):
-        """Verifies that _in_discussion leaves the entry unchanged."""
-        entry = self._timeline()[2]
-        before = copy.deepcopy(entry)
-        self.assertFalse(_in_discussion(entry))
-        self.assertEqual(entry, before)
+    def test__superseded_claims_marks_replaced_claim_only(self):
+        """Verifies that only a policy claim replaced by a later one of the same type is marked."""
+        timeline = self._timeline(
+            self._claim(PresidentEnactClaim(uid=1, policies=(F, L, L), discarded=F)),
+            self._claim(ChancellorEnactClaim(uid=2, policies=(F, L))),
+            self._claim(
+                PresidentEnactClaim(uid=1, policies=(F, F, L), discarded=F),
+                correction=True,
+            ),
+        )
+        self.assertEqual(_superseded_claims(timeline), {len(timeline) - 3})
 
 
 if __name__ == "__main__":

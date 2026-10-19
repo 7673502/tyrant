@@ -50,10 +50,6 @@ from tyrant.models.game_state import (
     speak,
     term_limited,
 )
-from tyrant.models.knowledge import (
-    ChancellorReceiveKnowledge,
-    PresidentDiscardKnowledge,
-)
 
 TILES: Final = (PolicyTile.FASCIST, PolicyTile.LIBERAL)
 
@@ -92,47 +88,38 @@ def _get_legal_actions_discussion(
         return tuple()
 
     return (
-        SpeakAction(description="Say something new to the table"),
-        PassAction(
-            description="Stay silent (choose this if you would repeat an earlier point)"
-        ),
+        SpeakAction(description="Say something to the table"),
+        PassAction(description="Stay silent"),
     ) + _get_legal_actions_corrections(state, player_uid)
 
 
 def _get_legal_actions_corrections(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
-    """Returns every other non-decline policy claim the player may correct their latest claim to, the truthful one first."""
+    """Returns every other non-decline policy claim the player may correct their latest claim to."""
     event = correctable_claim(state, player_uid)
     if event is None:
         return tuple()
 
     claim = event.claim
     if isinstance(claim, PresidentEnactClaim):
-        truth = _president_truth(state, player_uid)
         return tuple(
             CorrectClaimAction(
-                description=_correction_description(
-                    _president_claim(policies, discarded),
-                    (policies, discarded) == truth,
-                ),
+                description=f"Correct your claim: {_president_claim(policies, discarded)}.",
                 claim=PresidentEnactClaim(
                     uid=player_uid, policies=policies, discarded=discarded
                 ),
             )
-            for policies, discarded in _president_claims(truth)
+            for policies, discarded in _president_claims()
             if (policies, discarded) != (claim.policies, claim.discarded)
         )
 
-    truth = _chancellor_truth(state, player_uid)
     return tuple(
         CorrectClaimAction(
-            description=_correction_description(
-                f"you received {format_hand(policies)}", policies == truth
-            ),
+            description=f"Correct your claim: you received {format_hand(policies)}.",
             claim=ChancellorEnactClaim(uid=player_uid, policies=policies),
         )
-        for policies in _chancellor_claims(truth)
+        for policies in _chancellor_claims()
         if policies != claim.policies
     )
 
@@ -254,64 +241,18 @@ def _get_legal_actions_presidential_power(
             )
 
 
-def _claim_description(claim: str, is_truth: bool) -> str:
-    """Returns an option's description, marking the one that matches what the player saw."""
-    marker = " (matches what you saw)" if is_truth else ""
-    return f"Claim {claim}{marker}."
-
-
-def _correction_description(claim: str, is_truth: bool) -> str:
-    """Returns a correction option's description, marking the one that matches what the player saw."""
-    marker = " (matches what you saw)" if is_truth else ""
-    return f"Correct your claim: {claim}{marker}."
-
-
-def _president_truth(
-    state: GameState, player_uid: int
-) -> tuple[tuple[PolicyTile, ...], PolicyTile] | None:
-    """Returns the policies the player last drew as president, in canonical order, and the one they discarded."""
-    return next(
-        (
-            (tuple(sorted((k.discarded, *k.passed))), k.discarded)
-            for k in reversed(state.knowledge)
-            if isinstance(k, PresidentDiscardKnowledge) and k.uid == player_uid
-        ),
-        None,
-    )
-
-
-def _chancellor_truth(
-    state: GameState, player_uid: int
-) -> tuple[PolicyTile, ...] | None:
-    """Returns the policies the player last received as chancellor, in canonical order."""
-    return next(
-        (
-            tuple(sorted(k.policies))
-            for k in reversed(state.knowledge)
-            if isinstance(k, ChancellorReceiveKnowledge) and k.uid == player_uid
-        ),
-        None,
-    )
-
-
-def _president_claims(
-    truth: tuple[tuple[PolicyTile, ...], PolicyTile] | None,
-) -> list[tuple[tuple[PolicyTile, ...], PolicyTile]]:
-    """Returns every non-decline president claim as drawn policies and a discard, the truthful one first."""
-    claims = [
+def _president_claims() -> list[tuple[tuple[PolicyTile, ...], PolicyTile]]:
+    """Returns every non-decline president claim as drawn policies and a discard."""
+    return [
         (policies, discarded)
         for policies in itertools.combinations_with_replacement(TILES, 3)
         for discarded in dict.fromkeys(policies)
     ]
-    return sorted(claims, key=lambda c: c != truth)
 
 
-def _chancellor_claims(
-    truth: tuple[PolicyTile, ...] | None,
-) -> list[tuple[PolicyTile, ...]]:
-    """Returns every non-decline chancellor claim, the truthful one first."""
-    claims = itertools.combinations_with_replacement(TILES, 2)
-    return sorted(claims, key=lambda c: c != truth)
+def _chancellor_claims() -> list[tuple[PolicyTile, ...]]:
+    """Returns every non-decline chancellor claim."""
+    return list(itertools.combinations_with_replacement(TILES, 2))
 
 
 def _president_claim(
@@ -329,17 +270,14 @@ def _president_claim(
 def _get_legal_actions_claim_investigation(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
-    """Returns the president's truthful party claim about an investigation first, then the lie, then a decline."""
+    """Returns the president's Liberal and Fascist party claims about an investigation, then a decline."""
     if player_uid != state.players[state.president_index].uid:
         return tuple()
-    truth = state.current_investigation_result
     actions: list[Action] = []
-    for party in sorted((Party.LIBERAL, Party.FASCIST), key=lambda p: p != truth):
+    for party in (Party.LIBERAL, Party.FASCIST):
         actions.append(
             ClaimInvestigationAction(
-                description=_claim_description(
-                    f"the investigated player is a {party.title()}", party == truth
-                ),
+                description=f"Claim the investigated player is a {party.title()}.",
                 claim_party=party,
             )
         )
@@ -356,20 +294,16 @@ def _get_legal_actions_claim_investigation(
 def _get_legal_actions_claim_peek(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
-    """Returns every ordered peek claim for the president, the truthful one first, plus a decline."""
+    """Returns every ordered peek claim for the president, plus a decline."""
     if player_uid != state.players[state.president_index].uid:
         return tuple()
 
-    truth = state.drawn_policies
     claims = itertools.product((PolicyTile.LIBERAL, PolicyTile.FASCIST), repeat=3)
     actions: list[Action] = []
-    for policies in sorted(claims, key=lambda c: c != truth):
+    for policies in claims:
         actions.append(
             ClaimPolicyPeekAction(
-                description=_claim_description(
-                    f"the top 3 policies are, from the top, {', '.join(policies)}",
-                    policies == truth,
-                ),
+                description=f"Claim the top 3 policies are, from the top, {', '.join(policies)}.",
                 claim_policies=policies,
             )
         )
@@ -386,19 +320,15 @@ def _get_legal_actions_claim_peek(
 def _get_legal_actions_enact_claims(
     state: GameState, player_uid: int
 ) -> tuple[Action, ...]:
-    """Returns the pending policy claims for the president or chancellor, the truthful one first and a decline last."""
+    """Returns the pending policy claims for the president or chancellor, with a decline last."""
     actions: list[Action] = []
 
     president_uid = state.players[state.president_index].uid
     if player_uid == president_uid and state.pending_president_enact_claim:
-        truth = _president_truth(state, player_uid)
-        for policies, discarded in _president_claims(truth):
+        for policies, discarded in _president_claims():
             actions.append(
                 ClaimPresidentEnactAction(
-                    description=_claim_description(
-                        _president_claim(policies, discarded),
-                        (policies, discarded) == truth,
-                    ),
+                    description=f"Claim {_president_claim(policies, discarded)}.",
                     claim_policies=policies,
                     claim_discarded=discarded,
                 )
@@ -411,13 +341,10 @@ def _get_legal_actions_enact_claims(
 
     chancellor_uid = state.chancellor
     if player_uid == chancellor_uid and state.pending_chancellor_enact_claim:
-        truth = _chancellor_truth(state, player_uid)
-        for policies in _chancellor_claims(truth):
+        for policies in _chancellor_claims():
             actions.append(
                 ClaimChancellorEnactAction(
-                    description=_claim_description(
-                        f"you received {format_hand(policies)}", policies == truth
-                    ),
+                    description=f"Claim you received {format_hand(policies)}.",
                     claim_policies=policies,
                 )
             )

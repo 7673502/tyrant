@@ -36,7 +36,6 @@ async def main():
     print(f"Winner: {final_state.winner}")
     print(f"Tokens: {llm.prompt_tokens} in, {llm.completion_tokens} out")
     print(f"Cost: ${llm.cost:.4f}")
-    print(f"Notes: {llm.notes}")
 
 
 asyncio.run(main())
@@ -61,13 +60,13 @@ agent = LLMAgent(0, "anthropic/claude-haiku-5-5", persona="Cautious, rarely accu
 Each turn the agent sends two messages:
 
 1. [`SYSTEM_PROMPT`](../reference/llm.md#tyrant.llm.SYSTEM_PROMPT), with the rules and the reply format. It's the same for every game, so providers can cache it. A `persona` is appended after it under `## Your Personality`, so the cached prefix still matches.
-2. [`build_prompt`](../reference/llm.md#tyrant.llm.build_prompt), with the player's [rendered view](../guides/rendering.md), their private notes, and their numbered options.
+2. [`build_prompt`](../reference/llm.md#tyrant.llm.build_prompt), with the player's [rendered view](../guides/rendering.md) and their numbered options.
 
-The model may reason first, then ends its reply with a JSON object such as `{"action": 3, "message": "...", "notes": "..."}`. [`parse_action`](../reference/llm.md#tyrant.llm.parse_action) turns that into one of the offered actions. If the reply can't be used, the agent raises, and on the retry for the same decision it shows the model its rejected reply and the reason. The [prompting guide](../guides/prompting.md) covers this in detail.
+The model may reason first, then ends its reply with a JSON object such as `{"action": 3, "message": "..."}`. [`parse_action`](../reference/llm.md#tyrant.llm.parse_action) turns that into one of the offered actions. If the reply can't be used, the agent raises, and on the retry for the same decision it shows the model its rejected reply and the reason. The [prompting guide](../guides/prompting.md) covers this in detail.
 
 ## A full LLM game
 
-`examples/llm_game.py` seats five `LLMAgent`s with discussion on and prints the winner, the faults with any rejected replies, the token totals, the cost and each agent's final notes:
+`examples/llm_game.py` seats five `LLMAgent`s with discussion on and prints the winner, the faults with any rejected replies, the token totals and the cost:
 
 ```python
 --8<-- "examples/llm_game.py"
@@ -88,4 +87,4 @@ from tyrant import write_replay
 write_replay(runner.replay, "game.json.gz")
 ```
 
-The replay also records each player's model and persona, each agent's notes after every step, and every fault with the raw text of a rejected reply. To watch a game as it is played, pass `on_update` to `GameRunner`. See [Replays](../guides/replays.md) for the file format and live updates. To see the exact prompt each model was sent and its raw reply, pass `on_exchange` to each `LLMAgent`, as described in [Inspecting exchanges](../guides/prompting.md#inspecting-exchanges).
+The replay also records each player's model and persona and every fault with the raw text of a rejected reply. To watch a game as it is played, pass `on_update` to `GameRunner`. See [Replays](../guides/replays.md) for the file format and live updates. To see the exact prompt each model was sent and its raw reply, pass `on_exchange` to each `LLMAgent`, as described in [Inspecting exchanges](../guides/prompting.md#inspecting-exchanges).

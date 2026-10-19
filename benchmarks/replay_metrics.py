@@ -2,7 +2,7 @@
 
 Each metric is a pure function of a replay dict. A metric returns None when
 the replay's version does not record the data it needs: v2 replays have no
-notes, faults or president discards.
+faults or president discards.
 
 Claims are matched to the private knowledge of the government they follow:
 a president claim is checked against that government's draw (and its
@@ -24,14 +24,8 @@ import re
 from collections import Counter
 from pathlib import Path
 
-from tyrant.llm.prompt import MAX_NOTES_LENGTH
-
-NOTES_CAP_MARGIN = 10
 REPEAT_THRESHOLD = 0.5
 NGRAM_SIZE = 3
-INVENTED_REFERENCE = re.compile(
-    r"\bS\d+\b|\bmessage \d+|\bturn \d+|\bstep \d+", re.IGNORECASE
-)
 
 
 def load(path: str | Path) -> dict:
@@ -196,24 +190,6 @@ def claim_conflicts(replay: dict) -> tuple[int, int]:
     return raised, resolved
 
 
-def notes_at_cap(replay: dict, cap: int = MAX_NOTES_LENGTH) -> tuple[int, int] | None:
-    """Counts steps whose notes reach within NOTES_CAP_MARGIN of the cap.
-
-    Args:
-        replay: The replay dict.
-        cap: The notes length limit the game was played with.
-
-    Returns:
-        The steps with notes at the cap and all steps, or None when the
-        replay does not record notes.
-    """
-    steps = replay["steps"]
-    if not any("notes" in step for step in steps):
-        return None
-    full = sum(len(step.get("notes") or "") >= cap - NOTES_CAP_MARGIN for step in steps)
-    return full, len(steps)
-
-
 def speech_share(replay: dict) -> tuple[int, int, int]:
     """Counts discussion steps.
 
@@ -255,20 +231,6 @@ def repeated_speech_rate(replay: dict) -> tuple[int, int]:
     return repeated, len(speeches)
 
 
-def invented_references(replay: dict) -> tuple[int, int]:
-    """Counts speeches that cite step, message, turn or line numbers.
-
-    Args:
-        replay: The replay dict.
-
-    Returns:
-        The speeches with such a reference and all speeches.
-    """
-    speeches = _speeches(replay)
-    cited = sum(bool(INVENTED_REFERENCE.search(s["text"])) for s in speeches)
-    return cited, len(speeches)
-
-
 def faults(replay: dict) -> tuple[dict[str, int], int] | None:
     """Counts agent faults by exception class, and steps played by fallback.
 
@@ -292,11 +254,10 @@ def _fraction(part: int, whole: int) -> str:
     return f"{part}/{whole} ({part / whole:.0%})"
 
 
-def _rows(replay: dict, notes_cap: int) -> list[tuple[str, str]]:
+def _rows(replay: dict) -> list[tuple[str, str]]:
     unanimous, all_ja, elections = unanimous_election_rate(replay)
     lies = claim_lie_rates(replay)
     raised, resolved = claim_conflicts(replay)
-    notes = notes_at_cap(replay, notes_cap)
     discussion, speeches, steps = speech_share(replay)
     fault_counts = faults(replay)
     return [
@@ -311,9 +272,7 @@ def _rows(replay: dict, notes_cap: int) -> list[tuple[str, str]]:
         ("Declined claims", str(lies["fascist"][1] + lies["liberal"][1])),
         ("Claim conflicts raised", str(raised)),
         ("Claim conflicts resolved", str(resolved)),
-        ("Notes at cap", "n/a" if notes is None else _fraction(*notes)),
         ("Repeated speeches", _fraction(*repeated_speech_rate(replay))),
-        ("Invented references", _fraction(*invented_references(replay))),
         (
             "Faults",
             "n/a"
@@ -332,9 +291,8 @@ def main(argv: list[str] | None = None) -> None:
     """
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("replays", nargs="+", type=Path)
-    parser.add_argument("--notes-cap", type=int, default=MAX_NOTES_LENGTH)
     args = parser.parse_args(argv)
-    columns = [_rows(load(path), args.notes_cap) for path in args.replays]
+    columns = [_rows(load(path)) for path in args.replays]
     header = ["Metric", *(path.name for path in args.replays)]
     table = [header] + [
         [label, *(column[i][1] for column in columns)]

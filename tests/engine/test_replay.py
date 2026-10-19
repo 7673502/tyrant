@@ -88,7 +88,7 @@ class TestReplayDict(unittest.TestCase):
 
     def test_replay_dict_format(self):
         """Verifies the exact format of the header, initial snapshot, and first step."""
-        self.assertEqual(self.view["version"], 5)
+        self.assertEqual(self.view["version"], 6)
         self.assertEqual(self.view["tyrant_version"], version("tyrant"))
         self.assertEqual(
             self.view["settings"],
@@ -182,7 +182,6 @@ class TestReplayDict(unittest.TestCase):
                 "uid": 4,
                 "action": {"type": "nominate", "target_uid": 3},
                 "fallback": False,
-                "notes": None,
                 "events": [
                     {"type": "nomination", "president_uid": 4, "chancellor_uid": 3}
                 ],
@@ -269,8 +268,8 @@ class TestReplayDict(unittest.TestCase):
         self.assertIsNone(view["result"])
         self.assertEqual(view["steps"], [])
 
-    def test_replay_dict_agents_and_notes(self):
-        """Verifies that each player's agent and each step's notes are written as recorded."""
+    def test_replay_dict_agents(self):
+        """Verifies that each player's agent is written as recorded."""
         state = self.replay.initial_state
         uid = state.players[state.president_index].uid
         action = get_legal_actions(state, uid)[0]
@@ -278,11 +277,10 @@ class TestReplayDict(unittest.TestCase):
             {p.uid: frozendict(type="RandomAgent") for p in state.players}
         )
         replay = Replay(initial_state=state, agents=agents)
-        view = replay_dict(record_step(replay, uid, action, notes="Trust no one."))
+        view = replay_dict(record_step(replay, uid, action))
         self.assertEqual(
             [p["agent"] for p in view["players"]], [{"type": "RandomAgent"}] * 5
         )
-        self.assertEqual(view["steps"][0]["notes"], "Trust no one.")
 
     def test_step_dict_matches_replay_dict(self):
         """Verifies that step_dict builds the same entries as the steps in replay_dict."""

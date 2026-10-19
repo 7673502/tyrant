@@ -20,7 +20,7 @@ class Agent(Protocol):
 
 Return one of the offered actions. You don't need to inherit from anything.
 
-An agent can also have a `profile`, a mapping of strings such as a model name, and a `notes` string with its private notes. [Replays](../guides/replays.md) show the profile for the player and record the notes after each of its steps.
+An agent can also have a `profile`, a mapping of strings such as a model name. [Replays](../guides/replays.md) show the profile for the player.
 
 ## A trusting agent
 

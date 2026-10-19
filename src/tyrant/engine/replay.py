@@ -13,7 +13,7 @@ from tyrant.models.event import GameOverEvent
 from tyrant.models.game_state import GameState
 from tyrant.models.replay import Replay, ReplayStep
 
-REPLAY_VERSION: Final = 5
+REPLAY_VERSION: Final = 6
 TYRANT_VERSION: Final = version("tyrant")
 
 
@@ -86,14 +86,13 @@ def step_dict(
         next_state: The state after the step.
 
     Returns:
-        The step's action, the events and private knowledge it produced, the agent's notes and the board snapshot after it.
+        The step's action, the events and private knowledge it produced and the board snapshot after it.
     """
     return {
         "index": index,
         "uid": step.uid,
         "action": _action(step.action),
         "fallback": step.fallback,
-        "notes": step.notes,
         "events": [to_json(e, "Event") for e in next_state.events[len(state.events) :]],
         "knowledge": [
             to_json(k, "Knowledge")

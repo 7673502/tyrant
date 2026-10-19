@@ -74,16 +74,6 @@ class TestReplay(unittest.TestCase):
 
         self.assertEqual(tuple(step.fallback for step in replay.steps), (False, True))
 
-    def test_record_step_notes(self):
-        """Verifies that record_step stores the agent's notes only when given."""
-        replay = record_step(Replay(initial_state=self.state), 1, NOMINATE)
-        replay = record_step(replay, 3, VOTE, notes="Player 1 is suspicious.")
-
-        self.assertEqual(
-            tuple(step.notes for step in replay.steps),
-            (None, "Player 1 is suspicious."),
-        )
-
     def test_record_step_keeps_agents(self):
         """Verifies that record_step keeps the replay's agents."""
         agents = frozendict({1: frozendict(type="RandomAgent")})

@@ -37,7 +37,7 @@ An event whose context is not in the set is played without a discussion. `create
 
 ## Speaking
 
-On their turn, a player's legal actions are a [`SpeakAction`](../reference/models.md#tyrant.models.SpeakAction), described as "Say something new to the table", and a [`PassAction`](../reference/models.md#tyrant.models.PassAction), described as "Stay silent (choose this if you would repeat an earlier point)". To say something, fill in the message:
+On their turn, a player's legal actions are a [`SpeakAction`](../reference/models.md#tyrant.models.SpeakAction), described as "Say something to the table", and a [`PassAction`](../reference/models.md#tyrant.models.PassAction), described as "Stay silent". To say something, fill in the message:
 
 ```python
 from dataclasses import replace
@@ -47,11 +47,9 @@ return replace(speak_action, message="I'm a liberal, I swear.")
 
 Whitespace in a message is collapsed, and the message is cut to [`MAX_SPEECH_LENGTH`](../reference/models.md#tyrant.models.MAX_SPEECH_LENGTH) (500) characters. An empty message counts as a pass.
 
-[`SYSTEM_PROMPT`](../reference/llm.md#tyrant.llm.SYSTEM_PROMPT) tells LLM players that repeating the board state is pointless and that they should pass unless they have a new claim, question or accusation.
-
 ## Correcting a claim
 
-In the discussion that directly follows a government's policy claims, that government's president and chancellor are also offered a [`CorrectClaimAction`](../reference/models.md#tyrant.models.CorrectClaimAction) for every other claim they could have made, after the speak and pass options. Each is described as "Correct your claim: …". The truthful one comes first and ends with "(matches what you saw)"; the rest are unmarked. Declining is not offered as a correction.
+In the discussion that directly follows a government's policy claims, that government's president and chancellor are also offered a [`CorrectClaimAction`](../reference/models.md#tyrant.models.CorrectClaimAction) for every other claim they could have made, after the speak and pass options. Each is described as "Correct your claim: …", in the same fixed order as the claim options. Declining is not offered as a correction.
 
 A correction uses the player's turn and counts as speaking, so it resets the run of passes. It is recorded as a [`ClaimEvent`](../reference/models.md#tyrant.models.ClaimEvent) with `correction=True` and added to `GameState.claims`. Corrections are only offered for president and chancellor policy claims, and only until the discussion ends; once the next government is nominated, the claims stand.
 
@@ -59,7 +57,7 @@ A correction uses the player's turn and counts as speaking, so it resets the run
 
 The full public transcript is kept as [`SpeechEvent`](../reference/models.md#tyrant.models.SpeechEvent)s in `GameState.events`. Each one is tagged with the [`DiscussionContext`](../reference/models.md#tyrant.models.DiscussionContext) that triggered it, and a pass is recorded with `text=None`. See `examples/discussion.py`.
 
-To keep prompts small, [`render_text`](../reference/engine.md#tyrant.engine.render_text) shows speeches from only the last two discussions; older ones collapse into one line each. [`render_dict`](../reference/engine.md#tyrant.engine.render_dict) keeps every speech.
+[`render_text`](../reference/engine.md#tyrant.engine.render_text) and [`render_dict`](../reference/engine.md#tyrant.engine.render_dict) show every speech and pass.
 
 ## Discussion before a power
 

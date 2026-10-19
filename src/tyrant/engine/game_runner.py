@@ -165,11 +165,7 @@ class GameRunner:
             state = self.state
             self.state = apply_action(state, chosen_action, agent_uid)
             self.replay = record_step(
-                self.replay,
-                agent_uid,
-                chosen_action,
-                agent_uid in fell_back,
-                getattr(self.agents[agent_uid], "notes", None),
+                self.replay, agent_uid, chosen_action, agent_uid in fell_back
             )
             if self.on_update is not None:
                 index = len(self.replay.steps) - 1
