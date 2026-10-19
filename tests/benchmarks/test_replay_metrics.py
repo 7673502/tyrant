@@ -8,11 +8,10 @@ from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from scripts.replay_metrics import (
+from benchmarks.replay_metrics import (
     claim_conflicts,
     claim_lie_rates,
     faults,
-    invented_references,
     load,
     main,
     repeated_speech_rate,
@@ -214,10 +213,6 @@ class TestReplayMetrics(unittest.TestCase):
         self.replay["steps"][7]["events"][0]["uid"] = 2
         self.assertEqual(repeated_speech_rate(self.replay), (0, 2))
 
-    def test_invented_references(self):
-        """Verifies that speeches citing a numbered line are counted."""
-        self.assertEqual(invented_references(self.replay), (1, 2))
-
     def test_faults(self):
         """Verifies that faults are counted by exception class with the fallbacks."""
         self.replay["steps"][0]["fallback"] = True
@@ -249,10 +244,6 @@ class TestReplayMetrics(unittest.TestCase):
     def test_repeated_speech_rate_immutability(self):
         """Verifies that repeated_speech_rate does not mutate the replay."""
         self._assert_unchanged(repeated_speech_rate)
-
-    def test_invented_references_immutability(self):
-        """Verifies that invented_references does not mutate the replay."""
-        self._assert_unchanged(invented_references)
 
     def test_faults_immutability(self):
         """Verifies that faults does not mutate the replay."""

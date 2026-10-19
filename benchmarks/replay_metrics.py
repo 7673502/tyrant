@@ -26,9 +26,6 @@ from pathlib import Path
 
 REPEAT_THRESHOLD = 0.5
 NGRAM_SIZE = 3
-INVENTED_REFERENCE = re.compile(
-    r"\bS\d+\b|\bmessage \d+|\bturn \d+|\bstep \d+", re.IGNORECASE
-)
 
 
 def load(path: str | Path) -> dict:
@@ -234,20 +231,6 @@ def repeated_speech_rate(replay: dict) -> tuple[int, int]:
     return repeated, len(speeches)
 
 
-def invented_references(replay: dict) -> tuple[int, int]:
-    """Counts speeches that cite step, message, turn or line numbers.
-
-    Args:
-        replay: The replay dict.
-
-    Returns:
-        The speeches with such a reference and all speeches.
-    """
-    speeches = _speeches(replay)
-    cited = sum(bool(INVENTED_REFERENCE.search(s["text"])) for s in speeches)
-    return cited, len(speeches)
-
-
 def faults(replay: dict) -> tuple[dict[str, int], int] | None:
     """Counts agent faults by exception class, and steps played by fallback.
 
@@ -290,7 +273,6 @@ def _rows(replay: dict) -> list[tuple[str, str]]:
         ("Claim conflicts raised", str(raised)),
         ("Claim conflicts resolved", str(resolved)),
         ("Repeated speeches", _fraction(*repeated_speech_rate(replay))),
-        ("Invented references", _fraction(*invented_references(replay))),
         (
             "Faults",
             "n/a"
