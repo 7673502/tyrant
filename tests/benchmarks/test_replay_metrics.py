@@ -18,6 +18,7 @@ from benchmarks.replay_metrics import (
     speech_share,
     unanimous_election_rate,
 )
+from tyrant.exceptions import UnsupportedReplayError
 
 F = "fascist"
 L = "liberal"
@@ -94,7 +95,7 @@ def _replay() -> dict:
         _step("claim_chancellor_enact", [_claim("chancellor_enact", 2, None)]),
     ]
     return {
-        "version": 4,
+        "version": "0.4.0",
         "players": [
             {"uid": 0, "party": L},
             {"uid": 1, "party": F},
@@ -107,19 +108,6 @@ def _replay() -> dict:
             {"reason": "TimeoutError()"},
         ],
     }
-
-
-def _v2_replay() -> dict:
-    replay = _replay()
-    del replay["faults"]
-    for step in replay["steps"]:
-        step["knowledge"] = [
-            k for k in step["knowledge"] if k["type"] != "president_discard"
-        ]
-        for event in step["events"]:
-            if event["type"] == "claim":
-                event["claim"].pop("discarded", None)
-    return replay
 
 
 class TestReplayMetrics(unittest.TestCase):
@@ -143,13 +131,6 @@ class TestReplayMetrics(unittest.TestCase):
         claim["policies"] = [F, F, L]
         claim["discarded"] = L
         self.assertEqual(claim_lie_rates(self.replay)["liberal"], (1, 1, 2))
-
-    def test_claim_lie_rates_v2(self):
-        """Verifies that v2 president claims are checked against the draw alone."""
-        self.assertEqual(
-            claim_lie_rates(_v2_replay()),
-            {"liberal": (1, 1, 2), "fascist": (1, 0, 2)},
-        )
 
     def test_claim_conflicts(self):
         """Verifies that a conflicting government is raised and not resolved."""
@@ -191,15 +172,6 @@ class TestReplayMetrics(unittest.TestCase):
             {"liberal": (1, 1, 2), "fascist": (1, 0, 2)},
         )
 
-    def test_claim_conflicts_v2(self):
-        """Verifies that a v2 conflict is a received card missing from the claimed draw."""
-        self.assertEqual(claim_conflicts(_v2_replay()), (0, 0))
-        replay = _v2_replay()
-        replay["steps"][4]["events"][0]["claim"]["policies"] = [L, L]
-        self.assertEqual(claim_conflicts(replay), (0, 0))
-        replay["steps"][3]["events"][0]["claim"]["policies"] = [F, F, F]
-        self.assertEqual(claim_conflicts(replay), (1, 0))
-
     def test_speech_share(self):
         """Verifies that speak and pass steps are counted against all steps."""
         self.assertEqual(speech_share(self.replay), (3, 2, 15))
@@ -219,11 +191,6 @@ class TestReplayMetrics(unittest.TestCase):
         self.assertEqual(
             faults(self.replay), ({"InvalidMoveError": 1, "TimeoutError": 2}, 1)
         )
-
-    def test_v2_metrics_are_none(self):
-        """Verifies that metrics without data in a v2 replay are None."""
-        replay = _v2_replay()
-        self.assertIsNone(faults(replay))
 
     def test_unanimous_election_rate_immutability(self):
         """Verifies that unanimous_election_rate does not mutate the replay."""
@@ -271,6 +238,14 @@ class TestLoad(unittest.TestCase):
             path.write_text(json.dumps(_replay()), encoding="utf-8")
             self.assertEqual(load(path), _replay())
 
+    def test_load_rejects_old_format(self):
+        """Verifies that a replay in a format from before 0.4.0 is rejected."""
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "game.json"
+            path.write_text(json.dumps({**_replay(), "version": 4}), encoding="utf-8")
+            with self.assertRaises(UnsupportedReplayError):
+                load(path)
+
     def test_load_immutability(self):
         """Verifies that load returns a new dict on each call."""
         with TemporaryDirectory() as directory:
@@ -291,13 +266,13 @@ class TestMain(unittest.TestCase):
         with TemporaryDirectory() as directory:
             plain = Path(directory) / "a.json"
             plain.write_text(json.dumps(_replay()), encoding="utf-8")
-            old = Path(directory) / "b.json"
-            old.write_text(json.dumps(_v2_replay()), encoding="utf-8")
-            output = self._run([str(plain), str(old)])
+            other = Path(directory) / "b.json"
+            other.write_text(json.dumps(_replay()), encoding="utf-8")
+            output = self._run([str(plain), str(other)])
         rows = [re.split(r"\s{2,}", line) for line in output.splitlines()]
         self.assertEqual(rows[0], ["Metric", "a.json", "b.json"])
         self.assertIn(["Unanimous elections", "3/4 (75%)", "3/4 (75%)"], rows)
-        self.assertIn(["Fallbacks", "0", "n/a"], rows)
+        self.assertIn(["Fallbacks", "0", "0"], rows)
 
     def test_main_immutability(self):
         """Verifies that main does not mutate its argument list."""

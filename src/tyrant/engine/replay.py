@@ -6,6 +6,7 @@ from typing import Final
 
 from tyrant.engine.renderer import to_json
 from tyrant.engine.router import apply_action
+from tyrant.exceptions import UnsupportedReplayError
 from tyrant.models.action import AGENT_FILLED_FIELDS, Action
 from tyrant.models.agent_fault import AgentFault
 from tyrant.models.board import FASCIST_TRACKS
@@ -13,7 +14,7 @@ from tyrant.models.event import GameOverEvent
 from tyrant.models.game_state import GameState
 from tyrant.models.replay import Replay, ReplayStep
 
-REPLAY_VERSION: Final = 6
+REPLAY_VERSION: Final = "0.4.0"
 TYRANT_VERSION: Final = version("tyrant")
 
 
@@ -178,6 +179,22 @@ def write_replay(replay: Replay, path: str | Path) -> None:
         json.dump(replay_dict(replay), f, separators=(",", ":"))
 
 
+def check_replay_version(data: dict) -> None:
+    """Checks that a replay dict was written in the current format.
+
+    Args:
+        data: The replay as plain dicts.
+
+    Raises:
+        UnsupportedReplayError: If the replay's `version` is not `REPLAY_VERSION`.
+    """
+    if data.get("version") != REPLAY_VERSION:
+        raise UnsupportedReplayError(
+            f"Replay format {data.get('version')!r} is not supported; "
+            f"this version of tyrant reads format {REPLAY_VERSION!r}"
+        )
+
+
 def read_replay(path: str | Path) -> dict:
     """Reads a gzipped JSON replay file into plain dicts.
 
@@ -186,6 +203,11 @@ def read_replay(path: str | Path) -> dict:
 
     Returns:
         The replay in the format returned by `replay_dict`.
+
+    Raises:
+        UnsupportedReplayError: If the file was written in a format other than `REPLAY_VERSION`.
     """
     with gzip.open(path, "rt", encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    check_replay_version(data)
+    return data

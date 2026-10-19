@@ -18,8 +18,8 @@ The file holds the setup with every hidden role, then one entry per applied acti
 
 ```json
 {
-  "version": 6,
-  "tyrant_version": "0.3.0",
+  "version": "0.4.0",
+  "tyrant_version": "0.4.0",
   "settings": {"player_count": 7, "discussion_enabled": false,
                "discussion_rounds": 2, "discussion_contexts": ["after_execution", ...],
                "fascist_track": ["none", "investigate_loyalty", ...]},
@@ -44,19 +44,19 @@ The file holds the setup with every hidden role, then one entry per applied acti
 }
 ```
 
-`version` is the file format, which a viewer checks before reading the file. `tyrant_version` is the package version that wrote it, which tells you which rules and options produced the game; it can change without the format changing.
+`version` is the file format, named after the Tyrant release that last changed it, so a viewer checks it before reading the file. `tyrant_version` is the package version that wrote the file, which tells you which rules and options produced the game. A release that leaves the format alone changes `tyrant_version` but not `version`.
 
 `agent` describes what plays each player: the agent's class name as `type`, plus its `profile` if it has one. [`LLMAgent`](../reference/llm.md#tyrant.llm.agent.LLMAgent)'s profile holds its `model` and `persona`. `agent` is `null` for a `Replay` built without agents.
 
-Each step lists the events and private knowledge its action produced. `fallback` is `true` when the agent failed every attempt and the runner played an action for it (a pass during discussion, a declined claim when one is offered, otherwise a random legal action), so a step with `fallback: false` was the agent's own choice. Version 1 files have no `fallback` field and can't tell the two apart. Version 2 files have no `president_discard` knowledge and no `discarded` field in `president_enact` claims. Actions leave out `description` and `message`; speech text is in the step's `speech` event. `result` is `null` if the game has not ended.
+Each step lists the events and private knowledge its action produced. `fallback` is `true` when the agent failed every attempt and the runner played an action for it (a pass during discussion, a declined claim when one is offered, otherwise a random legal action), so a step with `fallback: false` was the agent's own choice. Actions leave out `description` and `message`; speech text is in the step's `speech` event. `result` is `null` if the game has not ended.
 
 ## Faults
 
 `faults` lists every failed attempt, in order, from [`AgentFault`](../reference/models.md#tyrant.models.AgentFault). A fault happens before the step it belongs to exists, so `step` is the index of the step the agent's action became: the agent's own choice after a recovered fault, or the runner's fallback when `fell_back` is `true`. `reason` is the `repr` of the exception. `reply` is the agent's raw reply when the attempt was rejected with an [`InvalidMoveError`](../reference/exceptions.md#tyrant.exceptions.InvalidMoveError) that carried one, as [`LLMAgent`](../reference/llm.md#tyrant.llm.agent.LLMAgent) does, so bad JSON, an option number that wasn't offered and an empty speech can be told apart. It is `null` for timeouts, provider errors and agents that don't fill it in.
 
-## Older versions
+## Older formats
 
-[`read_replay`](../reference/engine.md#tyrant.engine.read_replay) returns the file as stored, so older files still load; check `version` before reading newer fields. Version 5 files have a step `notes` field holding the acting agent's private notes, which newer versions no longer record. Version 4 files have no `correction` field on `claim` events and no `correct_claim` actions. Version 3 files have no `tyrant_version`, player `agent` or step `notes`. Version 2 files have no `faults`. Version 1 files have no `faults` and no step `fallback` field.
+Replays written before Tyrant 0.4.0 used integer format versions and are no longer supported. [`read_replay`](../reference/engine.md#tyrant.engine.read_replay) raises [`UnsupportedReplayError`](../reference/exceptions.md#tyrant.exceptions.UnsupportedReplayError) for any file whose `version` is not the current format. To read an older file, install an earlier Tyrant release.
 
 ## Live games
 

@@ -10,7 +10,9 @@ from tyrant.engine.renderer import to_json
 from frozendict import frozendict
 
 from tyrant.engine.replay import (
+    REPLAY_VERSION,
     _snapshot,
+    check_replay_version,
     fault_dict,
     read_replay,
     replay_dict,
@@ -19,6 +21,7 @@ from tyrant.engine.replay import (
     write_replay,
 )
 from tyrant.engine.router import apply_action, get_legal_actions
+from tyrant.exceptions import UnsupportedReplayError
 from tyrant.models.action import SpeakAction
 from tyrant.models.agent_fault import AgentFault
 from tyrant.models.enums import GamePhase
@@ -88,7 +91,7 @@ class TestReplayDict(unittest.TestCase):
 
     def test_replay_dict_format(self):
         """Verifies the exact format of the header, initial snapshot, and first step."""
-        self.assertEqual(self.view["version"], 6)
+        self.assertEqual(self.view["version"], "0.4.0")
         self.assertEqual(self.view["tyrant_version"], version("tyrant"))
         self.assertEqual(
             self.view["settings"],
@@ -346,17 +349,34 @@ class TestReplayFile(unittest.TestCase):
             with gzip.open(path, "rt") as f:
                 self.assertNotIn(" ", f.read(200))
 
-    def test_read_replay_loads_version_2(self):
-        """Verifies that a version 2 file without faults still reads back unchanged."""
+    def test_read_replay_rejects_old_format(self):
+        """Verifies that a file in a format from before 0.4.0 is rejected."""
         replay, _ = record_first_legal_actions(create_game(UIDS, 42))
         legacy = replay_dict(replay)
-        legacy["version"] = 2
-        del legacy["faults"]
+        legacy["version"] = 6
         with TemporaryDirectory() as directory:
             path = Path(directory) / "game.json.gz"
             with gzip.open(path, "wt", encoding="utf-8") as f:
                 json.dump(legacy, f)
-            self.assertEqual(read_replay(path), legacy)
+            with self.assertRaises(UnsupportedReplayError):
+                read_replay(path)
+
+
+class TestCheckReplayVersion(unittest.TestCase):
+    def test_check_replay_version_accepts_current(self):
+        """Verifies that a replay in the current format passes the check."""
+        check_replay_version({"version": REPLAY_VERSION})
+
+    def test_check_replay_version_rejects_missing(self):
+        """Verifies that a replay without a version is rejected."""
+        with self.assertRaises(UnsupportedReplayError):
+            check_replay_version({})
+
+    def test_check_replay_version_immutability(self):
+        """Verifies that check_replay_version does not mutate the replay."""
+        data = {"version": REPLAY_VERSION, "steps": []}
+        check_replay_version(data)
+        self.assertEqual(data, {"version": REPLAY_VERSION, "steps": []})
 
 
 if __name__ == "__main__":

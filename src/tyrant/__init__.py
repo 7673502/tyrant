@@ -11,7 +11,12 @@ from tyrant.engine import (
     replay_dict,
     write_replay,
 )
-from tyrant.exceptions import AgentError, InvalidMoveError, TyrantError
+from tyrant.exceptions import (
+    AgentError,
+    InvalidMoveError,
+    TyrantError,
+    UnsupportedReplayError,
+)
 from tyrant.models import (
     HIDDEN,
     Action,
@@ -51,6 +56,7 @@ __all__ = [
     "RandomAgent",
     "Role",
     "TyrantError",
+    "UnsupportedReplayError",
     "Vote",
     "WinCondition",
     "apply_action",
