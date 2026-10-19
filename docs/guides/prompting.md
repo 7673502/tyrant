@@ -4,7 +4,7 @@
 
 ## Building prompts
 
-[`SYSTEM_PROMPT`](../reference/llm.md#tyrant.llm.SYSTEM_PROMPT) explains the rules and asks the model to end its reply with `{"action": N, "message": "...", "notes": "..."}`. It is the same for every game, so send it first to benefit from prompt caching. Its discussion rules tell the model that repeating the board state is pointless and that it should stay silent unless it has a new claim, question or accusation, so discussions stay short. [`build_prompt`](../reference/llm.md#tyrant.llm.build_prompt) renders the viewer's state, a `## Your Goal` line stating when their role wins and loses, and their numbered options, and [`parse_action`](../reference/llm.md#tyrant.llm.parse_action) turns the reply back into one of the offered actions:
+[`SYSTEM_PROMPT`](../reference/llm.md#tyrant.llm.SYSTEM_PROMPT) explains the rules and asks the model to end its reply with `{"action": N, "message": "..."}`. It is the same for every game, so send it first to benefit from prompt caching. Its discussion rules tell the model that repeating the board state is pointless and that it should stay silent unless it has a new claim, question or accusation, so discussions stay short. [`build_prompt`](../reference/llm.md#tyrant.llm.build_prompt) renders the viewer's state, a `## Your Goal` line stating when their role wins and loses, and their numbered options, and [`parse_action`](../reference/llm.md#tyrant.llm.parse_action) turns the reply back into one of the offered actions:
 
 ```python
 from tyrant.llm import SYSTEM_PROMPT, build_prompt, parse_action
@@ -16,8 +16,6 @@ async def choose_action(self, state, valid_actions):
 ```
 
 `parse_action` reads the last JSON object in the reply, so the model may reason before it. It raises [`InvalidMoveError`](../reference/exceptions.md#tyrant.exceptions.InvalidMoveError) when the reply has no usable choice, which [`GameRunner`](../reference/engine.md#tyrant.engine.GameRunner) treats like any other [agent failure](agent-resilience.md).
-
-`build_prompt` also takes optional `notes`, rendered as a `## Your Notes` section between the goal and the options. [`parse_notes`](../reference/llm.md#tyrant.llm.parse_notes) reads them back from the same JSON object as `parse_action`. See [Notes](#notes).
 
 ## How `LLMAgent` uses them
 
@@ -48,9 +46,3 @@ agent = LLMAgent(0, "anthropic/claude-haiku-5-5", persona="Cautious, rarely accu
 When `persona` is set, the system message is [`system_prompt(persona)`](../reference/llm.md#tyrant.llm.system_prompt): `SYSTEM_PROMPT` followed by a `## Your Personality` section holding the persona. Every player's system message still starts with the same `SYSTEM_PROMPT` text, so the provider can keep reusing its cached prefix. With no persona, the system message is exactly `SYSTEM_PROMPT`.
 
 Describe a playing style, not a goal. "Cautious, rarely accuses without a contradiction" or "talkative, pushes hard on vote patterns" shape how a player argues without changing what they are trying to win. A persona that clashes with the role, such as "always tell the truth" for a Fascist, pulls the model against its own win condition and mostly adds noise when you're comparing models.
-
-## Notes
-
-An `LLMAgent` keeps private notes, one string that lasts for one game. Only that agent sees them: they are shown back to it under `## Your Notes` on each of its turns, so it can track suspicions, claims and plans between turns.
-
-A reply may include `notes` in its final JSON object. When present, it replaces the previous notes entirely; when missing, the previous notes stay. Only replies that become accepted moves change the notes, so a rejected reply leaves them alone. Notes have their whitespace collapsed, the same as speeches. Notes longer than [`MAX_NOTES_LENGTH`](../reference/llm.md#tyrant.llm.MAX_NOTES_LENGTH) (700) characters are cut after the last whole word that fits and end in "…", and the cut is logged as a warning on the `tyrant.llm.prompt` logger. The response format tells the model not to copy the board, players or timeline into its notes, since those are shown every turn. Notes are rendered as an escaped quoted string, so they can't forge a prompt section. Read an agent's current notes from `agent.notes`. [Replays](replays.md) record each agent's notes after each of its steps.

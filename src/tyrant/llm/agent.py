@@ -12,7 +12,7 @@ from collections.abc import Callable
 from frozendict import frozendict
 
 from tyrant.exceptions import AgentError, InvalidMoveError
-from tyrant.llm.prompt import build_prompt, parse_action, parse_notes, system_prompt
+from tyrant.llm.prompt import build_prompt, parse_action, system_prompt
 from tyrant.models.action import Action
 from tyrant.models.game_state import GameState
 
@@ -22,14 +22,13 @@ _NO_USAGE = frozendict(prompt_tokens=0, completion_tokens=0, cached_tokens=0, co
 class LLMAgent:
     """An agent that plays through any model litellm supports.
 
-    Each turn it sends `SYSTEM_PROMPT`, followed by the persona if one is set, as the system message and `build_prompt` as the user message, then reads the reply with `parse_action` and `parse_notes`. When a reply is rejected, the next call for the same state adds that reply and the reason to the conversation. Provider and network errors are raised as `AgentError`. When `on_exchange` is set, it is called once for each provider call with the messages sent and what came back; an exception it raises propagates out of `choose_action`.
+    Each turn it sends `SYSTEM_PROMPT`, followed by the persona if one is set, as the system message and `build_prompt` as the user message, then reads the reply with `parse_action`. When a reply is rejected, the next call for the same state adds that reply and the reason to the conversation. Provider and network errors are raised as `AgentError`. When `on_exchange` is set, it is called once for each provider call with the messages sent and what came back; an exception it raises propagates out of `choose_action`.
 
     Attributes:
         uid: The player's unique ID.
         model: The litellm model string.
         completion_kwargs: Extra arguments for `litellm.acompletion`.
         persona: A playing style added to the system message under `## Your Personality`, or empty for none.
-        notes: Private notes, shown back to the agent on each of its turns.
         prompt_tokens: Total prompt tokens used.
         completion_tokens: Total completion tokens used.
         cached_tokens: Total prompt tokens read from the provider's cache.
@@ -59,7 +58,6 @@ class LLMAgent:
         self.model = model
         self.completion_kwargs = completion_kwargs
         self.persona = persona
-        self.notes = ""
         self.prompt_tokens = 0
         self.completion_tokens = 0
         self.cached_tokens = 0
@@ -75,7 +73,7 @@ class LLMAgent:
     async def choose_action(
         self, state: GameState, valid_actions: tuple[Action, ...]
     ) -> Action:
-        """Asks the model for an action and updates the notes from its reply.
+        """Asks the model for an action.
 
         Args:
             state: The game state, scrubbed for this agent.
@@ -92,7 +90,7 @@ class LLMAgent:
             {"role": "system", "content": system_prompt(self.persona)},
             {
                 "role": "user",
-                "content": build_prompt(state, self.uid, valid_actions, self.notes),
+                "content": build_prompt(state, self.uid, valid_actions),
             },
         ]
         if self._rejected is not None and self._rejected[0] == state:
@@ -103,7 +101,7 @@ class LLMAgent:
                     "role": "user",
                     "content": f"Your previous reply was rejected: {error}. "
                     "Choose again from Your Options above. Reply with plain text, "
-                    'then end with one JSON object like {"action": 2, "notes": "…"}. '
+                    'then end with one JSON object like {"action": 2}. '
                     "Do not use tool-call or XML syntax.",
                 }
             )
@@ -125,9 +123,6 @@ class LLMAgent:
             self._emit(messages, reply, usage, error)
             raise error from e
         self._emit(messages, reply, usage, None)
-        notes = parse_notes(reply)
-        if notes is not None:
-            self.notes = notes
         self._rejected = None
         return action
 

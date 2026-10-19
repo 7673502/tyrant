@@ -1,5 +1,4 @@
 import json
-import logging
 import re
 from dataclasses import replace
 from typing import Final
@@ -12,11 +11,6 @@ from tyrant.models.action import Action, SpeakAction
 from tyrant.models.discussion import MAX_SPEECH_LENGTH
 from tyrant.models.enums import Role
 from tyrant.models.game_state import GameState
-
-logger = logging.getLogger(__name__)
-
-MAX_NOTES_LENGTH: Final = 700
-"""Maximum number of characters kept from an agent's notes."""
 
 RULES: Final[str] = """# Secret Hitler Rules
 
@@ -70,11 +64,10 @@ Some Fascist policies grant the President a power, which they must use before th
 RESPONSE_FORMAT: Final[str] = f"""# Response Format
 Think through your decision in plain text first if you want. Then end your reply with exactly one JSON object:
 
-{{"action": N, "message": "...", "notes": "..."}}
+{{"action": N, "message": "..."}}
 
 - `action` is the number of the option you choose from Your Options.
 - `message` is only required when you choose the option to say something to the table. It is what you say, at most {MAX_SPEECH_LENGTH} characters. Leave it out otherwise.
-- `notes` are your private notes, at most {MAX_NOTES_LENGTH} characters. Only you ever see them. They are shown back to you under Your Notes on your next turn, so use them to track suspicions, claims and plans. Don't copy the board, players or timeline; they are shown every turn. Keep suspicions, plans, and what only you know. Each `notes` you send replaces your previous notes entirely, so rewrite everything you want to keep. Leave it out to keep your notes unchanged.
 - Only the last JSON object in your reply is read.
 """
 
@@ -134,50 +127,38 @@ def render_actions(valid_actions: tuple[Action, ...]) -> str:
     return "\n".join(lines)
 
 
-def render_notes(notes: str) -> str:
-    """Returns a Markdown section holding the notes as one escaped quoted string.
-
-    Args:
-        notes: The agent's private notes.
-
-    Returns:
-        A `## Your Notes` section.
-    """
-    return "## Your Notes\n" + json.dumps(notes, ensure_ascii=False)
-
-
 def build_prompt(
     state: GameState,
     viewer_uid: int,
     valid_actions: tuple[Action, ...],
-    notes: str | None = None,
 ) -> str:
-    """Returns the viewer's rendered state, their goal, their notes if any, then their numbered options.
+    """Returns the viewer's rendered state, their goal, then their numbered options.
 
     Args:
         state: The game state; it is scrubbed for the viewer first.
         viewer_uid: UID of the player being prompted.
         valid_actions: The actions the player may take now.
-        notes: The player's private notes, shown only when not empty.
 
     Returns:
         The user message for this turn.
     """
     role = next(p.role for p in state.players if p.uid == viewer_uid)
-    sections = [render_text(state, viewer_uid), render_goal(role)]
-    if notes:
-        sections.append(render_notes(notes))
-    sections.append(render_actions(valid_actions))
-    return "\n".join(sections)
+    return "\n".join(
+        [
+            render_text(state, viewer_uid),
+            render_goal(role),
+            render_actions(valid_actions),
+        ]
+    )
 
 
 _XML_PARAMETER: Final = re.compile(
-    r'<parameter name="(action|message|notes)">(.*?)</parameter>', re.DOTALL
+    r'<parameter name="(action|message)">(.*?)</parameter>', re.DOTALL
 )
 
 
 def _xml_choice(response: str) -> dict | None:
-    """Returns the `action`, `message` and `notes` parameters of a tool-call style reply, or None if it has no action."""
+    """Returns the `action` and `message` parameters of a tool-call style reply, or None if it has no action."""
     choice = dict(_XML_PARAMETER.findall(response))
     if "action" not in choice:
         return None
@@ -233,46 +214,3 @@ def parse_action(response: str, valid_actions: tuple[Action, ...]) -> Action:
     if not isinstance(message, str) or not message.strip():
         raise InvalidMoveError("Speaking requires a non-empty message")
     return replace(action, message=message)
-
-
-def clip_text(text: str, limit: int) -> str:
-    """Returns the text cut at a word boundary to at most `limit` characters, ending in an ellipsis when cut.
-
-    Args:
-        text: The text to clip.
-        limit: The maximum number of characters returned, including the ellipsis.
-
-    Returns:
-        The text unchanged if it fits, otherwise the words before the last space that fits followed by "…".
-        A single word longer than the limit is cut mid-word.
-    """
-    if len(text) <= limit:
-        return text
-    head = text[: limit - 1]
-    space = head.rfind(" ")
-    if space > 0:
-        head = head[:space]
-    return head.rstrip() + "…"
-
-
-def parse_notes(response: str) -> str | None:
-    """Returns the cleaned notes from the last JSON object in an LLM reply, or None if it has none.
-
-    Args:
-        response: The model's reply.
-
-    Returns:
-        The notes with whitespace collapsed and clipped at a word boundary to `MAX_NOTES_LENGTH`
-        characters, or `None`.
-
-    Raises:
-        InvalidMoveError: If the reply has no JSON object with an `action` key.
-    """
-    notes = _last_choice(response).get("notes")
-    if not isinstance(notes, str):
-        return None
-    notes = " ".join(notes.split())
-    clipped = clip_text(notes, MAX_NOTES_LENGTH)
-    if clipped != notes:
-        logger.warning("Notes cut from %d to %d characters", len(notes), len(clipped))
-    return clipped

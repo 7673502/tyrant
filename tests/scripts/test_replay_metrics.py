@@ -15,22 +15,19 @@ from scripts.replay_metrics import (
     invented_references,
     load,
     main,
-    notes_at_cap,
     repeated_speech_rate,
     speech_share,
     unanimous_election_rate,
 )
-from tyrant.llm.prompt import MAX_NOTES_LENGTH
 
 F = "fascist"
 L = "liberal"
 
 
-def _step(action_type: str, events=(), knowledge=(), notes=None) -> dict:
+def _step(action_type: str, events=(), knowledge=()) -> dict:
     return {
         "action": {"type": action_type},
         "fallback": False,
-        "notes": notes,
         "events": list(events),
         "knowledge": list(knowledge),
     }
@@ -84,11 +81,7 @@ def _government(president: int, chancellor: int, drawn, discarded, passed) -> li
 def _replay() -> dict:
     steps = [
         *_government(0, 1, [F, F, L], F, [F, L]),
-        _step(
-            "claim_president_enact",
-            [_claim("president_enact", 0, [L, L, F], F)],
-            notes="x" * 195,
-        ),
+        _step("claim_president_enact", [_claim("president_enact", 0, [L, L, F], F)]),
         _step("claim_chancellor_enact", [_claim("chancellor_enact", 1, [F, L])]),
         _step("speak", [_speech(0, "I passed a liberal and a fascist to you")]),
         _step("pass", [_speech(1, None)]),
@@ -121,7 +114,6 @@ def _v2_replay() -> dict:
     replay = _replay()
     del replay["faults"]
     for step in replay["steps"]:
-        del step["notes"]
         step["knowledge"] = [
             k for k in step["knowledge"] if k["type"] != "president_discard"
         ]
@@ -209,17 +201,6 @@ class TestReplayMetrics(unittest.TestCase):
         replay["steps"][3]["events"][0]["claim"]["policies"] = [F, F, F]
         self.assertEqual(claim_conflicts(replay), (1, 0))
 
-    def test_notes_at_cap(self):
-        """Verifies that notes within the margin of the cap are counted."""
-        self.assertEqual(notes_at_cap(self.replay), (0, 15))
-        self.assertEqual(notes_at_cap(self.replay, cap=200), (1, 15))
-
-    def test_notes_at_cap_defaults_to_max_notes_length(self):
-        """Verifies that notes_at_cap counts notes near MAX_NOTES_LENGTH when no cap is given."""
-        replay = _replay()
-        replay["steps"][3]["notes"] = "x" * (MAX_NOTES_LENGTH - 5)
-        self.assertEqual(notes_at_cap(replay), (1, 15))
-
     def test_speech_share(self):
         """Verifies that speak and pass steps are counted against all steps."""
         self.assertEqual(speech_share(self.replay), (3, 2, 15))
@@ -247,7 +228,6 @@ class TestReplayMetrics(unittest.TestCase):
     def test_v2_metrics_are_none(self):
         """Verifies that metrics without data in a v2 replay are None."""
         replay = _v2_replay()
-        self.assertIsNone(notes_at_cap(replay))
         self.assertIsNone(faults(replay))
 
     def test_unanimous_election_rate_immutability(self):
@@ -261,10 +241,6 @@ class TestReplayMetrics(unittest.TestCase):
     def test_claim_conflicts_immutability(self):
         """Verifies that claim_conflicts does not mutate the replay."""
         self._assert_unchanged(claim_conflicts)
-
-    def test_notes_at_cap_immutability(self):
-        """Verifies that notes_at_cap does not mutate the replay."""
-        self._assert_unchanged(notes_at_cap)
 
     def test_speech_share_immutability(self):
         """Verifies that speech_share does not mutate the replay."""
@@ -330,15 +306,7 @@ class TestMain(unittest.TestCase):
         rows = [re.split(r"\s{2,}", line) for line in output.splitlines()]
         self.assertEqual(rows[0], ["Metric", "a.json", "b.json"])
         self.assertIn(["Unanimous elections", "3/4 (75%)", "3/4 (75%)"], rows)
-        self.assertIn(["Notes at cap", "0/15 (0%)", "n/a"], rows)
-
-    def test_main_notes_cap(self):
-        """Verifies that main passes the notes cap option to the notes metric."""
-        with TemporaryDirectory() as directory:
-            path = Path(directory) / "a.json"
-            path.write_text(json.dumps(_replay()), encoding="utf-8")
-            output = self._run([str(path), "--notes-cap", "200"])
-        self.assertIn("Notes at cap              1/15 (7%)", output)
+        self.assertIn(["Fallbacks", "0", "n/a"], rows)
 
     def test_main_immutability(self):
         """Verifies that main does not mutate its argument list."""

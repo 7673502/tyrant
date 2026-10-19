@@ -105,16 +105,14 @@ class CrashingAgent:
         raise KeyError("missing")
 
 
-class NotingAgent:
+class ProfiledAgent:
     def __init__(self, uid: int):
         self.uid = uid
         self.profile = frozendict(model="scripted")
-        self.notes = ""
 
     async def choose_action(
         self, state: GameState, valid_actions: tuple[Action, ...]
     ) -> Action:
-        self.notes = f"Acted in {state.phase}."
         return valid_actions[0]
 
 
@@ -761,23 +759,12 @@ class TestGameRunnerReplay(unittest.IsolatedAsyncioTestCase):
 
     def test_init_replay_records_agent_profiles(self):
         """Verifies that the replay records each agent's class name and profile."""
-        agents = [NotingAgent(uid=1)] + [RandomAgent(uid=i) for i in range(2, 6)]
+        agents = [ProfiledAgent(uid=1)] + [RandomAgent(uid=i) for i in range(2, 6)]
         runner = GameRunner(agents=agents, seed=42)
         self.assertEqual(
-            runner.replay.agents[1], frozendict(type="NotingAgent", model="scripted")
+            runner.replay.agents[1], frozendict(type="ProfiledAgent", model="scripted")
         )
         self.assertEqual(runner.replay.agents[2], frozendict(type="RandomAgent"))
-
-    async def test_run_replay_records_notes(self):
-        """Verifies that each step keeps the acting agent's notes, or None for agents without notes."""
-        agents = [NotingAgent(uid=1)] + [RandomAgent(uid=i) for i in range(2, 6)]
-        runner = GameRunner(agents=agents, seed=42)
-        await runner.run()
-        for step in runner.replay.steps:
-            if step.uid == 1:
-                self.assertTrue(step.notes.startswith("Acted in "))
-            else:
-                self.assertIsNone(step.notes)
 
     async def test_run_sends_live_updates(self):
         """Verifies that the live updates rebuild the same replay as replay_dict."""

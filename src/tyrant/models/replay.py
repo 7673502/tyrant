@@ -15,13 +15,11 @@ class ReplayStep:
         uid: UID of the player who acted.
         action: The action applied.
         fallback: Whether the runner played the action, a pass or a random legal one, after the agent failed.
-        notes: The agent's private notes after this step, or `None` if the agent keeps none.
     """
 
     uid: int
     action: Action
     fallback: bool = False
-    notes: str | None = None
 
 
 @dataclass(frozen=True)
@@ -46,7 +44,6 @@ def record_step(
     uid: int,
     action: Action,
     fallback: bool = False,
-    notes: str | None = None,
 ) -> Replay:
     """Appends an applied action to a replay.
 
@@ -55,12 +52,11 @@ def record_step(
         uid: UID of the player who acted.
         action: The action applied.
         fallback: Whether the runner played the action, a pass or a random legal one, after the agent failed.
-        notes: The agent's private notes after this step, or `None` if the agent keeps none.
 
     Returns:
         A new replay with the step added.
     """
-    step = ReplayStep(uid=uid, action=action, fallback=fallback, notes=notes)
+    step = ReplayStep(uid=uid, action=action, fallback=fallback)
     return replace(replay, steps=replay.steps + (step,))
 
 

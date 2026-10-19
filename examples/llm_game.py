@@ -31,8 +31,6 @@ async def main():
     print(f"Prompt tokens: {prompt_tokens} ({cached_tokens} cached)")
     print(f"Completion tokens: {completion_tokens}")
     print(f"Cost: ${sum(agent.cost for agent in agents):.4f}")
-    for agent in agents:
-        print(f"Player {agent.uid} notes: {agent.notes or '(none)'}")
 
 
 if __name__ == "__main__":

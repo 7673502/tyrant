@@ -10,7 +10,7 @@ from frozendict import frozendict
 from tyrant.engine.game_runner import GameRunner
 from tyrant.engine.router import get_legal_actions
 from tyrant.exceptions import AgentError, InvalidMoveError
-from tyrant.llm.prompt import MAX_NOTES_LENGTH, SYSTEM_PROMPT, build_prompt
+from tyrant.llm.prompt import SYSTEM_PROMPT, build_prompt
 from tyrant.models.enums import DiscussionContext, GamePhase
 from tyrant.models.event import SpeechEvent
 from tyrant.models.game_state import create_game
@@ -108,33 +108,12 @@ class TestLLMAgent(unittest.TestCase):
         agent = LLMAgent(self.uid, MODEL, persona="Cautious.")
         self.assertEqual(agent.profile, frozendict(model=MODEL, persona="Cautious."))
 
-    def test_accepted_notes_replace_previous_notes(self):
-        """Verifies that notes from an accepted reply replace the old notes and appear in the next prompt."""
-        scripted, _ = self._play(
-            _reply(1, notes="Player 2 is shady."),
-            _reply(1, notes="Player 3 is shady."),
-            _reply(1),
-        )
-        self.assertEqual(self.agent.notes, "Player 3 is shady.")
-        self.assertEqual(
-            scripted.calls[2]["messages"][1]["content"],
-            build_prompt(self.state, self.uid, self.actions, "Player 3 is shady."),
-        )
-
-    def test_reply_without_notes_keeps_notes(self):
-        """Verifies that an accepted reply without notes keeps the previous notes."""
-        self._play(_reply(1, notes="Trust nobody."), _reply(2))
-        self.assertEqual(self.agent.notes, "Trust nobody.")
-
     def test_rejected_reply_changes_nothing_and_adds_feedback(self):
-        """Verifies that a rejected reply keeps the notes, raises, and is fed back once on the next call."""
-        rejected = _reply(99, notes="Lost notes.")
-        scripted, results = self._play(
-            _reply(1, notes="Kept notes."), rejected, _reply(2), _reply(1)
-        )
+        """Verifies that a rejected reply raises and is fed back once on the next call."""
+        rejected = _reply(99)
+        scripted, results = self._play(_reply(1), rejected, _reply(2), _reply(1))
         self.assertIsInstance(results[1], InvalidMoveError)
         self.assertEqual(results[1].reply, rejected)
-        self.assertEqual(self.agent.notes, "Kept notes.")
         self.assertIs(results[2], self.actions[1])
         retry = scripted.calls[2]["messages"]
         self.assertEqual(len(retry), 4)
@@ -210,13 +189,6 @@ class TestLLMAgent(unittest.TestCase):
                 asyncio.run(self.agent.choose_action(self.state, self.actions))
         self.assertIsInstance(raised.exception.__cause__, ConnectionError)
 
-    def test_notes_are_capped_and_collapsed(self):
-        """Verifies that saved notes have collapsed whitespace and are cut at a word boundary within MAX_NOTES_LENGTH characters."""
-        self._play(_reply(1, notes="a \n\n b " + "word " * MAX_NOTES_LENGTH))
-        self.assertLessEqual(len(self.agent.notes), MAX_NOTES_LENGTH)
-        self.assertTrue(self.agent.notes.startswith("a b word"))
-        self.assertTrue(self.agent.notes.endswith("word…"))
-
     def test_usage_totals_add_up(self):
         """Verifies that token and cost totals sum every response, including rejected ones."""
         cached = ModelResponse(
@@ -269,7 +241,7 @@ class TestLLMAgent(unittest.TestCase):
 
     def test_on_exchange_receives_prompt_and_reply(self):
         """Verifies that on_exchange gets the sent messages and the raw reply of an accepted call."""
-        reply = _reply(1, notes="Hmm.")
+        reply = _reply(1)
         scripted, _, exchanges = self._play_recorded(reply)
         self.assertEqual(len(exchanges), 1)
         self.assertEqual(exchanges[0]["uid"], self.uid)
@@ -324,7 +296,7 @@ class TestLLMAgent(unittest.TestCase):
 
     def test_seeded_game_with_discussion_finishes(self):
         """Verifies that five agents with mocked replies finish a seeded game with discussion and no faults."""
-        reply = _reply(1, message="I am a liberal.", notes="Still watching.")
+        reply = _reply(1, message="I am a liberal.")
         agents = [
             LLMAgent(uid, MODEL, completion_kwargs=frozendict(mock_response=reply))
             for uid in UIDS
@@ -333,9 +305,6 @@ class TestLLMAgent(unittest.TestCase):
         state = asyncio.run(runner.run())
         self.assertEqual(state.phase, GamePhase.GAME_OVER)
         self.assertEqual(runner.faults, ())
-        for agent in agents:
-            with self.subTest(uid=agent.uid):
-                self.assertEqual(agent.notes, "Still watching.")
 
 
 if __name__ == "__main__":
