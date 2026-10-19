@@ -26,3 +26,9 @@ class AgentError(TyrantError):
     """Raised when an agent fails to choose an action for a reason it expected, such as a provider or network error."""
 
     pass
+
+
+class UnsupportedReplayError(TyrantError):
+    """Raised when a replay file uses a format this version of Tyrant does not read."""
+
+    pass

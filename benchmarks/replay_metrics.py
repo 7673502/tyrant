@@ -1,15 +1,14 @@
 """Measures LLM play quality from replay files.
 
-Each metric is a pure function of a replay dict. A metric returns None when
-the replay's version does not record the data it needs: v2 replays have no
-faults or president discards.
+Each metric is a pure function of a replay dict. Only replays in the current
+format are read; older formats raise UnsupportedReplayError.
 
 Claims are matched to the private knowledge of the government they follow:
 a president claim is checked against that government's draw (and its
 discard, when the claim names one), and a chancellor claim against what the
 chancellor received. A Liberal claim that differs from the truth is a
 mis-claim rather than a lie. Lie rates count each player's first claim about
-a government; a v5 correction (a claim event with `correction` set) counts
+a government; a correction (a claim event with `correction` set) counts
 only towards resolving that government's claim conflict.
 
 A speech is repeated when at least REPEAT_THRESHOLD of its word 3-grams
@@ -24,6 +23,8 @@ import re
 from collections import Counter
 from pathlib import Path
 
+from tyrant.engine.replay import check_replay_version
+
 REPEAT_THRESHOLD = 0.5
 NGRAM_SIZE = 3
 
@@ -36,13 +37,18 @@ def load(path: str | Path) -> dict:
 
     Returns:
         The replay as plain dicts.
+
+    Raises:
+        UnsupportedReplayError: If the replay is not in the current format.
     """
     try:
         with gzip.open(path, "rt", encoding="utf-8") as f:
-            return json.load(f)
+            replay = json.load(f)
     except gzip.BadGzipFile:
         with open(path, encoding="utf-8") as f:
-            return json.load(f)
+            replay = json.load(f)
+    check_replay_version(replay)
+    return replay
 
 
 def _events(replay: dict, event_type: str) -> list[dict]:
@@ -105,8 +111,6 @@ def _is_true(claim: dict, truth: dict) -> bool:
         )
     if Counter(claim["policies"]) != Counter(truth["president_draw"]["policies"]):
         return False
-    if claim.get("discarded") is None or "president_discard" not in truth:
-        return True
     return claim["discarded"] == truth["president_discard"]["discarded"]
 
 
@@ -132,20 +136,14 @@ def claim_lie_rates(replay: dict) -> dict[str, tuple[int, int, int]]:
     return rates
 
 
-def _passed(claim: dict) -> Counter | None:
+def _passed(claim: dict) -> Counter:
     drawn = Counter(claim["policies"])
-    if claim.get("discarded") is None:
-        return None
     drawn[claim["discarded"]] -= 1
     return +drawn
 
 
 def _conflict(president: dict, chancellor: dict) -> bool:
-    received = Counter(chancellor["policies"])
-    passed = _passed(president)
-    if passed is not None:
-        return passed != received
-    return bool(received - Counter(president["policies"]))
+    return _passed(president) != Counter(chancellor["policies"])
 
 
 def claim_conflicts(replay: dict) -> tuple[int, int]:
@@ -231,18 +229,15 @@ def repeated_speech_rate(replay: dict) -> tuple[int, int]:
     return repeated, len(speeches)
 
 
-def faults(replay: dict) -> tuple[dict[str, int], int] | None:
+def faults(replay: dict) -> tuple[dict[str, int], int]:
     """Counts agent faults by exception class, and steps played by fallback.
 
     Args:
         replay: The replay dict.
 
     Returns:
-        The faults per exception class and the fallback steps, or None when
-        the replay does not record faults.
+        The faults per exception class and the fallback steps.
     """
-    if "faults" not in replay:
-        return None
     reasons = Counter(fault["reason"].split("(")[0] for fault in replay["faults"])
     fallbacks = sum(step["fallback"] for step in replay["steps"])
     return dict(sorted(reasons.items())), fallbacks
@@ -259,7 +254,7 @@ def _rows(replay: dict) -> list[tuple[str, str]]:
     lies = claim_lie_rates(replay)
     raised, resolved = claim_conflicts(replay)
     discussion, speeches, steps = speech_share(replay)
-    fault_counts = faults(replay)
+    reasons, fallbacks = faults(replay)
     return [
         ("Version", str(replay["version"])),
         ("Steps", str(steps)),
@@ -273,13 +268,8 @@ def _rows(replay: dict) -> list[tuple[str, str]]:
         ("Claim conflicts raised", str(raised)),
         ("Claim conflicts resolved", str(resolved)),
         ("Repeated speeches", _fraction(*repeated_speech_rate(replay))),
-        (
-            "Faults",
-            "n/a"
-            if fault_counts is None
-            else ", ".join(f"{k} {v}" for k, v in fault_counts[0].items()) or "0",
-        ),
-        ("Fallbacks", "n/a" if fault_counts is None else str(fault_counts[1])),
+        ("Faults", ", ".join(f"{k} {v}" for k, v in reasons.items()) or "0"),
+        ("Fallbacks", str(fallbacks)),
     ]
 
 
