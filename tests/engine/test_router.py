@@ -787,8 +787,8 @@ class TestGetLegalActionsDiscussion(unittest.TestCase):
         self.assertEqual(
             [a.description for a in actions],
             [
-                "Say something new to the table",
-                "Stay silent (choose this if you would repeat an earlier point)",
+                "Say something to the table",
+                "Stay silent",
             ],
         )
 

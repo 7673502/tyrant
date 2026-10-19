@@ -37,7 +37,7 @@ An event whose context is not in the set is played without a discussion. `create
 
 ## Speaking
 
-On their turn, a player's legal actions are a [`SpeakAction`](../reference/models.md#tyrant.models.SpeakAction), described as "Say something new to the table", and a [`PassAction`](../reference/models.md#tyrant.models.PassAction), described as "Stay silent (choose this if you would repeat an earlier point)". To say something, fill in the message:
+On their turn, a player's legal actions are a [`SpeakAction`](../reference/models.md#tyrant.models.SpeakAction), described as "Say something to the table", and a [`PassAction`](../reference/models.md#tyrant.models.PassAction), described as "Stay silent". To say something, fill in the message:
 
 ```python
 from dataclasses import replace
@@ -46,8 +46,6 @@ return replace(speak_action, message="I'm a liberal, I swear.")
 ```
 
 Whitespace in a message is collapsed, and the message is cut to [`MAX_SPEECH_LENGTH`](../reference/models.md#tyrant.models.MAX_SPEECH_LENGTH) (500) characters. An empty message counts as a pass.
-
-[`SYSTEM_PROMPT`](../reference/llm.md#tyrant.llm.SYSTEM_PROMPT) tells LLM players that repeating the board state is pointless and that they should pass unless they have a new claim, question or accusation.
 
 ## Correcting a claim
 
@@ -59,7 +57,7 @@ A correction uses the player's turn and counts as speaking, so it resets the run
 
 The full public transcript is kept as [`SpeechEvent`](../reference/models.md#tyrant.models.SpeechEvent)s in `GameState.events`. Each one is tagged with the [`DiscussionContext`](../reference/models.md#tyrant.models.DiscussionContext) that triggered it, and a pass is recorded with `text=None`. See `examples/discussion.py`.
 
-To keep prompts small, [`render_text`](../reference/engine.md#tyrant.engine.render_text) shows speeches from only the last two discussions; older ones collapse into one line each. [`render_dict`](../reference/engine.md#tyrant.engine.render_dict) keeps every speech.
+[`render_text`](../reference/engine.md#tyrant.engine.render_text) and [`render_dict`](../reference/engine.md#tyrant.engine.render_dict) show every speech and pass.
 
 ## Discussion before a power
 

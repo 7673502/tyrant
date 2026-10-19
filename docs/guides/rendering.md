@@ -46,7 +46,7 @@ In seat order:
 
 When a government's president and chancellor policy claims disagree, `render_text` adds a sentence to the government's last policy claim pointing out the conflict, for example "These claims conflict: President Player 1 claims passing liberal, fascist, but Chancellor Player 2 claims receiving fascist, fascist." The president's claimed passed policies are the claimed draw minus the claimed discard, and order doesn't matter.
 
-A [claim correction](discussion.md#correcting-a-claim) renders as "President Player 1 corrected their claim: drew fascist, fascist, liberal, discarded fascist, so passed fascist, liberal.", and the claim it replaced gains "(corrected later in this government)". The conflict check always uses each player's latest claim, and it is shown once per government. If a correction made the claims agree, the correction line instead ends with "These claims conflicted until Player 1 corrected their claim." A correction counts as part of its discussion, so it doesn't split the discussion in two when old discussions are collapsed, and it is never collapsed itself.
+A [claim correction](discussion.md#correcting-a-claim) renders as "President Player 1 corrected their claim: drew fascist, fascist, liberal, discarded fascist, so passed fascist, liberal.", and the claim it replaced gains "(corrected later in this government)". The conflict check always uses each player's latest claim, and it is shown once per government. If a correction made the claims agree, the correction line instead ends with "These claims conflicted until Player 1 corrected their claim."
 
 The Board section also counts the policies not yet enacted, which are in the draw pile, the discard pile or a hand in play, and says what the next fascist policy grants, or that it wins the game. The Government section lists who can't be nominated chancellor next because of term limits:
 
@@ -60,8 +60,6 @@ The Board section also counts the policies not yet enacted, which are in the dra
 Each time the discard pile is shuffled back into the draw pile, the timeline shows "The discard pile was shuffled into the draw pile (now 14 policies)." under the current government.
 
 During a vote, the Current Turn section reminds the president with "You nominated this government." and the nominee with "You are the nominee.", and quotes the viewer's last speech in the discussion after this nomination, if they spoke: `What you said about this government: "..."`.
-
-To keep prompts small, `render_text` shows speeches from only the last two discussions; older ones collapse into one line each. `render_dict` keeps every speech.
 
 ## Governments
 

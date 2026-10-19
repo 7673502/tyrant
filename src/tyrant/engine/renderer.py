@@ -20,7 +20,6 @@ from tyrant.models.enums import HIDDEN, GamePhase
 from tyrant.models.game_state import GameState, scrub_state, term_limited
 
 UNKNOWN = "unknown"
-DISCUSSIONS_SHOWN = 2
 PRESIDENT_PHASES = (
     GamePhase.NOMINATION,
     GamePhase.PRESIDENT_DISCARD,
@@ -443,35 +442,14 @@ def _claim_statuses(timeline: list[dict]) -> tuple[set[int], dict[int, str]]:
     return superseded, statuses
 
 
-def _in_discussion(entry: dict) -> bool:
-    """Returns whether an entry is a turn in a discussion: a speech, a pass or a claim correction."""
-    return entry["type"] == "speech" or (
-        entry["type"] == "claim" and entry["correction"]
-    )
-
-
 def _timeline_lines(timeline: list[dict]) -> list[str]:
-    """Returns the timeline as bullets under a heading per government, collapsing speeches from all but the last few discussions."""
-    starts = [
-        i
-        for i, entry in enumerate(timeline)
-        if _in_discussion(entry) and (i == 0 or not _in_discussion(timeline[i - 1]))
-    ]
-    cutoff = starts[-DISCUSSIONS_SHOWN] if len(starts) > DISCUSSIONS_SHOWN else 0
+    """Returns the timeline as bullets under a heading per government."""
     labels = _government_labels(timeline)
     superseded, statuses = _claim_statuses(timeline)
     lines = []
-    omitted = False
     for i, entry in enumerate(timeline):
         if entry["type"] == "nomination":
             lines += ["", f"### {labels[entry['government']]}"]
-        if not _in_discussion(entry):
-            omitted = False
-        if entry["type"] == "speech" and i < cutoff:
-            if not omitted:
-                lines.append(f"- Earlier discussion ({entry['context']}) omitted.")
-                omitted = True
-            continue
         line = _timeline_line(entry)
         if i in superseded:
             line = f"{line.removesuffix('.')} (corrected later in this government)."

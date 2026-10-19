@@ -11,7 +11,6 @@ from tyrant.engine.renderer import (
     _voting_reminders,
     _government_labels,
     _government_numbers,
-    _in_discussion,
     _knowledge_governments,
     format_hand,
     render_dict,
@@ -523,8 +522,8 @@ class TestRenderText(unittest.TestCase):
         self.assertEqual(text.count("## Private Knowledge\n"), 1)
         self.assertNotIn("\n- You investigated Player 3", text)
 
-    def test_render_text_omits_old_discussions(self):
-        """Verifies that only the last two discussions keep their speeches while other events stay."""
+    def test_render_text_shows_every_discussion(self):
+        """Verifies that every discussion keeps all of its speeches and passes."""
         nomination, claims = (
             DiscussionContext.AFTER_NOMINATION,
             DiscussionContext.AFTER_POLICY_CLAIMS,
@@ -540,9 +539,10 @@ class TestRenderText(unittest.TestCase):
             SpeechEvent(uid=2, text="Current.", context=nomination),
         )
         expected = [
-            "- Earlier discussion (after_policy_claims) omitted.",
+            '- Player 1 said: "Oldest."',
+            "- Player 2 passed.",
             "- President Player 1 nominated Player 2 for chancellor.",
-            "- Earlier discussion (after_nomination) omitted.",
+            '- Player 1 said: "Older."',
             "- President Player 1 and Chancellor Player 2 enacted a liberal policy.",
             '- Player 1 said: "Previous."',
             "- President Player 2 nominated Player 3 for chancellor.",
@@ -550,8 +550,7 @@ class TestRenderText(unittest.TestCase):
         ]
         for line in expected:
             self.assertIn(line + "\n", text)
-        for speech in ("Oldest.", "Older.", "Player 2 passed."):
-            self.assertNotIn(speech, text)
+        self.assertNotIn("omitted", text)
 
     def test_render_text_groups_timeline_by_government(self):
         """Verifies that the timeline lists each government's events under its own heading without line numbers."""
@@ -585,29 +584,6 @@ class TestRenderText(unittest.TestCase):
             "- President Player 2 and Chancellor Player 3 enacted a fascist policy.\n"
             "- President Player 2 executed Player 4.\n",
         )
-
-    def test_render_text_government_headings_survive_collapse(self):
-        """Verifies that government headings stay the same when a new discussion collapses an older one."""
-        claims = DiscussionContext.AFTER_POLICY_CLAIMS
-        events = (
-            *_government(1, 2),
-            SpeechEvent(uid=1, text="First.", context=claims),
-            *_government(2, 3),
-            SpeechEvent(uid=2, text="Second.", context=claims),
-        )
-        later = (
-            *events,
-            *_government(3, 4),
-            SpeechEvent(uid=3, text="Third.", context=claims),
-        )
-
-        def headings(text: str) -> list[str]:
-            return [line for line in text.splitlines() if line.startswith("### ")]
-
-        before, after = self.render_events(*events), self.render_events(*later)
-        self.assertNotIn("First.", after)
-        self.assertEqual(headings(after)[:2], headings(before))
-        self.assertEqual(headings(after)[2], "### Gov 3 (P3→P4)")
 
     def test_render_dict_keeps_old_discussions(self):
         """Verifies that render_dict keeps every speech in the timeline."""
@@ -753,49 +729,6 @@ class TestRenderText(unittest.TestCase):
             "- Chancellor Player 2 corrected their claim: received liberal, liberal. "
             "These claims conflicted until Player 2 corrected their claim.\n",
             text,
-        )
-
-    def test_render_text_correction_does_not_split_discussion(self):
-        """Verifies that a correction inside a discussion keeps it counted as one discussion when old ones are collapsed."""
-        claims = DiscussionContext.AFTER_POLICY_CLAIMS
-        text = self.render_events(
-            *_government(1, 2),
-            self._claim(PresidentEnactClaim(uid=1, policies=(F, L, L), discarded=F)),
-            self._claim(ChancellorEnactClaim(uid=2, policies=(F, L))),
-            SpeechEvent(uid=3, text="Before the correction.", context=claims),
-            self._claim(
-                PresidentEnactClaim(uid=1, policies=(F, F, L), discarded=F),
-                correction=True,
-            ),
-            SpeechEvent(uid=4, text="After the correction.", context=claims),
-            NominationEvent(president_uid=2, chancellor_uid=3),
-            SpeechEvent(
-                uid=2, text="Current.", context=DiscussionContext.AFTER_NOMINATION
-            ),
-        )
-        for speech in ("Before the correction.", "After the correction.", "Current."):
-            self.assertIn(speech, text)
-        self.assertNotIn("omitted", text)
-
-    def test_render_text_collapsed_discussion_keeps_correction(self):
-        """Verifies that a collapsed discussion still shows its correction and one omitted line."""
-        claims = DiscussionContext.AFTER_POLICY_CLAIMS
-        nomination = DiscussionContext.AFTER_NOMINATION
-        text = self.render_events(
-            *self._corrected_government(
-                PresidentEnactClaim(uid=1, policies=(F, F, L), discarded=F)
-            ),
-            SpeechEvent(uid=4, text="Old.", context=claims),
-            NominationEvent(president_uid=2, chancellor_uid=3),
-            SpeechEvent(uid=2, text="Newer.", context=nomination),
-            NominationEvent(president_uid=3, chancellor_uid=4),
-            SpeechEvent(uid=3, text="Newest.", context=nomination),
-        )
-        self.assertNotIn("Those differ.", text)
-        self.assertNotIn("Old.", text)
-        self.assertIn("- President Player 1 corrected their claim:", text)
-        self.assertEqual(
-            text.count("Earlier discussion (after_policy_claims) omitted."), 1
         )
 
     def test_render_text_claims(self):
@@ -1065,13 +998,6 @@ class TestClaimStatuses(unittest.TestCase):
         superseded, statuses = _claim_statuses(self._timeline())
         self.assertEqual(superseded, set())
         self.assertEqual(list(statuses), [3])
-
-    def test__in_discussion_immutability(self):
-        """Verifies that _in_discussion leaves the entry unchanged."""
-        entry = self._timeline()[2]
-        before = copy.deepcopy(entry)
-        self.assertFalse(_in_discussion(entry))
-        self.assertEqual(entry, before)
 
 
 if __name__ == "__main__":
