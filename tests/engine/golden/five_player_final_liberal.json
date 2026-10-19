@@ -56,11 +56,7 @@
     "hitler_zone": true,
     "veto_unlocked": true,
     "draw_pile": 3,
-    "discard_pile": 6,
-    "liberal_policies_left": 4,
-    "fascist_policies_left": 5,
-    "next_fascist_policy_wins": true,
-    "next_fascist_power": "none"
+    "discard_pile": 6
   },
   "government": {
     "president": 5,
@@ -114,10 +110,10 @@
         "uid": 4,
         "policies": [
           "fascist",
-          "liberal",
-          "liberal"
+          "fascist",
+          "fascist"
         ],
-        "discarded": "liberal"
+        "discarded": "fascist"
       },
       "president_uid": 4,
       "chancellor_uid": 3,
@@ -132,7 +128,7 @@
         "uid": 3,
         "policies": [
           "fascist",
-          "liberal"
+          "fascist"
         ]
       },
       "president_uid": 4,
@@ -174,8 +170,8 @@
         "type": "chancellor_enact",
         "uid": 4,
         "policies": [
-          "liberal",
-          "liberal"
+          "fascist",
+          "fascist"
         ]
       },
       "president_uid": 3,
@@ -191,8 +187,8 @@
         "uid": 3,
         "policies": [
           "fascist",
-          "liberal",
-          "liberal"
+          "fascist",
+          "fascist"
         ],
         "discarded": "fascist"
       },
@@ -297,7 +293,7 @@
         "uid": 4,
         "policies": [
           "fascist",
-          "liberal"
+          "fascist"
         ]
       },
       "president_uid": 5,
@@ -314,7 +310,7 @@
         "policies": [
           "fascist",
           "fascist",
-          "liberal"
+          "fascist"
         ],
         "discarded": "fascist"
       },
@@ -375,9 +371,9 @@
         "policies": [
           "fascist",
           "fascist",
-          "liberal"
+          "fascist"
         ],
-        "discarded": "liberal"
+        "discarded": "fascist"
       },
       "president_uid": 2,
       "chancellor_uid": 3,
@@ -396,9 +392,9 @@
         "type": "peek",
         "uid": 2,
         "policies": [
-          "fascist",
-          "fascist",
-          "fascist"
+          "liberal",
+          "liberal",
+          "liberal"
         ]
       },
       "president_uid": 2,
@@ -524,9 +520,9 @@
         "policies": [
           "fascist",
           "fascist",
-          "liberal"
+          "fascist"
         ],
-        "discarded": "liberal"
+        "discarded": "fascist"
       },
       "president_uid": 1,
       "chancellor_uid": 4,

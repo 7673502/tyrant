@@ -14,7 +14,7 @@ What each player learned in secret is kept in `GameState.knowledge`, so it survi
 
 ## Claim options
 
-[`get_legal_actions`](../reference/engine.md#tyrant.engine.get_legal_actions) reads the claimant's knowledge to put the truthful claim first, marked "(matches what you saw)", for example "Claim you drew fascist, fascist, liberal and discarded fascist, so you passed fascist, liberal (matches what you saw)." Every other claim is left unmarked, such as "Claim you drew fascist, liberal, liberal and discarded fascist, so you passed liberal, liberal.", and the decline comes last. A president's truth is their latest discard, a chancellor's is the latest policies they received, a peek's is the policies in hand and an investigation's is the party found. The claim options list policies in the same order as the knowledge lines, so an agent can match its hand to an option word for word.
+[`get_legal_actions`](../reference/engine.md#tyrant.engine.get_legal_actions) offers every claim in a fixed order that doesn't depend on what the claimant saw, such as "Claim you drew fascist, fascist, liberal and discarded fascist, so you passed fascist, liberal.", with the decline last. An investigation claim offers Liberal, then Fascist. The claim options list policies in the same order as the knowledge lines, so an agent can match its hand to an option word for word.
 
 [`scrub_state`](../reference/models.md#tyrant.models.scrub_state) keeps only the viewer's own entries, so an agent never sees what another player learned.
 

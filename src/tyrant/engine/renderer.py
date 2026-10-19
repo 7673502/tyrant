@@ -14,7 +14,6 @@ from tyrant.models.board import (
     FASCIST_TRACKS,
     LIBERAL_TILES_TO_WIN,
 )
-from tyrant.models.deck import NUM_FASCIST_POLICIES, NUM_LIBERAL_POLICIES
 from tyrant.models.election_tracker import FAILURES_UNTIL_TOP_DECK
 from tyrant.models.enums import HIDDEN, GamePhase
 from tyrant.models.game_state import GameState, scrub_state, term_limited
@@ -174,7 +173,6 @@ def render_dict(state: GameState, viewer_uid: int) -> dict:
         for entry, number in zip(timeline, _government_numbers(timeline))
     ]
     knowledge = [to_json(k, "Knowledge") for k in state.knowledge]
-    next_fascist_wins = state.board.fascist_played >= FASCIST_TILES_TO_WIN - 1
     knowledge = [
         entry | {"government": number}
         for entry, number in zip(knowledge, _knowledge_governments(knowledge, timeline))
@@ -213,14 +211,6 @@ def render_dict(state: GameState, viewer_uid: int) -> dict:
             "veto_unlocked": state.board.veto_power_unlocked,
             "draw_pile": len(state.deck.draw_pile),
             "discard_pile": len(state.deck.discard_pile),
-            "liberal_policies_left": NUM_LIBERAL_POLICIES - state.board.liberal_played,
-            "fascist_policies_left": NUM_FASCIST_POLICIES - state.board.fascist_played,
-            "next_fascist_policy_wins": next_fascist_wins,
-            "next_fascist_power": "none"
-            if next_fascist_wins
-            else to_json(
-                FASCIST_TRACKS[state.board.player_count][state.board.fascist_played]
-            ),
         },
         "government": {
             "president": state.players[state.president_index].uid,
@@ -388,64 +378,26 @@ def _timeline_line(entry: dict) -> str:
             return f"Game over: {entry['winner']} win by {entry['condition']}."
 
 
-def _claim_conflict(president: dict, chancellor: dict) -> str | None:
-    """Returns a sentence pointing out a conflict between a president's and a chancellor's policy claims, or `None`."""
-    if president["discarded"] is None or chancellor["policies"] is None:
-        return None
-    passed = list(president["policies"])
-    passed.remove(president["discarded"])
-    if sorted(passed) == sorted(chancellor["policies"]):
-        return None
-    return (
-        f"These claims conflict: President {_player(president['uid'])} claims passing "
-        f"{', '.join(passed)}, but Chancellor {_player(chancellor['uid'])} claims "
-        f"receiving {', '.join(chancellor['policies'])}."
-    )
-
-
-def _claim_statuses(timeline: list[dict]) -> tuple[set[int], dict[int, str]]:
-    """Returns the indices of policy claims a later correction replaced, and each government's conflict sentence keyed by the index of its last policy claim."""
-    governments: dict[int | None, list[int]] = {}
+def _superseded_claims(timeline: list[dict]) -> set[int]:
+    """Returns the indices of policy claims a later claim of the same type in the same government replaced."""
+    latest: dict[tuple[int | None, str], int] = {}
+    superseded: set[int] = set()
     for i, entry in enumerate(timeline):
         if entry["type"] == "claim" and entry["claim"]["type"] in (
             "president_enact",
             "chancellor_enact",
         ):
-            governments.setdefault(entry["government"], []).append(i)
-
-    superseded: set[int] = set()
-    statuses: dict[int, str] = {}
-    for indices in governments.values():
-        first: dict[str, dict] = {}
-        latest: dict[str, int] = {}
-        for i in indices:
-            claim = timeline[i]["claim"]
-            first.setdefault(claim["type"], claim)
-            if claim["type"] in latest:
-                superseded.add(latest[claim["type"]])
-            latest[claim["type"]] = i
-        if latest.keys() != {"president_enact", "chancellor_enact"}:
-            continue
-        conflict = _claim_conflict(
-            timeline[latest["president_enact"]]["claim"],
-            timeline[latest["chancellor_enact"]]["claim"],
-        )
-        last = timeline[indices[-1]]
-        if conflict is None and last["correction"]:
-            if _claim_conflict(first["president_enact"], first["chancellor_enact"]):
-                conflict = (
-                    "These claims conflicted until "
-                    f"{_player(last['claim']['uid'])} corrected their claim."
-                )
-        if conflict is not None:
-            statuses[indices[-1]] = conflict
-    return superseded, statuses
+            key = (entry["government"], entry["claim"]["type"])
+            if key in latest:
+                superseded.add(latest[key])
+            latest[key] = i
+    return superseded
 
 
 def _timeline_lines(timeline: list[dict]) -> list[str]:
     """Returns the timeline as bullets under a heading per government."""
     labels = _government_labels(timeline)
-    superseded, statuses = _claim_statuses(timeline)
+    superseded = _superseded_claims(timeline)
     lines = []
     for i, entry in enumerate(timeline):
         if entry["type"] == "nomination":
@@ -453,7 +405,7 @@ def _timeline_lines(timeline: list[dict]) -> list[str]:
         line = _timeline_line(entry)
         if i in superseded:
             line = f"{line.removesuffix('.')} (corrected later in this government)."
-        lines.append(f"- {line}" if i not in statuses else f"- {line} {statuses[i]}")
+        lines.append(f"- {line}")
     return lines
 
 
@@ -498,33 +450,6 @@ def _knowledge_lines(knowledge: list[dict], labels: dict[int, str]) -> list[str]
             )
         else:
             lines.append(_knowledge_line(entry, labels))
-    return lines
-
-
-def _voting_reminders(view: dict) -> list[str]:
-    """Returns the viewer's part in the government being voted on and their last speech about it, during a vote."""
-    if view["turn"]["phase"] != GamePhase.VOTING.value:
-        return []
-    viewer_uid = view["viewer"]["uid"]
-    lines = []
-    if view["government"]["president"] == viewer_uid:
-        lines.append("- You nominated this government.")
-    if view["government"]["chancellor"] == viewer_uid:
-        lines.append("- You are the nominee.")
-    timeline = view["timeline"]
-    nomination = max(
-        (i for i, e in enumerate(timeline) if e["type"] == "nomination"), default=0
-    )
-    speeches = [
-        e["text"]
-        for e in timeline[nomination:]
-        if e["type"] == "speech" and e["uid"] == viewer_uid and e["text"] is not None
-    ]
-    if speeches:
-        lines.append(
-            "- What you said about this government: "
-            f"{json.dumps(speeches[-1], ensure_ascii=False)}"
-        )
     return lines
 
 
@@ -589,12 +514,6 @@ def render_text(state: GameState, viewer_uid: int) -> str:
         f"- Hitler zone: {_yes_no(board['hitler_zone'])}",
         f"- Veto unlocked: {_yes_no(board['veto_unlocked'])}",
         f"- Draw pile: {board['draw_pile']}, discard pile: {board['discard_pile']}",
-        f"- Policies not yet enacted: {board['liberal_policies_left']} liberal, "
-        f"{board['fascist_policies_left']} fascist (in the draw pile, the discard pile "
-        "and any hand in play)",
-        "- Next fascist policy: wins the game for the fascists"
-        if board["next_fascist_policy_wins"]
-        else f"- Next fascist policy grants: {board['next_fascist_power']}",
         "",
         "## Government",
         f"- President: {_player(government['president'])}",
@@ -612,7 +531,6 @@ def render_text(state: GameState, viewer_uid: int) -> str:
         lines.append(
             f"- Discussion round: {turn['discussion']['round']} of {turn['discussion']['rounds']}"
         )
-    lines += _voting_reminders(view)
     if turn["active_power"] != "none":
         lines.append(f"- Active power: {turn['active_power']}")
     if turn["hand"]:

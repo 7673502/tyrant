@@ -9,19 +9,17 @@ from tyrant.engine.renderer import render_text
 from tyrant.engine.router import apply_action, get_legal_actions
 from tyrant.exceptions import InvalidMoveError
 from tyrant.llm.prompt import (
-    GOALS,
     RULES,
     SYSTEM_PROMPT,
     _xml_choice,
     build_prompt,
     parse_action,
     render_actions,
-    render_goal,
     system_prompt,
 )
 from tyrant.models.action import Action, PassAction, SpeakAction, VoteAction
 from tyrant.models.discussion import MAX_SPEECH_LENGTH
-from tyrant.models.enums import GamePhase, Role, Vote, WinCondition
+from tyrant.models.enums import GamePhase, Vote, WinCondition
 from tyrant.models.game_state import GameState, create_game, scrub_state
 
 UIDS = (1, 2, 3, 4, 5)
@@ -113,22 +111,12 @@ class TestRenderActions(unittest.TestCase):
         self.assertNotIn("`message`", lines[2])
 
 
-class TestRenderGoal(unittest.TestCase):
-    def test_render_goal_covers_every_role(self):
-        """Verifies that every role has its own goal under the goal heading."""
-        for role in Role:
-            with self.subTest(role=role):
-                self.assertEqual(render_goal(role), "## Your Goal\n" + GOALS[role])
-        self.assertEqual(len(set(GOALS.values())), len(Role))
-
-
 class TestBuildPrompt(unittest.TestCase):
     def setUp(self):
         self.state = _discussion_state()
         self.uid = self.state.discussion.current_speaker
         self.scrubbed = scrub_state(self.state, self.uid)
         self.actions = get_legal_actions(self.state, self.uid)
-        self.role = next(p.role for p in self.state.players if p.uid == self.uid)
 
     def test_build_prompt_immutability(self):
         """Verifies that build_prompt returns equal text without mutating its inputs."""
@@ -139,23 +127,12 @@ class TestBuildPrompt(unittest.TestCase):
         self.assertEqual(self.scrubbed, state_before)
         self.assertEqual(self.actions, actions_before)
 
-    def test_build_prompt_is_state_goal_then_options(self):
-        """Verifies that the prompt is the rendered state, the viewer's goal, then the options section."""
+    def test_build_prompt_is_state_then_options(self):
+        """Verifies that the prompt is the rendered state, then the options section."""
         self.assertEqual(
             build_prompt(self.scrubbed, self.uid, self.actions),
-            render_text(self.scrubbed, self.uid)
-            + "\n"
-            + render_goal(self.role)
-            + "\n"
-            + render_actions(self.actions),
+            render_text(self.scrubbed, self.uid) + "\n" + render_actions(self.actions),
         )
-
-    def test_build_prompt_goal_matches_each_viewer_role(self):
-        """Verifies that each viewer is shown the goal for their own role."""
-        for player in self.state.players:
-            with self.subTest(uid=player.uid):
-                prompt = build_prompt(self.state, player.uid, self.actions)
-                self.assertIn(render_goal(player.role), prompt)
 
 
 XML_REPLY = (

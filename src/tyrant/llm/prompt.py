@@ -3,13 +3,11 @@ import re
 from dataclasses import replace
 from typing import Final
 
-from frozendict import frozendict
 
 from tyrant.engine.renderer import render_text
 from tyrant.exceptions import InvalidMoveError
 from tyrant.models.action import Action, SpeakAction
 from tyrant.models.discussion import MAX_SPEECH_LENGTH
-from tyrant.models.enums import Role
 from tyrant.models.game_state import GameState
 
 RULES: Final[str] = """# Secret Hitler Rules
@@ -87,28 +85,6 @@ def system_prompt(persona: str = "") -> str:
     return f"{SYSTEM_PROMPT}\n## Your Personality\n{persona}\n"
 
 
-GOALS: Final = frozendict(
-    {
-        Role.LIBERAL: "You are a Liberal. You win when 5 Liberal policies are enacted or when Hitler is executed. You lose when 6 Fascist policies are enacted or when Hitler is elected Chancellor once 3 or more Fascist policies are enacted.",
-        Role.FASCIST: "You are a Fascist. You win when Hitler is elected Chancellor once 3 or more Fascist policies are enacted, or when 6 Fascist policies are enacted. You lose when 5 Liberal policies are enacted or when Hitler is executed.",
-        Role.HITLER: "You are Hitler. You win if you are elected Chancellor once 3 or more Fascist policies are enacted, or when 6 Fascist policies are enacted. You lose if you are executed or when 5 Liberal policies are enacted.",
-    }
-)
-"""One line per role stating when that player wins and loses."""
-
-
-def render_goal(role: Role) -> str:
-    """Returns a Markdown section stating when a player with the given role wins and loses.
-
-    Args:
-        role: The viewer's role.
-
-    Returns:
-        A `## Your Goal` section.
-    """
-    return "## Your Goal\n" + GOALS[role]
-
-
 def render_actions(valid_actions: tuple[Action, ...]) -> str:
     """Returns a Markdown section listing the valid actions as numbered options.
 
@@ -130,7 +106,7 @@ def build_prompt(
     viewer_uid: int,
     valid_actions: tuple[Action, ...],
 ) -> str:
-    """Returns the viewer's rendered state, their goal, then their numbered options.
+    """Returns the viewer's rendered state, then their numbered options.
 
     Args:
         state: The game state; it is scrubbed for the viewer first.
@@ -140,14 +116,7 @@ def build_prompt(
     Returns:
         The user message for this turn.
     """
-    role = next(p.role for p in state.players if p.uid == viewer_uid)
-    return "\n".join(
-        [
-            render_text(state, viewer_uid),
-            render_goal(role),
-            render_actions(valid_actions),
-        ]
-    )
+    return render_text(state, viewer_uid) + "\n" + render_actions(valid_actions)
 
 
 _XML_PARAMETER: Final = re.compile(
