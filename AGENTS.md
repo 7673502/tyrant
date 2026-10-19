@@ -85,3 +85,10 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+## Releasing
+
+- Between releases, `pyproject.toml` holds the next development version, such as `0.4.0.dev0`.
+- To release, set the final version with `uv version 0.4.0`, merge, then publish a GitHub release tagged `v0.4.0`. The release workflow fails if the tag does not match `pyproject.toml`.
+- Right after releasing, bump `main` to the next development version with `uv version 0.5.0.dev0`.
+- `REPLAY_VERSION` in `src/tyrant/engine/replay.py` names the release that last changed the replay format. Set it to the upcoming release version when a change alters the format, and leave it alone otherwise.

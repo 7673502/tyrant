@@ -13,6 +13,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.0
+      - name: Check the tag matches the package version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          VERSION="v$(uv version --short)"
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "::error::Release tag $TAG does not match pyproject.toml version $VERSION"
+            exit 1
+          fi
       - run: uv run python -m unittest
       - run: uv build
       - uses: actions/upload-artifact@v5
