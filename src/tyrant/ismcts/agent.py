@@ -14,6 +14,8 @@ class ISMCTSAgent:
 
     It weighs role deals by how well they explain the public events, searches its decisions in a worker thread, makes claims with a simple heuristic and always passes in discussions.
 
+    This agent is experimental: it beats `BiasedRandomAgent` but is not a strong player, and its belief model and likelihoods may change. Measure changes with `benchmarks.ismcts_win_rate`.
+
     Attributes:
         uid: The player's unique ID.
         iterations: Search iterations per decision.
