@@ -17,19 +17,19 @@ from tyrant.models.event import (
 from tyrant.models.game_state import ROLE_DISTRIBUTION, GameState
 from tyrant.models.knowledge import InvestigationKnowledge
 
-FASCIST_GOVERNMENT_FASCIST_POLICY: Final = 0.8
+FASCIST_GOVERNMENT_FASCIST_POLICY: Final = 0.9
 """Chance that a government with a fascist in it enacts a fascist policy."""
 
-LIBERAL_GOVERNMENT_FASCIST_POLICY: Final = 0.3
+LIBERAL_GOVERNMENT_FASCIST_POLICY: Final = 0.25
 """Chance that an all-liberal government enacts a fascist policy."""
 
-ALL_LIBERAL_CLAIM_CONFLICT: Final = 0.05
+ALL_LIBERAL_CLAIM_CONFLICT: Final = 0.3
 """Chance that an all-liberal government makes conflicting policy claims."""
 
-FASCIST_JA_FASCIST_GOVERNMENT: Final = 0.9
+FASCIST_JA_FASCIST_GOVERNMENT: Final = 0.75
 """Chance that a fascist votes ja on a government with a fascist in it."""
 
-FASCIST_JA_LIBERAL_GOVERNMENT: Final = 0.5
+FASCIST_JA_LIBERAL_GOVERNMENT: Final = 0.6
 """Chance that a fascist votes ja on an all-liberal government."""
 
 LIBERAL_JA: Final = 0.6
