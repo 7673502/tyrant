@@ -3,6 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/tyrant)](https://pypi.org/project/tyrant/)
 [![Python](https://img.shields.io/pypi/pyversions/tyrant)](https://pypi.org/project/tyrant/)
 [![License](https://img.shields.io/pypi/l/tyrant)](https://github.com/7673502/tyrant/blob/main/LICENSE)
+[![Tests](https://github.com/7673502/tyrant/actions/workflows/tests.yml/badge.svg)](https://github.com/7673502/tyrant/actions/workflows/tests.yml)
 [![Docs](https://github.com/7673502/tyrant/actions/workflows/docs.yml/badge.svg)](https://docs.secretarena.org)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
