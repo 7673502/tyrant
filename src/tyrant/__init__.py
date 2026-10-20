@@ -17,6 +17,7 @@ from tyrant.exceptions import (
     TyrantError,
     UnsupportedReplayError,
 )
+from tyrant.ismcts import ISMCTSAgent
 from tyrant.models import (
     HIDDEN,
     Action,
@@ -48,6 +49,7 @@ __all__ = [
     "GameRunner",
     "GameState",
     "HumanAgent",
+    "ISMCTSAgent",
     "InvalidMoveError",
     "Knowledge",
     "Party",
