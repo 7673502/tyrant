@@ -19,3 +19,13 @@ It shows the largest and mean prompt per call and the total input and output tok
 ```sh
 uv run python -m benchmarks.replay_metrics game-01.json.gz game-02.json.gz
 ```
+
+## ISMCTS win rate
+
+`benchmarks.ismcts_win_rate` plays one hero in seat 0 against four [`BiasedRandomAgent`](../reference/agents.md#tyrant.agents.BiasedRandomAgent)s in 5-player games, half with the hero liberal and half fascist, and prints its win rate in each role and its seconds per decision:
+
+```sh
+uv run python -m benchmarks.ismcts_win_rate --hero ismcts --iterations 300 --games 300
+```
+
+The hero is `ismcts`, an [`ISMCTSAgent`](../reference/agents.md#tyrant.ismcts.ISMCTSAgent); `uniform`, one that weighs every role deal equally; `true-roles`, one that is told the true roles; or `biased`, a `BiasedRandomAgent` as the baseline. Compare `ismcts` with `uniform` to see what the belief model adds, and with `true-roles` to see how much better beliefs could add. Games run in parallel across `--workers` processes, every core by default. With 300 games per role a win rate has a standard error of about 2.7 points, so smaller differences are noise.
