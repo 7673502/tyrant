@@ -177,10 +177,10 @@ class TestGameRunnerDiscussion(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(runner.state.discussion_enabled)
 
     def test_init_discussion_rounds_default(self):
-        """Verifies that GameRunner defaults to two discussion rounds."""
+        """Verifies that GameRunner defaults to one discussion round."""
         agents = [StubAgent(uid=i, actions_to_play=[]) for i in range(1, 6)]
         runner = GameRunner(agents=agents, seed=42)
-        self.assertEqual(runner.state.discussion_rounds, 2)
+        self.assertEqual(runner.state.discussion_rounds, 1)
 
     def test_init_discussion_contexts_default(self):
         """Verifies that GameRunner defaults to every discussion context except after a failed election."""

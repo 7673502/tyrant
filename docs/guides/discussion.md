@@ -8,10 +8,10 @@ runner = GameRunner(agents, discussion_enabled=True)
 
 ## Speaking order
 
-During a [`DISCUSSION`](../reference/models.md#tyrant.models.GamePhase) phase, alive players take turns in seat order, starting with the president. Before a presidential power, the order starts one seat after the president, so the president hears the table before acting. The table goes around twice by default. Set `discussion_rounds` to change that:
+During a [`DISCUSSION`](../reference/models.md#tyrant.models.GamePhase) phase, alive players take turns in seat order, starting with the president. Before a presidential power, the order starts one seat after the president, so the president hears the table before acting. The table goes around once by default. Set `discussion_rounds` to change that:
 
 ```python
-runner = GameRunner(agents, discussion_enabled=True, discussion_rounds=1)
+runner = GameRunner(agents, discussion_enabled=True, discussion_rounds=2)
 ```
 
 A discussion ends early once every living speaker passes in a row, even partway through a round. `Discussion.consecutive_passes` counts the passes since the last speech.

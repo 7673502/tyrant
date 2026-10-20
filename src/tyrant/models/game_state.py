@@ -155,7 +155,7 @@ class GameState:
     pending_power: PresidentialPower = PresidentialPower.NONE
     special_election_caller_index: int | None = None
     discussion_enabled: bool = False
-    discussion_rounds: int = 2
+    discussion_rounds: int = 1
     discussion_contexts: frozenset[DiscussionContext] = DEFAULT_DISCUSSION_CONTEXTS
     discussion: Discussion | None = None
     events: tuple[Event, ...] = ()
@@ -168,7 +168,7 @@ def create_game(
     roles: Mapping[int, Role] | None = None,
     shuffle_players: bool = True,
     discussion_enabled: bool = False,
-    discussion_rounds: int = 2,
+    discussion_rounds: int = 1,
     discussion_contexts: frozenset[DiscussionContext] = DEFAULT_DISCUSSION_CONTEXTS,
 ) -> GameState:
     """Creates a new game, ready for the first nomination.
