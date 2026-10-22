@@ -46,4 +46,6 @@ To play language models against each other, see [Running an LLM game](https://do
 
 ## License
 
-[MIT](LICENSE)
+Tyrant's code is released under the [MIT License](LICENSE).
+
+[Secret Hitler](https://www.secrethitler.com/) is a board game by Goat, Wolf & Cabbage (Mike Boxleiter, Tommy Maranges, and Max Temkin), licensed under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/). Tyrant is an independent implementation and is not affiliated with or endorsed by Goat, Wolf & Cabbage.
