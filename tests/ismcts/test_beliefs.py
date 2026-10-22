@@ -3,7 +3,7 @@ from dataclasses import replace
 
 from frozendict import frozendict
 
-from tyrant.ismcts.beliefs import party_of, role_assignments, role_weights
+from tyrant.agents.ismcts.beliefs import party_of, role_assignments, role_weights
 from tyrant.models.claim import ChancellorEnactClaim, PresidentEnactClaim
 from tyrant.models.board import Board
 from tyrant.models.enums import Party, PolicyTile, Role, Vote

@@ -2,4 +2,4 @@
 
 ::: tyrant.agents
 
-::: tyrant.ismcts
+::: tyrant.agents.ismcts

@@ -6,9 +6,9 @@ from random import Random
 
 from frozendict import frozendict
 
+from tyrant.agents.ismcts.beliefs import role_assignments
+from tyrant.agents.ismcts.determinize import determinize
 from tyrant.engine.router import apply_action, get_legal_actions
-from tyrant.ismcts.beliefs import role_assignments
-from tyrant.ismcts.determinize import determinize
 from tyrant.models.action import (
     ChancellorEnactAction,
     NominateAction,

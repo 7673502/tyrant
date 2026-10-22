@@ -1,6 +1,7 @@
 """A Secret Hitler engine for LLMs, search agents and people."""
 
 from tyrant.agents import BiasedRandomAgent, HumanAgent, RandomAgent
+from tyrant.agents.ismcts import ISMCTSAgent
 from tyrant.engine import (
     GameRunner,
     apply_action,
@@ -17,7 +18,6 @@ from tyrant.exceptions import (
     TyrantError,
     UnsupportedReplayError,
 )
-from tyrant.ismcts import ISMCTSAgent
 from tyrant.models import (
     HIDDEN,
     Action,

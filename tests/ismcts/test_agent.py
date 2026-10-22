@@ -1,9 +1,9 @@
 import unittest
 from dataclasses import replace
 
+from tyrant.agents.ismcts.agent import ISMCTSAgent
 from tyrant.engine.game_runner import GameRunner
 from tyrant.engine.router import get_legal_actions
-from tyrant.ismcts.agent import ISMCTSAgent
 from tyrant.models.action import PassAction
 from tyrant.models.discussion import Discussion
 from tyrant.models.enums import DiscussionContext, GamePhase
