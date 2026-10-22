@@ -21,7 +21,7 @@ async def choose_action(self, state, valid_actions):
 
 Each turn, `LLMAgent` sends `SYSTEM_PROMPT` as the system message and `build_prompt(...)` as the user message, and returns `parse_action(reply, valid_actions)`. When `parse_action` rejects a reply, the agent raises the error to `GameRunner` and, when it is next asked about the same state, adds the rejected reply and the reason to the conversation. A retry passes the same state, so it sees the feedback; any later decision has a different state, so an old rejection never leaks into it, even when the options are the same. When the provider call itself fails, for example with a network error, the agent raises [`AgentError`](../reference/exceptions.md#tyrant.exceptions.AgentError) with the original error as its cause. Timeouts, retries and the fallback action are left to `GameRunner`.
 
-Each agent keeps running totals of `prompt_tokens`, `completion_tokens`, `cached_tokens` and `cost`, in US dollars from `litellm.completion_cost`. A model litellm has no price for adds nothing to `cost`, and the move still goes through.
+Each agent keeps running totals of `prompt_tokens`, `completion_tokens`, `cached_tokens` and `cost`, in US dollars from `litellm.completion_cost`. A model litellm has no price for adds nothing to `cost`, and the move still goes through. The agent logs a warning through the `tyrant.llm.agent` logger the first time this happens, so missing spend does not go unnoticed.
 
 ## Inspecting exchanges
 

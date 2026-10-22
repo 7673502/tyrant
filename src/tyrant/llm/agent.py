@@ -7,6 +7,7 @@ except ImportError as e:
         'LLMAgent requires litellm. Install it with: pip install "tyrant[llm]"'
     ) from e
 
+import logging
 from collections.abc import Callable
 
 from frozendict import frozendict
@@ -15,6 +16,8 @@ from tyrant.exceptions import AgentError, InvalidMoveError
 from tyrant.llm.prompt import build_prompt, parse_action, system_prompt
 from tyrant.models.action import Action
 from tyrant.models.game_state import GameState
+
+logger = logging.getLogger(__name__)
 
 _NO_USAGE = frozendict(prompt_tokens=0, completion_tokens=0, cached_tokens=0, cost=0.0)
 
@@ -32,7 +35,7 @@ class LLMAgent:
         prompt_tokens: Total prompt tokens used.
         completion_tokens: Total completion tokens used.
         cached_tokens: Total prompt tokens read from the provider's cache.
-        cost: Total cost in US dollars, from `litellm.completion_cost`.
+        cost: Total cost in US dollars, from `litellm.completion_cost`; a model litellm has no price for adds nothing and logs a warning once.
         profile: The model and persona, which replays show for the player.
         on_exchange: Called with each provider call's messages, reply, usage and error, or `None`.
     """
@@ -64,6 +67,7 @@ class LLMAgent:
         self.cost = 0.0
         self.on_exchange = on_exchange
         self._rejected: tuple[GameState, str, InvalidMoveError] | None = None
+        self._warned_no_price = False
 
     @property
     def profile(self) -> frozendict[str, str]:
@@ -131,8 +135,16 @@ class LLMAgent:
         cached = details.cached_tokens if details is not None else 0
         try:
             cost = litellm.completion_cost(completion_response=response)
-        except Exception:
+        except Exception as e:
             cost = 0.0
+            if not self._warned_no_price:
+                self._warned_no_price = True
+                logger.warning(
+                    "Player %s: litellm has no price for %s, so its cost is counted as 0: %r",
+                    self.uid,
+                    self.model,
+                    e,
+                )
         call = {
             "prompt_tokens": usage.prompt_tokens,
             "completion_tokens": usage.completion_tokens,

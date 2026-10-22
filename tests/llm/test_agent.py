@@ -226,11 +226,36 @@ class TestLLMAgent(unittest.TestCase):
             "openai/not-a-real-model",
             completion_kwargs=frozendict(mock_response=_reply(1)),
         )
-        with patch.object(litellm, "suppress_debug_info", True):
+        with (
+            patch.object(litellm, "suppress_debug_info", True),
+            self.assertLogs("tyrant.llm.agent", level="WARNING"),
+        ):
             action = asyncio.run(agent.choose_action(self.state, self.actions))
         self.assertIs(action, self.actions[0])
         self.assertEqual(agent.cost, 0.0)
         self.assertGreater(agent.prompt_tokens, 0)
+
+    def test_unknown_cost_warns_once(self):
+        """Verifies that a model without a known price logs one warning naming the player and model, however many calls it makes."""
+        agent = LLMAgent(
+            self.uid,
+            "openai/not-a-real-model",
+            completion_kwargs=frozendict(mock_response=_reply(1)),
+        )
+        with (
+            patch.object(litellm, "suppress_debug_info", True),
+            self.assertLogs("tyrant.llm.agent", level="WARNING") as logs,
+        ):
+            asyncio.run(agent.choose_action(self.state, self.actions))
+            asyncio.run(agent.choose_action(self.state, self.actions))
+        self.assertEqual(len(logs.records), 1)
+        self.assertIn("openai/not-a-real-model", logs.output[0])
+        self.assertIn(f"Player {self.uid}", logs.output[0])
+
+    def test_known_cost_does_not_warn(self):
+        """Verifies that a model with a known price logs no warning."""
+        with self.assertNoLogs("tyrant.llm.agent", level="WARNING"):
+            self._play(_reply(1))
 
     def _play_recorded(self, *replies) -> tuple[ScriptedCompletion, list, list]:
         exchanges = []
