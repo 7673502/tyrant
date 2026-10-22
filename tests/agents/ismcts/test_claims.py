@@ -3,8 +3,8 @@ from dataclasses import replace
 
 from frozendict import frozendict
 
+from tyrant.agents.ismcts.claims import claim_action
 from tyrant.engine.router import apply_action, get_legal_actions
-from tyrant.ismcts.claims import claim_action
 from tyrant.models.action import (
     ChancellorEnactAction,
     NominateAction,

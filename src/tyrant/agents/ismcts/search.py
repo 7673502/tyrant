@@ -5,8 +5,8 @@ from typing import Final
 
 from frozendict import frozendict
 
+from tyrant.agents.ismcts.determinize import determinize
 from tyrant.engine.router import apply_action, get_legal_actions
-from tyrant.ismcts.determinize import determinize
 from tyrant.models.action import (
     AGENT_FILLED_FIELDS,
     Action,

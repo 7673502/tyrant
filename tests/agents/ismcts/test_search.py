@@ -4,9 +4,9 @@ from random import Random
 
 from frozendict import frozendict
 
+from tyrant.agents.ismcts.beliefs import role_assignments, role_weights
+from tyrant.agents.ismcts.search import search
 from tyrant.engine.router import apply_action, get_legal_actions
-from tyrant.ismcts.beliefs import role_assignments, role_weights
-from tyrant.ismcts.search import search
 from tyrant.models.action import (
     ChancellorEnactAction,
     NominateAction,

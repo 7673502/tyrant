@@ -1,9 +1,9 @@
 import asyncio
 from random import Random
 
-from tyrant.ismcts.beliefs import role_assignments, role_weights
-from tyrant.ismcts.claims import claim_action
-from tyrant.ismcts.search import CLAIM_PHASES, search
+from tyrant.agents.ismcts.beliefs import role_assignments, role_weights
+from tyrant.agents.ismcts.claims import claim_action
+from tyrant.agents.ismcts.search import CLAIM_PHASES, search
 from tyrant.models.action import Action, PassAction
 from tyrant.models.enums import GamePhase
 from tyrant.models.game_state import GameState

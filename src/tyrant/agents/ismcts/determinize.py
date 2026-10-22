@@ -4,7 +4,7 @@ from typing import Final
 
 from frozendict import frozendict
 
-from tyrant.ismcts.beliefs import party_of
+from tyrant.agents.ismcts.beliefs import party_of
 from tyrant.models.ballot_box import BallotBox
 from tyrant.models.claim import PeekClaim
 from tyrant.models.deck import NUM_FASCIST_POLICIES, NUM_LIBERAL_POLICIES, Deck

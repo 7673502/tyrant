@@ -22,10 +22,10 @@ from multiprocessing import Pool
 from frozendict import frozendict
 
 from tyrant.agents.biased_random_agent import BiasedRandomAgent
+from tyrant.agents.ismcts.agent import ISMCTSAgent
+from tyrant.agents.ismcts.beliefs import role_assignments, role_weights
+from tyrant.agents.ismcts.search import search
 from tyrant.engine.game_runner import GameRunner
-from tyrant.ismcts.agent import ISMCTSAgent
-from tyrant.ismcts.beliefs import role_assignments, role_weights
-from tyrant.ismcts.search import search
 from tyrant.models.action import Action
 from tyrant.models.agent import Agent
 from tyrant.models.enums import Party, Role
