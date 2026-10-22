@@ -36,3 +36,9 @@ asyncio.run(main())
 | [Tutorials](tutorials/first-game.md) | Running a game, writing an agent, and playing LLMs against each other |
 | [Guides](guides/discussion.md) | Discussion, the event log, private knowledge, rendering, replays, prompting and agent resilience |
 | [API reference](reference/index.md) | Every public class and function, generated from the docstrings |
+
+## License
+
+Tyrant's code is released under the [MIT License](https://github.com/7673502/tyrant/blob/main/LICENSE).
+
+[Secret Hitler](https://www.secrethitler.com/) is a board game by Goat, Wolf & Cabbage (Mike Boxleiter, Tommy Maranges, and Max Temkin), licensed under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/). Tyrant is an independent implementation and is not affiliated with or endorsed by Goat, Wolf & Cabbage.
