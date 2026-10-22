@@ -12,8 +12,7 @@ Each subpackage exports its full vocabulary:
 |---|---|
 | [`tyrant.models`](models.md) | Every model, action, event, claim, knowledge and enum type, plus `create_game` and `scrub_state` |
 | [`tyrant.engine`](engine.md) | `GameRunner`, `get_legal_actions`, `apply_action`, the renderer and the replay functions |
-| [`tyrant.agents`](agents.md) | `RandomAgent`, `BiasedRandomAgent` and `HumanAgent` |
-| [`tyrant.agents.ismcts`](agents.md#tyrant.agents.ismcts) | `ISMCTSAgent`, an experimental information set Monte Carlo tree search player |
+| [`tyrant.agents`](agents.md) | `RandomAgent`, `BiasedRandomAgent`, `HumanAgent` and `ISMCTSAgent`, an experimental information set Monte Carlo tree search player |
 | [`tyrant.llm`](llm.md) | `SYSTEM_PROMPT`, `system_prompt`, `build_prompt` and `parse_action` |
 | [`tyrant.llm.agent`](llm.md#tyrant.llm.agent) | `LLMAgent`, which needs the `llm` extra |
 | [`tyrant.exceptions`](exceptions.md) | `TyrantError`, `InvalidMoveError` and `AgentError` |
